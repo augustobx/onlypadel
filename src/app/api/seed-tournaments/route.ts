@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: Request) {
   try {
     // 1. Crear usuarios dummy si no existen
-    const users = [];
+    const users: any[] = [];
     for (let i = 1; i <= 16; i++) {
       const phone = `11550000${i.toString().padStart(2, '0')}`;
       let user = await prisma.user.findFirst({ where: { phone } });
