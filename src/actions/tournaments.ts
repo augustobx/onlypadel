@@ -78,6 +78,7 @@ export async function createTournament(data: unknown) {
     });
 
     revalidatePath('/admin/torneos');
+    revalidatePath('/torneos');
     
     return { success: true, tournament };
   } catch (error) {
@@ -113,6 +114,8 @@ export async function updateTournament(id: string, data: unknown) {
 
     revalidatePath('/admin/torneos');
     revalidatePath(`/admin/torneos/${id}`);
+    revalidatePath('/torneos');
+    revalidatePath(`/torneos/${id}`);
     
     return { success: true, tournament };
   } catch (error) {
@@ -122,15 +125,23 @@ export async function updateTournament(id: string, data: unknown) {
 }
 
 // Acción dedicada para cambiar el status (sin pasar por el schema completo)
+const VALID_STATUSES = ['DRAFT', 'REGISTRATION', 'ONGOING', 'COMPLETED'] as const;
+type ValidStatus = typeof VALID_STATUSES[number];
+
 export async function updateTournamentStatus(id: string, status: string) {
+  if (!VALID_STATUSES.includes(status as ValidStatus)) {
+    return { success: false, error: `Estado inválido: ${status}` };
+  }
+
   try {
     await prisma.tournament.update({
       where: { id },
-      data: { status: status as any }
+      data: { status: status as ValidStatus }
     });
     revalidatePath('/admin/torneos');
     revalidatePath(`/admin/torneos/${id}`);
     revalidatePath('/torneos');
+    revalidatePath(`/torneos/${id}`);
     return { success: true };
   } catch (error) {
     console.error('Error actualizando estado:', error);
@@ -140,10 +151,19 @@ export async function updateTournamentStatus(id: string, status: string) {
 
 export async function deleteTournament(id: string) {
   try {
-    await prisma.tournament.delete({
-      where: { id }
-    });
+    // Eliminar en cascada: primero los datos hijos que no tienen onDelete: Cascade
+    const categories = await prisma.tournamentCategory.findMany({ where: { tournamentId: id } });
+    for (const cat of categories) {
+      await prisma.tournamentMatch.deleteMany({ where: { categoryId: cat.id } });
+      await prisma.tournamentGroupTeam.deleteMany({ where: { group: { categoryId: cat.id } } });
+      await prisma.tournamentGroup.deleteMany({ where: { categoryId: cat.id } });
+      await prisma.tournamentTeam.deleteMany({ where: { categoryId: cat.id } });
+    }
+    await prisma.tournamentCategory.deleteMany({ where: { tournamentId: id } });
+    await prisma.tournament.delete({ where: { id } });
+    
     revalidatePath('/admin/torneos');
+    revalidatePath('/torneos');
     return { success: true };
   } catch (error) {
     console.error('Error deleting tournament:', error);

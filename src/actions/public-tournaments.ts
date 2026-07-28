@@ -50,6 +50,29 @@ export async function getTournamentDetails(id: string) {
 
 export async function registerTeam(tournamentId: string, categoryId: string, data: any) {
   try {
+    // FIX #7: Validar que el torneo esté en estado de inscripción
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        categories: {
+          include: { _count: { select: { teams: true } } }
+        }
+      }
+    });
+    
+    if (!tournament) return { success: false, error: 'Torneo no encontrado' };
+    if (tournament.status !== 'REGISTRATION') {
+      return { success: false, error: 'Las inscripciones para este torneo están cerradas' };
+    }
+
+    // Validar cupo máximo (global)
+    if (tournament.maxTeams) {
+      const totalTeams = tournament.categories.reduce((acc, cat) => acc + cat._count.teams, 0);
+      if (totalTeams >= tournament.maxTeams && !data.teamId) {
+        return { success: false, error: 'Se alcanzó el cupo máximo de parejas' };
+      }
+    }
+
     const phone1 = normalizePhoneForWhatsApp(data.player1Phone);
     const phone2 = data.player2Phone ? normalizePhoneForWhatsApp(data.player2Phone) : null;
 

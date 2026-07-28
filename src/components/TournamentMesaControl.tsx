@@ -1,18 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { updateMatchScore, setMatchInProgress } from '@/actions/tournament-engine';
+import { updateMatchScore, setMatchInProgress, resetMatchResult, updateMatchAssignment } from '@/actions/tournament-engine';
+import { getCourts } from '@/actions/courts';
 import { useRouter } from 'next/navigation';
-import { Play, CheckCircle2, Clock, ChevronDown } from 'lucide-react';
+import { Play, CheckCircle2, Clock, ChevronDown, RotateCcw, MapPin } from 'lucide-react';
 
 export default function TournamentMesaControl({ tournament }: { tournament: any }) {
   const [loading, setLoading] = useState<string | null>(null);
   const [collapsedZones, setCollapsedZones] = useState<Record<string, boolean>>({});
+  const [courts, setCourts] = useState<any[]>([]);
+  const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    getCourts().then(res => {
+      if (res.success && res.data) setCourts(res.data);
+    });
+  }, []);
 
   const matches = (tournament.categories || []).flatMap((c: any) =>
     (c.matches || []).map((m: any) => ({ ...m, categoryName: c.name }))
@@ -58,6 +67,30 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
 
     setLoading(matchId);
     await updateMatchScore(matchId, s1, s2, wId);
+    setLoading(null);
+    router.refresh();
+  };
+
+  // #12 — Resetear resultado
+  const handleReset = async (matchId: string) => {
+    if (!confirm('¿Revertir este resultado? Se limpiarán el score, ganador, estadísticas de zona y propagación al cuadro.')) return;
+    setLoading(`reset_${matchId}`);
+    await resetMatchResult(matchId);
+    setLoading(null);
+    router.refresh();
+  };
+
+  // #13 — Asignar cancha/horario
+  const handleAssignment = async (matchId: string) => {
+    const courtId = (document.getElementById(`court-${matchId}`) as HTMLSelectElement)?.value || '';
+    const startTime = (document.getElementById(`time-${matchId}`) as HTMLInputElement)?.value || '';
+
+    setLoading(`assign_${matchId}`);
+    await updateMatchAssignment(matchId, {
+      courtId: courtId || null,
+      startTime: startTime || null,
+    });
+    setEditingAssignment(null);
     setLoading(null);
     router.refresh();
   };
@@ -116,11 +149,12 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
 
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
-                                <span className={`flex-1 truncate text-sm ${m.team1?.name.startsWith('Plaza') ? 'text-slate-400 italic' : 'font-medium'}`}>{m.team1?.name || 'TBD'}</span>
+                                {/* FIX #4: optional chaining para evitar crash con team1/team2 null */}
+                                <span className={`flex-1 truncate text-sm ${m.team1?.name?.startsWith('Plaza') ? 'text-slate-400 italic' : 'font-medium'}`}>{m.team1?.name || 'TBD'}</span>
                                 <Input id={`s1-${m.id}`} type="text" placeholder="6-4 / 7-5" defaultValue={m.scoreTeam1 || ''} className="w-28 text-center h-8 text-sm" />
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className={`flex-1 truncate text-sm ${m.team2?.name.startsWith('Plaza') ? 'text-slate-400 italic' : 'font-medium'}`}>{m.team2?.name || 'TBD'}</span>
+                                <span className={`flex-1 truncate text-sm ${m.team2?.name?.startsWith('Plaza') ? 'text-slate-400 italic' : 'font-medium'}`}>{m.team2?.name || 'TBD'}</span>
                                 <Input id={`s2-${m.id}`} type="text" placeholder="4-6 / 5-7" defaultValue={m.scoreTeam2 || ''} className="w-28 text-center h-8 text-sm" />
                               </div>
                             </div>
@@ -130,6 +164,37 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
                               {m.team1Id && <option value={m.team1Id}>{m.team1?.name}</option>}
                               {m.team2Id && <option value={m.team2Id}>{m.team2?.name}</option>}
                             </select>
+
+                            {/* #13 — Asignar cancha/horario (solo partidos de fase final sin grupo) */}
+                            {!m.groupId && (
+                              <>
+                                {editingAssignment === m.id ? (
+                                  <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <select id={`court-${m.id}`} defaultValue={m.courtId || ''} className="h-8 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-xs outline-none">
+                                        <option value="">Sin cancha</option>
+                                        {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                      </select>
+                                      <Input id={`time-${m.id}`} type="datetime-local" defaultValue={m.startTime ? new Date(m.startTime).toISOString().slice(0, 16) : ''} className="h-8 text-xs" />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => setEditingAssignment(null)}>Cancelar</Button>
+                                      <Button size="sm" className="flex-1 h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={() => handleAssignment(m.id)} disabled={loading === `assign_${m.id}`}>
+                                        {loading === `assign_${m.id}` ? '...' : 'Guardar'}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setEditingAssignment(m.id)}
+                                    className="w-full text-xs text-slate-400 hover:text-blue-500 flex items-center justify-center gap-1 py-1 transition-colors"
+                                  >
+                                    <MapPin className="w-3 h-3" />
+                                    {m.courtId ? 'Cambiar cancha/hora' : 'Asignar cancha y horario'}
+                                  </button>
+                                )}
+                              </>
+                            )}
 
                             <div className="flex gap-2 pt-2">
                               {m.status === 'SCHEDULED' && (
@@ -171,13 +236,22 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {completedMatches.map((m: any) => (
-              <div key={m.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 text-sm">
-                <div className="flex-1">
+              <div key={m.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 text-sm group">
+                <div className="flex-1 min-w-0">
                   <span className={`${m.winnerId === m.team1Id ? 'font-bold text-emerald-600' : 'text-slate-500'}`}>{m.team1?.name}</span>
                   <span className="mx-2 text-slate-400">vs</span>
                   <span className={`${m.winnerId === m.team2Id ? 'font-bold text-emerald-600' : 'text-slate-500'}`}>{m.team2?.name}</span>
                 </div>
-                <span className="font-mono font-bold text-xs">{m.scoreTeam1} / {m.scoreTeam2}</span>
+                <span className="font-mono font-bold text-xs mr-2">{m.scoreTeam1} / {m.scoreTeam2}</span>
+                {/* #12 — Botón resetear resultado */}
+                <button
+                  onClick={() => handleReset(m.id)}
+                  disabled={loading === `reset_${m.id}`}
+                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all p-1 rounded"
+                  title="Deshacer resultado"
+                >
+                  <RotateCcw className={`w-4 h-4 ${loading === `reset_${m.id}` ? 'animate-spin' : ''}`} />
+                </button>
               </div>
             ))}
           </div>

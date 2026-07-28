@@ -12,13 +12,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { registerTeam } from '@/actions/public-tournaments';
-import { deleteTeam } from '@/actions/tournament-engine';
+import { deleteTeam, toggleTeamPaid } from '@/actions/tournament-engine';
 import { useRouter } from 'next/navigation';
-import { Users, Trash2 } from 'lucide-react';
+import { Users, Trash2, DollarSign } from 'lucide-react';
 
 export default function TournamentTeamsModal({ category, tournamentId }: { category: any; tournamentId: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingPaid, setLoadingPaid] = useState<string | null>(null);
   const router = useRouter();
 
   const [formData, setFormData] = useState({
@@ -47,6 +48,14 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
     router.refresh();
   };
 
+  // #8 — Toggle isPaid
+  const handleTogglePaid = async (teamId: string) => {
+    setLoadingPaid(teamId);
+    await toggleTeamPaid(teamId);
+    setLoadingPaid(null);
+    router.refresh();
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       {/* @ts-expect-error - asChild type issue */}
@@ -56,7 +65,7 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[650px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Inscriptos — {category.name}</DialogTitle>
         </DialogHeader>
@@ -67,6 +76,7 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
             <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
+                  <th className="p-2 text-left font-medium">#</th>
                   <th className="p-2 text-left font-medium">Pareja</th>
                   <th className="p-2 text-left font-medium">Jugador 1</th>
                   <th className="p-2 text-left font-medium">Jugador 2</th>
@@ -75,12 +85,37 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
                 </tr>
               </thead>
               <tbody>
-                {category.teams?.map((t: any) => (
+                {category.teams?.map((t: any, idx: number) => (
                   <tr key={t.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="p-2 text-slate-400 text-xs font-mono">{idx + 1}</td>
                     <td className="p-2 font-medium">{t.name || '-'}</td>
-                    <td className="p-2">{t.player1?.name || t.phone1 || '-'}</td>
-                    <td className="p-2">{t.player2?.name || t.phone2 || '-'}</td>
-                    <td className="p-2 text-center">{t.isPaid ? '✅' : '❌'}</td>
+                    <td className="p-2">
+                      <div>{t.player1?.name || '-'}</div>
+                      {t.phone1 && <div className="text-[10px] text-slate-400">{t.phone1}</div>}
+                    </td>
+                    <td className="p-2">
+                      <div>{t.player2?.name || t.phone2 || '-'}</div>
+                      {t.phone2 && t.player2?.name && <div className="text-[10px] text-slate-400">{t.phone2}</div>}
+                    </td>
+                    <td className="p-2 text-center">
+                      {/* #8 — Toggle isPaid */}
+                      <button
+                        onClick={() => handleTogglePaid(t.id)}
+                        disabled={loadingPaid === t.id}
+                        className={`px-2 py-1 rounded-md text-xs font-bold transition-all ${
+                          t.isPaid 
+                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200' 
+                            : 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 hover:bg-red-100'
+                        }`}
+                        title={t.isPaid ? 'Click para marcar como no pagado' : 'Click para marcar como pagado'}
+                      >
+                        {loadingPaid === t.id ? '...' : t.isPaid ? (
+                          <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> Pagó</span>
+                        ) : (
+                          '❌ Debe'
+                        )}
+                      </button>
+                    </td>
                     <td className="p-2">
                       <button onClick={() => handleDelete(t.id)} className="text-red-400 hover:text-red-600">
                         <Trash2 className="w-4 h-4" />
@@ -89,7 +124,7 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
                   </tr>
                 ))}
                 {!category.teams?.length && (
-                  <tr><td colSpan={5} className="p-4 text-center text-slate-500">No hay inscriptos aún</td></tr>
+                  <tr><td colSpan={6} className="p-4 text-center text-slate-500">No hay inscriptos aún</td></tr>
                 )}
               </tbody>
             </table>

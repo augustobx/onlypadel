@@ -7,13 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { createCategory, deleteCategory, generateKnockoutBracket, generateKnockoutFromZones } from '@/actions/tournament-engine';
+import { createCategory, deleteCategory, renameCategory, generateKnockoutBracket, generateKnockoutFromZones } from '@/actions/tournament-engine';
 import { updateTournamentStatus } from '@/actions/tournaments';
 import TournamentMesaControl from './TournamentMesaControl';
 import TournamentTeamsModal from './TournamentTeamsModal';
 import TournamentZonesGeneratorModal from './TournamentZonesGeneratorModal';
 import TournamentBracketView from './TournamentBracketView';
-import { Trash2, Zap, Users, Settings, LayoutGrid, Trophy, PlayCircle, MonitorPlay, Bot } from 'lucide-react';
+import { Trash2, Zap, Users, Settings, LayoutGrid, Trophy, PlayCircle, MonitorPlay, Bot, Edit2, Check, X, Clock } from 'lucide-react';
 
 export default function TournamentManager({ tournament }: { tournament: any }) {
   const router = useRouter();
@@ -21,6 +21,10 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
   const [newCatName, setNewCatName] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'config' | 'equipos' | 'zonas' | 'llaves' | 'mesa'>('config');
+  
+  // #9 — Edit category name
+  const [editingCat, setEditingCat] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState('');
 
   const handleStatusChange = async (newStatus: string) => {
     setLoading('status');
@@ -42,6 +46,17 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
     if (!confirm('¿Eliminar esta categoría y todos sus datos?')) return;
     setLoading(catId);
     await deleteCategory(catId);
+    setLoading(null);
+    router.refresh();
+  };
+
+  // #9 — Rename category
+  const handleRenameCategory = async (catId: string) => {
+    if (!editCatName.trim()) return;
+    setLoading(`rename_${catId}`);
+    await renameCategory(catId, editCatName.trim());
+    setEditingCat(null);
+    setEditCatName('');
     setLoading(null);
     router.refresh();
   };
@@ -134,10 +149,35 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
                 <div className="space-y-3">
                   {tournament.categories.map((cat: any) => (
                     <div key={cat.id} className="p-4 border rounded-xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                      <div>
-                        <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-                          {cat.name} <Badge variant="secondary" className="text-xs">{cat.format || tournament.format}</Badge>
-                        </h3>
+                      <div className="flex-1 min-w-0">
+                        {editingCat === cat.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={editCatName}
+                              onChange={e => setEditCatName(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleRenameCategory(cat.id)}
+                              className="h-8 text-sm max-w-xs"
+                              autoFocus
+                            />
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600" onClick={() => handleRenameCategory(cat.id)} disabled={loading === `rename_${cat.id}`}>
+                              <Check className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-400" onClick={() => { setEditingCat(null); setEditCatName(''); }}>
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                            {cat.name} <Badge variant="secondary" className="text-xs">{cat.format || tournament.format}</Badge>
+                            <button 
+                              className="text-slate-400 hover:text-blue-500 transition-colors p-1"
+                              onClick={() => { setEditingCat(cat.id); setEditCatName(cat.name); }}
+                              title="Renombrar categoría"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          </h3>
+                        )}
                         <p className="text-sm text-slate-500 mt-1">
                           {cat.teams?.length || 0} parejas inscriptas
                         </p>
@@ -246,7 +286,7 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
         </Card>
       )}
 
-      {/* TAB CONTENT: ZONAS */}
+      {/* TAB CONTENT: ZONAS (#16 — Mostrar partidos de zona) */}
       {activeTab === 'zonas' && (
         <Card className="shadow-sm border-slate-200 dark:border-slate-800">
           <CardHeader>
@@ -267,19 +307,67 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
                   
                   {hasZones && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                      {cat.groups.map((g: any) => (
-                        <div key={g.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
-                          <h4 className="font-bold text-emerald-600 dark:text-emerald-400 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">{g.name}</h4>
-                          <div className="space-y-2">
-                            {g.teams.map((gt: any, i: number) => (
-                              <div key={gt.id} className="flex justify-between items-center text-sm">
-                                <span className="font-medium text-slate-700 dark:text-slate-200">{i+1}. {gt.team.name}</span>
-                                <Badge variant="secondary" className="font-mono">{gt.points || 0} pts</Badge>
+                      {cat.groups.map((g: any) => {
+                        // Filtrar partidos de este grupo
+                        const groupMatches = cat.matches?.filter((m: any) => m.groupId === g.id)
+                          ?.sort((a: any, b: any) => {
+                            if (a.startTime && b.startTime) return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+                            return a.matchOrder - b.matchOrder;
+                          }) || [];
+
+                        return (
+                          <div key={g.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
+                            <h4 className="font-bold text-emerald-600 dark:text-emerald-400 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">{g.name}</h4>
+                            
+                            {/* Tabla de posiciones */}
+                            <div className="space-y-2 mb-4">
+                              {g.teams.map((gt: any, i: number) => (
+                                <div key={gt.id} className="flex justify-between items-center text-sm">
+                                  <span className="font-medium text-slate-700 dark:text-slate-200">{i+1}. {gt.team.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-slate-400">{gt.matchesPlayed}PJ {gt.matchesWon}G {gt.matchesLost}P</span>
+                                    <Badge variant="secondary" className="font-mono">{gt.points || 0} pts</Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* #16 — Partidos del grupo */}
+                            {groupMatches.length > 0 && (
+                              <div className="border-t border-slate-100 dark:border-slate-700 pt-3 space-y-1.5">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Partidos</p>
+                                {groupMatches.map((m: any) => (
+                                  <div key={m.id} className={`flex items-center text-xs rounded-lg px-2 py-1.5 ${
+                                    m.status === 'COMPLETED' ? 'bg-emerald-50 dark:bg-emerald-900/10' :
+                                    m.status === 'IN_PROGRESS' ? 'bg-red-50 dark:bg-red-900/10' :
+                                    'bg-slate-50 dark:bg-slate-900/30'
+                                  }`}>
+                                    {m.startTime && (
+                                      <span className="text-slate-400 font-mono w-12 shrink-0 flex items-center gap-0.5">
+                                        <Clock className="w-2.5 h-2.5" />
+                                        {new Date(m.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    )}
+                                    <span className={`flex-1 truncate ${m.winnerId === m.team1Id && m.winnerId ? 'font-bold text-emerald-600' : 'text-slate-600 dark:text-slate-300'}`}>
+                                      {m.team1?.name || '?'}
+                                    </span>
+                                    <span className="text-slate-400 mx-1 shrink-0">vs</span>
+                                    <span className={`flex-1 truncate text-right ${m.winnerId === m.team2Id && m.winnerId ? 'font-bold text-emerald-600' : 'text-slate-600 dark:text-slate-300'}`}>
+                                      {m.team2?.name || '?'}
+                                    </span>
+                                    {m.status === 'COMPLETED' && (
+                                      <span className="ml-2 font-mono text-slate-500 shrink-0">{m.scoreTeam1} - {m.scoreTeam2}</span>
+                                    )}
+                                    {m.status === 'IN_PROGRESS' && (
+                                      <span className="ml-2 text-red-500 font-bold shrink-0">🔴</span>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
