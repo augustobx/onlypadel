@@ -1,101 +1,198 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const court1Id = '417bb319-b4ff-4bea-bae7-95f6449293a9';
-    const court2Id = 'b31f84ff-9aed-42cc-a2c1-5a2ce126baf8';
-    const courts = [court1Id, court2Id];
-
-    // 1. Horarios
-    for (const courtId of courts) {
-      for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++) {
-        await prisma.businessHour.upsert({
-          where: { courtId_dayOfWeek: { courtId, dayOfWeek } },
-          update: { openTime: '08:00', closeTime: '23:00', slotDuration: 90 },
-          create: { courtId, dayOfWeek, openTime: '08:00', closeTime: '23:00', slotDuration: 90 }
+    // 1. Crear usuarios dummy si no existen
+    const users = [];
+    for (let i = 1; i <= 16; i++) {
+      const phone = `11550000${i.toString().padStart(2, '0')}`;
+      let user = await prisma.user.findFirst({ where: { phone } });
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            name: `Jugador ${i}`,
+            phone,
+            email: `jugador${i}@test.com`,
+            role: 'PLAYER'
+          }
         });
       }
+      users.push(user);
     }
 
-    // Fechas
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const createTeams = (categoryId: string, count: number, startIndex = 0) => {
+      const teams = [];
+      for (let i = 0; i < count; i++) {
+        const p1 = users[(startIndex + i * 2) % users.length];
+        const p2 = users[(startIndex + i * 2 + 1) % users.length];
+        teams.push({
+          categoryId,
+          name: `${p1.name.split(' ')[1]} / ${p2.name.split(' ')[1]}`,
+          player1Id: p1.id,
+          player2Id: p2.id,
+          phone1: p1.phone,
+          phone2: p2.phone,
+          isPaid: i % 2 === 0,
+        });
+      }
+      return teams;
+    };
+
+    // ==========================================
+    // ESCENARIO 1: Torneo en Borrador
+    // ==========================================
+    const t1 = await prisma.tournament.create({
+      data: {
+        name: 'Copa de Invierno (Draft)',
+        startDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+        endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 32),
+        status: 'DRAFT',
+        entryFee: 15000,
+        isPublished: false,
+        format: 'KNOCKOUT',
+      }
+    });
+    await prisma.tournamentCategory.create({
+      data: { tournamentId: t1.id, name: '7ma Libre', format: 'KNOCKOUT' }
+    });
+
+    // ==========================================
+    // ESCENARIO 2: Torneo en Inscripción
+    // ==========================================
+    const t2 = await prisma.tournament.create({
+      data: {
+        name: 'Torneo Aniversario (Inscripciones)',
+        startDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 15),
+        endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 17),
+        status: 'REGISTRATION',
+        entryFee: 12000,
+        isPublished: true,
+        requireDeposit: true,
+        depositAmount: 5000,
+        format: 'MIXED',
+        maxTeams: 32,
+      }
+    });
+    const t2Cat1 = await prisma.tournamentCategory.create({
+      data: { tournamentId: t2.id, name: '5ta Masculina', format: 'MIXED' }
+    });
+    const t2Cat2 = await prisma.tournamentCategory.create({
+      data: { tournamentId: t2.id, name: 'Suma 13', format: 'MIXED' }
+    });
+
+    await prisma.tournamentTeam.createMany({ data: createTeams(t2Cat1.id, 3, 0) });
+    await prisma.tournamentTeam.createMany({ data: createTeams(t2Cat2.id, 2, 6) });
+
+    // ==========================================
+    // ESCENARIO 3: Torneo En Curso (Knockout)
+    // ==========================================
+    const t3 = await prisma.tournament.create({
+      data: {
+        name: 'Master Series (Llaves)',
+        startDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1),
+        endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 1),
+        status: 'ONGOING',
+        entryFee: 20000,
+        isPublished: true,
+        format: 'KNOCKOUT',
+      }
+    });
+    const t3Cat = await prisma.tournamentCategory.create({
+      data: { tournamentId: t3.id, name: '4ta Libre', format: 'KNOCKOUT' }
+    });
     
-    const d1 = new Date(today);
-    d1.setHours(17, 0, 0, 0);
-    const d1_end = new Date(d1);
-    d1_end.setHours(18, 30, 0, 0);
+    await prisma.tournamentTeam.createMany({ data: createTeams(t3Cat.id, 4, 0) });
+    const t3Teams = await prisma.tournamentTeam.findMany({ where: { categoryId: t3Cat.id } });
 
-    const d2 = new Date(today);
-    d2.setHours(20, 0, 0, 0);
-    const d2_end = new Date(d2);
-    d2_end.setHours(21, 30, 0, 0);
+    await prisma.tournamentMatch.create({
+      data: {
+        categoryId: t3Cat.id, round: 1, matchOrder: 1, roundName: 'Semifinal',
+        team1Id: t3Teams[0].id, team2Id: t3Teams[1].id,
+        status: 'COMPLETED', scoreTeam1: '6-4 / 7-5', winnerId: t3Teams[0].id
+      }
+    });
+    await prisma.tournamentMatch.create({
+      data: {
+        categoryId: t3Cat.id, round: 1, matchOrder: 2, roundName: 'Semifinal',
+        team1Id: t3Teams[2].id, team2Id: t3Teams[3].id,
+        status: 'IN_PROGRESS', scoreTeam1: '6-4 / 3-5',
+      }
+    });
+    await prisma.tournamentMatch.create({
+      data: {
+        categoryId: t3Cat.id, round: 2, matchOrder: 1, roundName: 'Final',
+        team1Id: t3Teams[0].id, status: 'SCHEDULED'
+      }
+    });
 
-    const d3 = new Date(today);
-    d3.setDate(d3.getDate() + 1);
-    d3.setHours(18, 30, 0, 0);
-    const d3_end = new Date(d3);
-    d3_end.setHours(20, 0, 0, 0);
+    // ==========================================
+    // ESCENARIO 4: Torneo En Curso (Zonas)
+    // ==========================================
+    const t4 = await prisma.tournament.create({
+      data: {
+        name: 'Open T-Padel (Zonas)',
+        startDate: new Date(Date.now() - 1000 * 60 * 60 * 2),
+        endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 2),
+        status: 'ONGOING',
+        entryFee: 18000,
+        isPublished: true,
+        format: 'MIXED',
+      }
+    });
+    const t4Cat = await prisma.tournamentCategory.create({
+      data: { tournamentId: t4.id, name: '6ta Femenina', format: 'ROUND_ROBIN' }
+    });
 
-    // Usuario
-    let demoUser = await prisma.user.findFirst({ where: { email: 'juan@tpadel.com' } });
-    if (!demoUser) {
-      demoUser = await prisma.user.create({
-        data: {
-          email: 'juan@tpadel.com',
-          name: 'Juan',
-          lastName: 'Pérez',
-          phone: '1122334455',
-          role: 'PLAYER'
-        }
-      });
+    const groupA = await prisma.tournamentGroup.create({
+      data: { categoryId: t4Cat.id, name: 'Zona A' }
+    });
+    await prisma.tournamentTeam.createMany({ data: createTeams(t4Cat.id, 3, 0) });
+    const teamsA = await prisma.tournamentTeam.findMany({ where: { categoryId: t4Cat.id }, take: 3 });
+    
+    for (const t of teamsA) {
+      await prisma.tournamentGroupTeam.create({ data: { groupId: groupA.id, teamId: t.id } });
     }
 
-    // 2. Turnos comunes
-    await prisma.booking.create({
-      data: { startTime: d1, endTime: d1_end, courtId: court1Id, userId: demoUser.id, status: 'CONFIRMED', totalAmount: 15000 }
+    await prisma.tournamentMatch.create({
+      data: {
+        categoryId: t4Cat.id, groupId: groupA.id,
+        round: 1, matchOrder: 1, roundName: 'Fase de Grupos',
+        team1Id: teamsA[0].id, team2Id: teamsA[1].id,
+        status: 'COMPLETED', scoreTeam1: '6-2 / 6-4', winnerId: teamsA[0].id,
+        startTime: new Date(Date.now() - 1000 * 60 * 60)
+      }
     });
-    await prisma.booking.create({
-      data: { startTime: d2, endTime: d2_end, courtId: court2Id, userId: demoUser.id, status: 'PENDING', totalAmount: 15000 }
+    await prisma.tournamentMatch.create({
+      data: {
+        categoryId: t4Cat.id, groupId: groupA.id,
+        round: 1, matchOrder: 2, roundName: 'Fase de Grupos',
+        team1Id: teamsA[0].id, team2Id: teamsA[2].id,
+        status: 'IN_PROGRESS', scoreTeam1: '6-4 / 2-1',
+        startTime: new Date()
+      }
     });
-    await prisma.booking.create({
-      data: { startTime: d3, endTime: d3_end, courtId: court1Id, userId: demoUser.id, status: 'CONFIRMED', totalAmount: 15000 }
-    });
-
-    // 3. Bloqueos
-    const b1 = new Date(today);
-    b1.setHours(8, 0, 0, 0);
-    const b1_end = new Date(b1);
-    b1_end.setHours(9, 30, 0, 0);
-
-    const b2 = new Date(today);
-    b2.setDate(b2.getDate() + 2);
-    b2.setHours(9, 30, 0, 0);
-    const b2_end = new Date(b2);
-    b2_end.setHours(11, 0, 0, 0);
-
-    await prisma.courtBlock.create({
-      data: { startTime: b1, endTime: b1_end, courtId: court1Id, reason: 'Mantenimiento' }
-    });
-    await prisma.courtBlock.create({
-      data: { startTime: b2, endTime: b2_end, courtId: court2Id, reason: 'Clase particular' }
+    await prisma.tournamentMatch.create({
+      data: {
+        categoryId: t4Cat.id, groupId: groupA.id,
+        round: 1, matchOrder: 3, roundName: 'Fase de Grupos',
+        team1Id: teamsA[1].id, team2Id: teamsA[2].id,
+        status: 'SCHEDULED',
+        startTime: new Date(Date.now() + 1000 * 60 * 60)
+      }
     });
 
-    // 4. Fijos
-    const startDate = new Date(today);
-    const endDate = new Date(today);
-    endDate.setMonth(endDate.getMonth() + 6); // 6 meses
-
-    await prisma.fixedBooking.create({
-      data: { dayOfWeek: 2, startTime: '18:30', endTime: '20:00', startDate, endDate, courtId: court2Id, userId: demoUser.id, isActive: true }
+    await prisma.tournamentGroupTeam.updateMany({
+      where: { groupId: groupA.id, teamId: teamsA[0].id },
+      data: { points: 3, matchesPlayed: 1, matchesWon: 1, setsWon: 2, gamesWon: 12, gamesLost: 6 }
     });
-    await prisma.fixedBooking.create({
-      data: { dayOfWeek: 4, startTime: '21:30', endTime: '23:00', startDate, endDate, courtId: court1Id, userId: demoUser.id, isActive: true }
+    await prisma.tournamentGroupTeam.updateMany({
+      where: { groupId: groupA.id, teamId: teamsA[1].id },
+      data: { points: 0, matchesPlayed: 1, matchesLost: 1, setsLost: 2, gamesWon: 6, gamesLost: 12 }
     });
 
-    return NextResponse.json({ success: true, message: 'Seeded correctly' });
+    return NextResponse.json({ success: true, message: 'Torneos creados correctamente' });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message });
   }
 }
