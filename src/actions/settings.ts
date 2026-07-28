@@ -54,9 +54,9 @@ export async function updateSystemSettings(formData: FormData) {
         await prisma.systemSetting.update({
             where: { id: 1 },
             data: {
-                clubName, topbarName, contactPhone, courtPhone, apiPhone, mpAccessToken, reservationFee, sportEmoji, theme, appLayout, heroImage,
+                clubName, topbarName, contactPhone, courtPhone, apiPhone, mpAccessToken, reservationFee, sportEmoji, theme, appLayout,
                 reservationsEnabled, whatsappReservations, pwaEnabled, autoWhatsapp, requireDeposit, notifyAdmin, tournamentsEnabled,
-                usersModuleEnabled, requireDepositForRegistered, clientCancellations,
+                usersModuleEnabled, requireDepositForRegistered,
                 adminUser, adminPass,
                 splashLogo, splashName, splashDuration,
                 bubbleActive, bubbleText, bubbleColor, bubbleDuration,
