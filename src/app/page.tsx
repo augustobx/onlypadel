@@ -5,7 +5,7 @@ import BookingFlow from "@/components/BookingFlow";
 import BookingFlowChat from "@/components/BookingFlowChat";
 import PublicNavbar from "@/components/PublicNavbar";
 import Link from "next/link";
-import { Trophy } from "lucide-react";
+import { Trophy, ChevronRight } from "lucide-react";
 import { cookies } from "next/headers";
 import UserWelcomeSplash from "@/components/UserWelcomeSplash";
 import { getUserSession } from "@/actions/user-auth";
@@ -13,7 +13,7 @@ import { getReadableForeground, normalizeHexColor } from "@/lib/color";
 
 export default async function HomePage() {
     const pubReq = await getPublicTournaments();
-    // Mostrar burbuja para cualquier torneo publicado que no esté terminado
+    // Mostrar banner para cualquier torneo publicado que no esté terminado
     const activeTournament = pubReq.data?.find(t => t.status !== 'COMPLETED');
 
     const courtsRes = await getPublicCourts();
@@ -86,20 +86,28 @@ export default async function HomePage() {
         >
             <div className="relative flex min-h-dvh w-full max-w-md flex-col overflow-hidden bg-white dark:bg-slate-900 md:h-[calc(100dvh-4rem)] md:max-h-[820px] md:min-h-0 md:rounded-[2.5rem] md:border md:border-slate-200 md:shadow-2xl dark:border-slate-800">
                 <PublicNavbar sysSettings={settings} />
+
+                {/* BANNER DE TORNEO ACTIVO (Posición superior integrada) */}
+                {settings?.tournamentsEnabled && activeTournament && (
+                  <div className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-4 py-2 text-white shadow-sm z-30 shrink-0 border-b border-amber-600/30">
+                    <Link href={`/torneos/${activeTournament.id}`} className="flex items-center justify-between gap-2 hover:opacity-95 transition-opacity">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Trophy className="w-4 h-4 text-yellow-100 animate-bounce shrink-0" />
+                        <span className="text-xs font-black tracking-wide truncate">
+                          {activeTournament.status === 'ONGOING' ? '¡Torneo en Juego!' : '¡Torneo Disponible!'} {activeTournament.name}
+                        </span>
+                      </div>
+                      <span className="bg-black/20 hover:bg-black/30 text-white px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0 flex items-center gap-1 transition-colors">
+                        Ver <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </Link>
+                  </div>
+                )}
+                
                 {appLayout === 'chat' ? (
                   <BookingFlowChat courts={courts} sysSettings={settings} session={session} today={today} />
                 ) : (
                   <BookingFlow courts={courts} sysSettings={settings} session={session} today={today} />
-                )}
-                
-                {/* BURBUJA DE TORNEO ACTIVO */}
-                {settings?.tournamentsEnabled && activeTournament && (
-                  <div className="absolute bottom-[110px] left-0 right-0 flex justify-center z-50 pointer-events-none">
-                    <Link href={`/torneos/${activeTournament.id}`} className="bg-gradient-to-r from-yellow-500 to-amber-600 text-white px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:scale-105 transition-all flex items-center gap-3 ring-4 ring-yellow-500/30 pointer-events-auto">
-                      <Trophy className="w-5 h-5 animate-bounce text-yellow-100" />
-                      <span className="font-bold text-sm tracking-wide">{activeTournament.status === 'ONGOING' ? '¡Torneo en Juego!' : 'Torneo Disponible'}</span>
-                    </Link>
-                  </div>
                 )}
             </div>
         </div>

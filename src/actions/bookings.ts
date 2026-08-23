@@ -8,12 +8,12 @@ import { z } from 'zod';
 import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
 
 const publicBookingSchema = z.object({
-  courtId: z.string().uuid(),
+  courtId: z.string().min(1).max(64),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   name: z.string().trim().min(2).max(100),
   phone: z.string().trim().min(6).max(30),
-  requestKey: z.string().min(16).max(64).regex(/^[a-zA-Z0-9_-]+$/),
+  requestKey: z.string().min(10).max(64).regex(/^[a-zA-Z0-9_-]+$/),
 });
 
 const activeBookingStatuses = ['PENDING', 'CONFIRMED', 'FIXED', 'BLOCKED'] as const;
@@ -75,16 +75,10 @@ export async function createBooking(data: {
       return { success: false, error: 'Revisá los datos ingresados e intentá nuevamente.' };
     }
     data = parsed.data;
-    // We need to parse time properly, even if time is wrapped around. Wait, public-bookings returns the actual next-day time if wrapped, e.g. "00:30". But we need to use the right date.
-    // However, if the time is wrapped (e.g. 00:30) and date is the selected visual day, we should ensure the booking logic handles it. 
-    // Actually, in public-bookings, the returned `time` is simply the wrapped "00:30" string. The user selects the `date` visually.
-    // If we receive time "00:30" for a business that opens at 09:00, it's obviously the next day.
-    const [h, m] = data.time.split(':').map(Number);
-    let finalDateStr = data.date;
-    // Simple heuristic: If hour is very early (e.g., < 6) but it's part of the evening schedule, it should belong to the next day.
-    // We can fetch business hour to verify.
-    const tempStartTime = new Date(`${data.date}T00:00:00-03:00`);
-    const dayOfWeek = tempStartTime.getDay();
+
+    // Cálculo robusto e independiente de la zona horaria del servidor
+    const [year, month, day] = data.date.split('-').map(Number);
+    const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
     const businessHour = await prisma.businessHour.findFirst({
       where: { courtId: data.courtId, dayOfWeek }
     });
@@ -93,16 +87,18 @@ export async function createBooking(data: {
       return { success: false, error: 'La cancha no está disponible ese día.' };
     }
 
+    const [h] = data.time.split(':').map(Number);
     const [openH] = businessHour.openTime.split(':').map(Number);
-    if (h < openH && h < 6) { 
-        // It's the next day
-        tempStartTime.setDate(tempStartTime.getDate() + 1);
-        finalDateStr = `${tempStartTime.getFullYear()}-${String(tempStartTime.getMonth() + 1).padStart(2, '0')}-${String(tempStartTime.getDate()).padStart(2, '0')}`;
+    const [closeH] = businessHour.closeTime.split(':').map(Number);
+    let finalDateStr = data.date;
+
+    // Si el turno pertenece a la madrugada posterior de una jornada que cruza medianoche
+    if (h < openH && (closeH <= openH || h < 6)) {
+      const nextDayDate = new Date(Date.UTC(year, month - 1, day + 1));
+      finalDateStr = `${nextDayDate.getUTCFullYear()}-${String(nextDayDate.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDayDate.getUTCDate()).padStart(2, '0')}`;
     }
 
     const startTime = new Date(`${finalDateStr}T${data.time}:00-03:00`);
-
-
     const endTime = new Date(startTime.getTime() + businessHour.slotDuration * 60000);
     const slotKey = getSlotKey(data.courtId, startTime);
 
@@ -141,22 +137,36 @@ export async function createBooking(data: {
     }
 
     if (!user) {
-      // Buscar o crear usuario ANTES de la transacción (no es crítico para race condition)
+      // Buscar o crear usuario ANTES de la transacción
+      const rawDigits = data.phone.replace(/\D/g, '');
       user = await prisma.user.findFirst({
-        where: { phone: normalizedPhone }
+        where: {
+          OR: [
+            { phone: normalizedPhone },
+            { phone: data.phone },
+            { phone: rawDigits }
+          ]
+        }
       });
 
       if (!user) {
-        user = await prisma.user.upsert({
-          where: { email: `${normalizedPhone}@cliente.tpadel` },
-          create: {
-            email: `${normalizedPhone}@cliente.tpadel`,
-            name: data.name,
-            phone: normalizedPhone,
-            role: 'PLAYER',
-          },
-          update: { name: data.name, phone: normalizedPhone },
-        });
+        const emailToUse = `${normalizedPhone}@cliente.tpadel`;
+        const existingByEmail = await prisma.user.findUnique({ where: { email: emailToUse } });
+        if (existingByEmail) {
+          user = await prisma.user.update({
+            where: { id: existingByEmail.id },
+            data: { name: data.name, phone: normalizedPhone }
+          });
+        } else {
+          user = await prisma.user.create({
+            data: {
+              email: emailToUse,
+              name: data.name,
+              phone: normalizedPhone,
+              role: 'PLAYER',
+            }
+          });
+        }
       } else {
         user = await prisma.user.update({
           where: { id: user.id },
@@ -164,9 +174,8 @@ export async function createBooking(data: {
         });
       }
     } else {
-      // If user is found via session, ensure their phone is normalized in DB
+      // Si el usuario está registrado con sesión, mantener sincronizado su teléfono
       if (user.phone !== normalizedPhone) {
-        // check if someone else is already using this normalized phone
         const exists = await prisma.user.findFirst({
           where: { phone: normalizedPhone, id: { not: user.id } }
         });

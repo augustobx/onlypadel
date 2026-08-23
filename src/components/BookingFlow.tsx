@@ -44,6 +44,13 @@ interface UserSession {
 
 const BOOKING_DRAFT_KEY = 'tpadel.booking-draft.v1';
 
+function formatLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export default function BookingFlow({ courts, sysSettings, session, today }: { courts: CourtOption[], sysSettings?: PublicSettings | null, session?: UserSession | null, today: string }) {
 
   // VARIABLES DINÁMICAS DESDE LA BASE DE DATOS
@@ -73,9 +80,9 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
   const [error, setError] = useState<string>('');
   const [draftReady, setDraftReady] = useState(false);
 
-  // ESTADO RESTAURADO: Solo Nombre y Teléfono (Sin email)
+  // ESTADO: Solo Nombre y Teléfono (Sin email)
   const [formData, setFormData] = useState({ 
-    name: session ? `${session.name} ${session.lastName}`.trim() : '', 
+    name: session ? `${session.name || ''} ${session.lastName || ''}`.trim() : '', 
     phone: session?.phone || '' 
   });
 
@@ -89,7 +96,14 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
             draft.date && draft.date >= today && draft.slot && draft.courtId
             && courts.some((court) => court.id === draft.courtId),
           );
-          if (draft.formData) setFormData(draft.formData);
+          if (session) {
+            setFormData({
+              name: `${session.name || ''} ${session.lastName || ''}`.trim(),
+              phone: session.phone || '',
+            });
+          } else if (draft.formData) {
+            setFormData(draft.formData);
+          }
           if (canRestoreSelection && draft.date && draft.courtId && draft.slot) {
             setSelectedDate(new Date(`${draft.date}T12:00:00`));
             setSlotsLoading(true);
@@ -107,11 +121,11 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [courts, today]);
+  }, [courts, today, session]);
 
   useEffect(() => {
     if (!draftReady || step === 3 || completedRef.current) return;
-    const date = new Date(selectedDate.getTime() - selectedDate.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    const date = formatLocalDateStr(selectedDate);
     window.sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify({ date, courtId: selectedCourt, slot: selectedSlot, formData, step }));
   }, [draftReady, selectedDate, selectedCourt, selectedSlot, formData, step]);
 
@@ -146,7 +160,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
   useEffect(() => {
     if (selectedCourt && selectedDate) {
       let active = true;
-      const dateStr = new Date(selectedDate.getTime() - selectedDate.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+      const dateStr = formatLocalDateStr(selectedDate);
 
       // Auto-scroll a la sección de horarios
       setTimeout(() => {
@@ -183,14 +197,14 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     setError('');
 
     try {
-      const dateStr = new Date(selectedDate.getTime() - selectedDate.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+      const dateStr = formatLocalDateStr(selectedDate);
 
       const bookingResult = await createBooking({
         courtId: selectedCourt,
         date: dateStr,
         time: selectedSlot,
-        name: formData.name,
-        phone: formData.phone,
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
         requestKey: getOrCreateBookingRequestKey(selectedCourt, dateStr, selectedSlot),
       });
 

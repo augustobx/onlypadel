@@ -2,16 +2,31 @@ services:
   db:
     image: mysql:8.0
     container_name: tpadel-db
-    restart: always
+    restart: unless-stopped
+
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-tpadel}
       MYSQL_USER: ${MYSQL_USER:-tpadeluser}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tpadelpassword}
+
     ports:
       - "3306:3306"
+
     volumes:
       - db_data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
     logging:
       driver: "json-file"
       options:
@@ -22,16 +37,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+
     container_name: tpadel-web
-    restart: always
+    restart: unless-stopped
+
     ports:
       - "3000:3000"
+
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
     env_file:
       - .env
+
     environment:
-      - DATABASE_URL=mysql://root:${MYSQL_ROOT_PASSWORD:-rootpassword}@db:3306/${MYSQL_DATABASE:-tpadel}?allowPublicKeyRetrieval=true
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mysql://${MYSQL_USER:-tpadeluser}:${MYSQL_PASSWORD:-tpadelpassword}@db:3306/${MYSQL_DATABASE:-tpadel}?allowPublicKeyRetrieval=true
+
     logging:
       driver: "json-file"
       options:
