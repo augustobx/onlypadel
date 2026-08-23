@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { registerTeam } from '@/actions/public-tournaments';
 import { deleteTeam, toggleTeamPaid } from '@/actions/tournament-engine';
 import { useRouter } from 'next/navigation';
-import { Users, Trash2, DollarSign } from 'lucide-react';
+import { Users, Trash2, DollarSign, UserPlus } from 'lucide-react';
 import type { TournamentCategoryView } from '@/lib/tournaments/types';
 
 export default function TournamentTeamsModal({ category, tournamentId }: { category: TournamentCategoryView; tournamentId: string }) {
@@ -26,8 +26,12 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
   const [formData, setFormData] = useState({
     teamName: '',
     player1Name: '',
+    player1LastName: '',
+    player1Dni: '',
     player1Phone: '',
     player2Name: '',
+    player2LastName: '',
+    player2Dni: '',
     player2Phone: '',
   });
 
@@ -41,7 +45,17 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
       setLoading(false);
       return;
     }
-    setFormData({ teamName: '', player1Name: '', player1Phone: '', player2Name: '', player2Phone: '' });
+    setFormData({
+      teamName: '',
+      player1Name: '',
+      player1LastName: '',
+      player1Dni: '',
+      player1Phone: '',
+      player2Name: '',
+      player2LastName: '',
+      player2Dni: '',
+      player2Phone: '',
+    });
     setLoading(false);
     router.refresh();
   };
@@ -54,7 +68,6 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
     router.refresh();
   };
 
-  // #8 — Toggle isPaid
   const handleTogglePaid = async (teamId: string) => {
     setLoadingPaid(teamId);
     await toggleTeamPaid(teamId);
@@ -93,15 +106,14 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
                     <td className="p-2 text-slate-400 text-xs font-mono">{idx + 1}</td>
                     <td className="p-2 font-medium">{t.name || '-'}</td>
                     <td className="p-2">
-                      <div>{t.player1?.name || '-'}</div>
+                      <div>{t.player1?.name} {t.player1?.lastName || ''}</div>
                       {t.phone1 && <div className="text-[10px] text-slate-400">{t.phone1}</div>}
                     </td>
                     <td className="p-2">
-                      <div>{t.player2?.name || t.phone2 || '-'}</div>
-                      {t.phone2 && t.player2?.name && <div className="text-[10px] text-slate-400">{t.phone2}</div>}
+                      <div>{t.player2?.name ? `${t.player2.name} ${t.player2.lastName || ''}` : t.phone2 || '-'}</div>
+                      {t.phone2 && <div className="text-[10px] text-slate-400">{t.phone2}</div>}
                     </td>
                     <td className="p-2 text-center">
-                      {/* #8 — Toggle isPaid */}
                       <button
                         onClick={() => handleTogglePaid(t.id)}
                         disabled={loadingPaid === t.id}
@@ -134,37 +146,67 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
           </div>
 
           {/* FORMULARIO MANUAL */}
-          <form onSubmit={handleAdd} className="space-y-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-            <h3 className="font-bold text-sm">Agregar Pareja Manualmente</h3>
+          <form onSubmit={handleAdd} className="space-y-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-sm flex items-center gap-1.5">
+                <UserPlus className="w-4 h-4 text-blue-500" />
+                Agregar Pareja Manualmente
+              </h3>
+              <span className="text-[11px] text-slate-400">Si no existen, se crean como usuarios automáticamente</span>
+            </div>
 
             <div>
-              <Label className="text-xs">Nombre de la Pareja</Label>
+              <Label className="text-xs font-bold">Nombre de la Pareja (opcional)</Label>
               <Input value={formData.teamName} onChange={e => setFormData({ ...formData, teamName: e.target.value })} placeholder="Ej: González / Pérez" className="h-9 text-sm" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Nombre Jugador 1</Label>
-                <Input required value={formData.player1Name} onChange={e => setFormData({ ...formData, player1Name: e.target.value })} className="h-9 text-sm" />
-              </div>
-              <div>
-                <Label className="text-xs">Teléfono J1</Label>
-                <Input required type="tel" value={formData.player1Phone} onChange={e => setFormData({ ...formData, player1Phone: e.target.value })} className="h-9 text-sm" />
+            {/* J1 */}
+            <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Jugador 1</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <Label className="text-[11px]">Nombre</Label>
+                  <Input required value={formData.player1Name} onChange={e => setFormData({ ...formData, player1Name: e.target.value })} className="h-8 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[11px]">Apellido</Label>
+                  <Input value={formData.player1LastName} onChange={e => setFormData({ ...formData, player1LastName: e.target.value })} className="h-8 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[11px]">DNI</Label>
+                  <Input value={formData.player1Dni} onChange={e => setFormData({ ...formData, player1Dni: e.target.value })} className="h-8 text-xs" placeholder="Sin puntos" />
+                </div>
+                <div>
+                  <Label className="text-[11px]">Teléfono</Label>
+                  <Input required type="tel" value={formData.player1Phone} onChange={e => setFormData({ ...formData, player1Phone: e.target.value })} className="h-8 text-xs" />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Nombre Jugador 2</Label>
-                <Input required value={formData.player2Name} onChange={e => setFormData({ ...formData, player2Name: e.target.value })} className="h-9 text-sm" />
-              </div>
-              <div>
-                <Label className="text-xs">Teléfono J2</Label>
-                <Input required type="tel" value={formData.player2Phone} onChange={e => setFormData({ ...formData, player2Phone: e.target.value })} className="h-9 text-sm" />
+            {/* J2 */}
+            <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">Jugador 2</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <Label className="text-[11px]">Nombre</Label>
+                  <Input required value={formData.player2Name} onChange={e => setFormData({ ...formData, player2Name: e.target.value })} className="h-8 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[11px]">Apellido</Label>
+                  <Input value={formData.player2LastName} onChange={e => setFormData({ ...formData, player2LastName: e.target.value })} className="h-8 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[11px]">DNI</Label>
+                  <Input value={formData.player2Dni} onChange={e => setFormData({ ...formData, player2Dni: e.target.value })} className="h-8 text-xs" placeholder="Sin puntos" />
+                </div>
+                <div>
+                  <Label className="text-[11px]">Teléfono</Label>
+                  <Input required type="tel" value={formData.player2Phone} onChange={e => setFormData({ ...formData, player2Phone: e.target.value })} className="h-8 text-xs" />
+                </div>
               </div>
             </div>
 
-            <Button type="submit" disabled={loading} size="sm" className="w-full">
+            <Button type="submit" disabled={loading} size="sm" className="w-full font-bold">
               {loading ? 'Guardando...' : 'Agregar Pareja'}
             </Button>
           </form>

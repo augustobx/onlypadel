@@ -9,7 +9,7 @@ export const courtSchema = z.object({
 });
 
 export const businessHourSchema = z.object({
-  courtId: z.string().uuid(),
+  courtId: z.string().min(1, "Cancha obligatoria"),
   dayOfWeek: z.number().int().min(0).max(6),
   openTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato inválido (HH:mm)"),
   closeTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato inválido (HH:mm)"),
@@ -26,8 +26,8 @@ export const businessHourSchema = z.object({
 // --- VALIDACIONES DE RESERVAS ---
 
 export const bookingSchema = z.object({
-  courtId: z.string().uuid("Cancha inválida"),
-  userId: z.string().uuid("Usuario inválido"),
+  courtId: z.string().min(1, "Cancha inválida"),
+  userId: z.string().min(1, "Usuario inválido"),
   totalPrice: z.coerce.number().positive("Precio inválido"),
   startTime: z.coerce.date(),
   endTime: z.coerce.date(),
@@ -37,8 +37,8 @@ export const bookingSchema = z.object({
 });
 
 export const fixedBookingSchema = z.object({
-  courtId: z.string().uuid(),
-  userId: z.string().uuid(),
+  courtId: z.string().min(1, "Cancha obligatoria"),
+  userId: z.string().min(1, "Usuario obligatorio"),
   dayOfWeek: z.number().int().min(0).max(6),
   startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato inválido"),
   endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato inválido"),
@@ -50,7 +50,7 @@ export const fixedBookingSchema = z.object({
 });
 
 export const courtBlockSchema = z.object({
-  courtId: z.string().uuid(),
+  courtId: z.string().min(1, "Cancha obligatoria"),
   startTime: z.coerce.date(),
   endTime: z.coerce.date(),
   reason: z.string().optional(),
