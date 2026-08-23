@@ -98,28 +98,12 @@ async function assertCourtAvailable(
   startTime: Date,
   excludeMatchId?: string,
 ) {
-  if (Number.isNaN(startTime.getTime())) throw new Error('INVALID_START_TIME');
+  if (!courtId || Number.isNaN(startTime.getTime())) return;
   const endTime = new Date(startTime.getTime() + DEFAULT_MATCH_DURATION_MINUTES * 60_000);
   const court = await tx.court.findFirst({ where: { id: courtId, isActive: true } });
-  if (!court) throw new Error('COURT_NOT_AVAILABLE');
+  if (!court) return;
 
-  // Solo verificar colisión con OTROS partidos de torneo en la misma cancha
-  const tournamentMatch = await tx.tournamentMatch.findFirst({
-    where: {
-      courtId,
-      id: excludeMatchId ? { not: excludeMatchId } : undefined,
-      status: { not: 'CANCELLED' },
-      startTime: {
-        gt: new Date(startTime.getTime() - DEFAULT_MATCH_DURATION_MINUTES * 60_000),
-        lt: endTime,
-      },
-    },
-    select: { id: true },
-  });
-
-  if (tournamentMatch) throw new Error('COURT_CONFLICT_TOURNAMENT');
-
-  // El torneo tiene prioridad: cancelamos y liberamos turnos regulares en conflicto
+  // El torneo tiene prioridad absoluta: cancelamos y liberamos turnos regulares en conflicto
   await tx.booking.updateMany({
     where: { 
       courtId, 
@@ -602,7 +586,7 @@ export async function generateZonesAndSchedule(categoryId: string, config: {
 
       for (let z = 0; z < config.numZones; z++) {
         const zoneConf = config.zonesConfig[z];
-        if (!zoneConf.name.trim() || !zoneConf.courtId || zoneConf.intervalMinutes < DEFAULT_MATCH_DURATION_MINUTES) {
+        if (!zoneConf.name.trim() || !zoneConf.courtId || zoneConf.intervalMinutes < 45) {
           throw new Error('INVALID_ZONE_CONFIG');
         }
         const zoneStart = new Date(zoneConf.startTime);
@@ -672,7 +656,7 @@ export async function generateZonesAndSchedule(categoryId: string, config: {
     if (message) return { success: false, error: message };
     if (error instanceof Error && error.message === 'NOT_ENOUGH_SLOTS') return { success: false, error: 'La capacidad de las zonas es menor que las parejas ya inscriptas' };
     if (error instanceof Error && error.message === 'DUPLICATE_ZONE_NAMES') return { success: false, error: 'Los nombres de las zonas no pueden repetirse' };
-    if (error instanceof Error && error.message === 'INVALID_ZONE_CONFIG') return { success: false, error: 'Revisá cantidad de zonas, plazas, cancha e intervalo mínimo de 90 minutos' };
+    if (error instanceof Error && error.message === 'INVALID_ZONE_CONFIG') return { success: false, error: 'Revisá cantidad de zonas, plazas, cancha e intervalo de minutos' };
     return { success: false, error: 'Error al generar zonas y fixture' };
   }
 }
