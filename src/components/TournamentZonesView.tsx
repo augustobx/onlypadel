@@ -8,12 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { 
   Clock, Edit2, ArrowRightLeft, Globe, EyeOff, Check, X, 
-  Trash2, MapPin, Calendar, CheckCircle2, AlertCircle 
+  ChevronUp, ChevronDown, RefreshCw, UserPlus, AlertTriangle, Users 
 } from 'lucide-react';
 import { 
   togglePublishZones, 
   renameTournamentGroup, 
   moveTeamToGroup, 
+  reorderTeamsInGroup,
+  syncCategoryZonesWithTeams,
+  addTeamToSpecificGroup,
   updateMatchTimeAndCourt 
 } from '@/actions/tournament-engine';
 import { getCourts } from '@/actions/courts';
@@ -42,6 +45,10 @@ export default function TournamentZonesView({
   const [movingPlacement, setMovingPlacement] = useState<{ id: string; teamName: string; currentGroupId: string } | null>(null);
   const [targetGroupId, setTargetGroupId] = useState('');
 
+  // Estados para asignar equipo específico a una zona
+  const [assigningGroup, setAssigningGroup] = useState<TournamentGroupView | null>(null);
+  const [selectedUnassignedTeamId, setSelectedUnassignedTeamId] = useState<string>('');
+
   // Estados para editar partido
   const [editingMatch, setEditingMatch] = useState<{
     id: string;
@@ -62,6 +69,17 @@ export default function TournamentZonesView({
   const hasZones = category.groups && category.groups.length > 0;
   const isPublished = Boolean(category.isZonesPublished);
 
+  // Calcular parejas no asignadas a ninguna zona
+  const assignedTeamIds = new Set<string>();
+  category.groups?.forEach(g => {
+    g.teams?.forEach(gt => {
+      if (gt.teamId) assignedTeamIds.add(gt.teamId);
+    });
+  });
+  const unassignedTeams = (category.teams || []).filter(t => 
+    t.player1?.phone !== 'DUMMY_PLAZA' && !assignedTeamIds.has(t.id)
+  );
+
   // 1. Publicar / Ocultar zonas
   const handleTogglePublish = async () => {
     setLoading('publish');
@@ -80,7 +98,21 @@ export default function TournamentZonesView({
     setLoading(null);
   };
 
-  // 2. Renombrar zona
+  // 2. Sincronizar zonas con inscriptos actuales
+  const handleSyncZones = async () => {
+    setLoading('sync_zones');
+    setFeedback(null);
+    const res = await syncCategoryZonesWithTeams(category.id);
+    if (res.success) {
+      setFeedback({ text: 'Zonas sincronizadas: se actualizaron las parejas y el fixture.', type: 'success' });
+      onRefresh();
+    } else {
+      setFeedback({ text: res.error || 'Error al sincronizar zonas', type: 'error' });
+    }
+    setLoading(null);
+  };
+
+  // 3. Renombrar zona
   const handleSaveGroupName = async (groupId: string) => {
     if (!editGroupName.trim()) return;
     setLoading(`rename_${groupId}`);
@@ -95,7 +127,28 @@ export default function TournamentZonesView({
     setLoading(null);
   };
 
-  // 3. Mover pareja a otra zona
+  // 4. Reordenar parejas dentro de la misma zona
+  const handleReorderWithinGroup = async (group: TournamentGroupView, currentIndex: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= group.teams.length) return;
+
+    setLoading(`reorder_${group.id}`);
+    const newTeams = [...group.teams];
+    const [moved] = newTeams.splice(currentIndex, 1);
+    newTeams.splice(targetIndex, 0, moved);
+
+    const orderedPlacementIds = newTeams.map(gt => gt.id);
+    const res = await reorderTeamsInGroup(category.id, group.id, orderedPlacementIds);
+    if (res.success) {
+      setFeedback({ text: 'Orden de parejas actualizado y fixture de la zona recalculado.', type: 'success' });
+      onRefresh();
+    } else {
+      alert(res.error || 'Error al reordenar parejas');
+    }
+    setLoading(null);
+  };
+
+  // 5. Mover pareja a otra zona
   const handleMoveTeam = async () => {
     if (!movingPlacement || !targetGroupId) return;
     setLoading('move_team');
@@ -111,7 +164,23 @@ export default function TournamentZonesView({
     setLoading(null);
   };
 
-  // 4. Guardar horario de partido
+  // 6. Asignar pareja a una zona específica
+  const handleAddTeamToGroup = async () => {
+    if (!assigningGroup || !selectedUnassignedTeamId) return;
+    setLoading('add_team_group');
+    const res = await addTeamToSpecificGroup(category.id, assigningGroup.id, selectedUnassignedTeamId);
+    if (res.success) {
+      setAssigningGroup(null);
+      setSelectedUnassignedTeamId('');
+      setFeedback({ text: 'Pareja asignada a la zona y fixture actualizado.', type: 'success' });
+      onRefresh();
+    } else {
+      alert(res.error || 'Error al asignar pareja a la zona');
+    }
+    setLoading(null);
+  };
+
+  // 7. Guardar horario de partido
   const handleSaveMatchSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMatch) return;
@@ -176,25 +245,39 @@ export default function TournamentZonesView({
             )}
           </div>
           <p className="text-slate-500 text-xs mt-1">
-            {hasZones ? `${category.groups.length} zonas configuradas` : 'Sin zonas generadas'}
+            {hasZones ? `${category.groups.length} zonas configuradas • ${category.teams?.length || 0} inscriptos totales` : 'Sin zonas generadas'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {hasZones && (
-            <Button
-              size="sm"
-              variant={isPublished ? "outline" : "default"}
-              onClick={handleTogglePublish}
-              disabled={loading === 'publish'}
-              className={isPublished ? "text-amber-600 border-amber-300 hover:bg-amber-50" : "bg-emerald-600 hover:bg-emerald-700 text-white font-bold"}
-            >
-              {isPublished ? (
-                <><EyeOff className="w-4 h-4 mr-1.5" /> Ocultar (Pasar a Borrador)</>
-              ) : (
-                <><Globe className="w-4 h-4 mr-1.5" /> 📢 Publicar Zonas en App</>
-              )}
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSyncZones}
+                disabled={loading === 'sync_zones'}
+                className="font-bold border-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                title="Actualizar zonas con parejas agregadas o eliminadas"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading === 'sync_zones' ? 'animate-spin' : ''}`} />
+                Actualizar Zonas
+              </Button>
+
+              <Button
+                size="sm"
+                variant={isPublished ? "outline" : "default"}
+                onClick={handleTogglePublish}
+                disabled={loading === 'publish'}
+                className={isPublished ? "text-amber-600 border-amber-300 hover:bg-amber-50" : "bg-emerald-600 hover:bg-emerald-700 text-white font-bold"}
+              >
+                {isPublished ? (
+                  <><EyeOff className="w-4 h-4 mr-1.5" /> Ocultar (Pasar a Borrador)</>
+                ) : (
+                  <><Globe className="w-4 h-4 mr-1.5" /> 📢 Publicar Zonas en App</>
+                )}
+              </Button>
+            </>
           )}
 
           <TournamentZonesGeneratorModal 
@@ -203,6 +286,27 @@ export default function TournamentZonesView({
           />
         </div>
       </div>
+
+      {/* AVISO DE PAREJAS PENDIENTES DE ASIGNAR */}
+      {hasZones && unassignedTeams.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-800 dark:text-amber-300">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+            <span>
+              Hay <strong>{unassignedTeams.length} parejas inscriptas</strong> que aún no están asignadas a ninguna zona (ej: agregadas recientemente).
+            </span>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleSyncZones}
+            disabled={loading === 'sync_zones'}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0"
+          >
+            <RefreshCw className={`w-3 h-3 mr-1 ${loading === 'sync_zones' ? 'animate-spin' : ''}`} />
+            Asignar Automáticamente
+          </Button>
+        </div>
+      )}
 
       {feedback && (
         <div className={`p-3.5 rounded-xl text-xs font-bold flex items-center justify-between ${
@@ -269,19 +373,59 @@ export default function TournamentZonesView({
                     </div>
                   )}
 
-                  <span className="text-[11px] font-bold text-slate-400">{g.teams.length} parejas</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-400">{g.teams.length} parejas</span>
+                    {unassignedTeams.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setAssigningGroup(g);
+                          setSelectedUnassignedTeamId(unassignedTeams[0].id);
+                        }}
+                        className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-lg flex items-center gap-1 hover:bg-emerald-100"
+                        title="Asignar pareja inscripta a esta zona"
+                      >
+                        <UserPlus className="w-3 h-3" /> + Pareja
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* TABLA DE PAREJAS Y BOTÓN MOVER */}
+                {/* TABLA DE PAREJAS Y REORDENAMIENTO */}
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Parejas en esta zona</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Parejas en esta zona</p>
+                    <span className="text-[10px] text-slate-400">Usá ▲/▼ para ordenar</span>
+                  </div>
+
                   {g.teams.map((gt, i: number) => {
                     const otherGroups = category.groups.filter(x => x.id !== g.id);
                     return (
                       <div key={gt.id} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 px-3 py-2 rounded-xl text-xs border border-slate-100 dark:border-slate-800">
-                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[55%]">
-                          {i + 1}. {gt.team?.name || 'Pareja'}
-                        </span>
+                        <div className="flex items-center gap-2 max-w-[55%]">
+                          {/* BOTONES SUBIR Y BAJAR POSICIÓN */}
+                          <div className="flex flex-col gap-0.5">
+                            <button
+                              onClick={() => handleReorderWithinGroup(g, i, 'up')}
+                              disabled={i === 0 || loading === `reorder_${g.id}`}
+                              className="text-slate-400 hover:text-emerald-600 disabled:opacity-20 transition-colors"
+                              title="Subir de posición"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleReorderWithinGroup(g, i, 'down')}
+                              disabled={i === g.teams.length - 1 || loading === `reorder_${g.id}`}
+                              className="text-slate-400 hover:text-emerald-600 disabled:opacity-20 transition-colors"
+                              title="Bajar de posición"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                            {i + 1}. {gt.team?.name || 'Pareja'}
+                          </span>
+                        </div>
                         
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary" className="font-mono text-[10px]">{gt.points || 0} pts</Badge>
@@ -401,6 +545,47 @@ export default function TournamentZonesView({
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                 >
                   {loading === 'move_team' ? 'Moviendo...' : 'Confirmar y Actualizar Fixture'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* MODAL ASIGNAR PAREJA A ZONA ESPECÍFICA */}
+      {assigningGroup && (
+        <Dialog open={Boolean(assigningGroup)} onOpenChange={() => setAssigningGroup(null)}>
+          <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Asignar Pareja a {assigningGroup.name}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500">Seleccionar Pareja Inscripta</Label>
+                <select
+                  value={selectedUnassignedTeamId}
+                  onChange={e => setSelectedUnassignedTeamId(e.target.value)}
+                  className="w-full p-2.5 border rounded-xl bg-slate-50 dark:bg-slate-800 text-sm font-bold"
+                >
+                  {unassignedTeams.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name || `${t.player1?.name} / ${t.player2?.name || ''}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border">
+                Al incorporar esta pareja a la zona, el fixture y cruces de <strong>{assigningGroup.name}</strong> se regenerarán automáticamente.
+              </p>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setAssigningGroup(null)}>Cancelar</Button>
+                <Button 
+                  size="sm" 
+                  onClick={handleAddTeamToGroup} 
+                  disabled={loading === 'add_team_group' || !selectedUnassignedTeamId}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                >
+                  {loading === 'add_team_group' ? 'Asignando...' : 'Asignar a Zona'}
                 </Button>
               </div>
             </div>

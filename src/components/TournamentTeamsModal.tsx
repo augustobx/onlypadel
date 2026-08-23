@@ -61,11 +61,15 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
   };
 
   const handleDelete = async (teamId: string) => {
-    if (!confirm('¿Eliminar esta pareja?')) return;
+    if (!confirm('¿Eliminar esta pareja inscripta?')) return;
     setLoading(true);
-    await deleteTeam(teamId);
+    const res = await deleteTeam(teamId);
     setLoading(false);
-    router.refresh();
+    if (res.success) {
+      router.refresh();
+    } else {
+      alert(res.error || 'Error al eliminar pareja inscripta');
+    }
   };
 
   const handleTogglePaid = async (teamId: string) => {

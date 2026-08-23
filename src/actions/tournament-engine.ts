@@ -262,20 +262,89 @@ export async function deleteTeam(teamId: string) {
     await requireAdmin();
     const team = await prisma.tournamentTeam.findUnique({
       where: { id: teamId },
-      include: { category: true, matchesAsTeam1: { select: { id: true } }, matchesAsTeam2: { select: { id: true } } }
+      include: { category: true }
     });
     if (!team) return { success: false, error: 'Equipo no encontrado' };
-    if (team.matchesAsTeam1.length || team.matchesAsTeam2.length) {
-      return { success: false, error: 'La pareja ya está incluida en el fixture. Regenerá las zonas o el cuadro antes de eliminarla.' };
-    }
-    await prisma.tournamentTeam.delete({ where: { id: teamId } });
-    if (team) {
-      revalidatePath(`/admin/torneos/${team.category.tournamentId}`);
-      revalidatePath('/torneos');
-    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Grupos donde estaba este equipo
+      const placements = await tx.tournamentGroupTeam.findMany({
+        where: { teamId },
+        select: { groupId: true }
+      });
+      const groupIds = placements.map(p => p.groupId);
+
+      // 2. Eliminar de grupos
+      await tx.tournamentGroupTeam.deleteMany({
+        where: { teamId }
+      });
+
+      // 3. Eliminar partidos donde el equipo participaba
+      await tx.tournamentMatch.deleteMany({
+        where: {
+          OR: [
+            { team1Id: teamId },
+            { team2Id: teamId }
+          ]
+        }
+      });
+
+      // 4. Regenerar partidos para los grupos afectados con los equipos restantes
+      for (const gId of groupIds) {
+        const remainingPlacements = await tx.tournamentGroupTeam.findMany({
+          where: { groupId: gId },
+          include: { team: true }
+        });
+
+        await tx.tournamentMatch.deleteMany({
+          where: { groupId: gId }
+        });
+
+        const teams = remainingPlacements.map(gp => gp.team);
+        const t: ({ id: string } | null)[] = [...teams];
+        if (t.length % 2 !== 0) t.push(null);
+
+        const matches: { t1: { id: string }; t2: { id: string }; round: number }[] = [];
+        const n = t.length;
+        for (let round = 0; round < n - 1; round++) {
+          for (let i = 0; i < n / 2; i++) {
+            const t1 = t[i];
+            const t2 = t[n - 1 - i];
+            if (t1 && t2) {
+              matches.push({ t1, t2, round: round + 1 });
+            }
+          }
+          t.splice(1, 0, t.pop()!);
+        }
+
+        let matchIndex = 0;
+        for (const m of matches) {
+          await tx.tournamentMatch.create({
+            data: {
+              categoryId: team.categoryId,
+              groupId: gId,
+              round: m.round,
+              matchOrder: matchIndex + 1,
+              team1Id: m.t1.id,
+              team2Id: m.t2.id,
+              roundName: `Zona - Fecha ${m.round}`,
+              status: 'SCHEDULED'
+            }
+          });
+          matchIndex++;
+        }
+      }
+
+      // 5. Eliminar el equipo
+      await tx.tournamentTeam.delete({ where: { id: teamId } });
+    });
+
+    revalidateTournamentPaths();
+    revalidatePath(`/admin/torneos/${team.category.tournamentId}`);
+    revalidatePath('/torneos');
     return { success: true };
   } catch (error) {
-    console.error(error);
+    console.error('deleteTeam error:', error);
     return { success: false, error: 'Error al eliminar equipo' };
   }
 }
@@ -586,7 +655,7 @@ export async function generateZonesAndSchedule(categoryId: string, config: {
 
       for (let z = 0; z < config.numZones; z++) {
         const zoneConf = config.zonesConfig[z];
-        if (!zoneConf.name.trim() || !zoneConf.courtId || zoneConf.intervalMinutes < 45) {
+        if (!zoneConf.name.trim() || !zoneConf.courtId || zoneConf.intervalMinutes < 15) {
           throw new Error('INVALID_ZONE_CONFIG');
         }
         const zoneStart = new Date(zoneConf.startTime);
@@ -888,5 +957,322 @@ export async function updateMatchTimeAndCourt(matchId: string, startTime: string
   } catch (error) {
     console.error('updateMatchTimeAndCourt error:', error);
     return { success: false, error: 'Error al actualizar el horario del partido.' };
+  }
+}
+
+// ============================================================
+// REORDENAR PAREJAS DENTRO DE LA MISMA ZONA
+// ============================================================
+export async function reorderTeamsInGroup(categoryId: string, groupId: string, orderedPlacementIds: string[]) {
+  try {
+    await requireAdmin();
+    await prisma.$transaction(async (tx) => {
+      // 1. Obtener los placements actuales
+      const currentPlacements = await tx.tournamentGroupTeam.findMany({
+        where: { groupId },
+        include: { team: true }
+      });
+
+      const placementMap = new Map(currentPlacements.map(p => [p.id, p]));
+      const orderedTeams: typeof currentPlacements[0]['team'][] = [];
+
+      for (const id of orderedPlacementIds) {
+        const p = placementMap.get(id);
+        if (p) orderedTeams.push(p.team);
+      }
+
+      // Si no coinciden todos los equipos, no continuar
+      if (orderedTeams.length !== currentPlacements.length) {
+        throw new Error('MISMATCH_TEAMS');
+      }
+
+      // Recrear placements en el nuevo orden para que se guarden en esa secuencia
+      await tx.tournamentGroupTeam.deleteMany({ where: { groupId } });
+      for (const t of orderedTeams) {
+        await tx.tournamentGroupTeam.create({
+          data: {
+            groupId,
+            teamId: t.id
+          }
+        });
+      }
+
+      // Preservar horarios y canchas existentes de los partidos si los hubiera
+      const existingMatches = await tx.tournamentMatch.findMany({
+        where: { groupId },
+        orderBy: { matchOrder: 'asc' }
+      });
+
+      // Eliminar partidos viejos del grupo
+      await tx.tournamentMatch.deleteMany({ where: { groupId } });
+
+      const tArr: ({ id: string } | null)[] = [...orderedTeams];
+      if (tArr.length % 2 !== 0) tArr.push(null);
+
+      const matches: { t1: { id: string }; t2: { id: string }; round: number }[] = [];
+      const n = tArr.length;
+      for (let round = 0; round < n - 1; round++) {
+        for (let i = 0; i < n / 2; i++) {
+          const t1 = tArr[i];
+          const t2 = tArr[n - 1 - i];
+          if (t1 && t2) {
+            matches.push({ t1, t2, round: round + 1 });
+          }
+        }
+        tArr.splice(1, 0, tArr.pop()!);
+      }
+
+      let matchIndex = 0;
+      for (const m of matches) {
+        const prevMatch = existingMatches[matchIndex];
+        await tx.tournamentMatch.create({
+          data: {
+            categoryId,
+            groupId,
+            round: m.round,
+            matchOrder: matchIndex + 1,
+            team1Id: m.t1.id,
+            team2Id: m.t2.id,
+            roundName: `Zona - Fecha ${m.round}`,
+            startTime: prevMatch?.startTime || null,
+            courtId: prevMatch?.courtId || null,
+            status: 'SCHEDULED'
+          }
+        });
+        matchIndex++;
+      }
+    });
+
+    revalidateTournamentPaths();
+    return { success: true };
+  } catch (error) {
+    console.error('reorderTeamsInGroup error:', error);
+    return { success: false, error: 'Error al reordenar las parejas en la zona.' };
+  }
+}
+
+// ============================================================
+// SINCRONIZAR / ACTUALIZAR ZONAS CON PAREJAS INSCRIPTAS
+// ============================================================
+export async function syncCategoryZonesWithTeams(categoryId: string) {
+  try {
+    await requireAdmin();
+    await prisma.$transaction(async (tx) => {
+      const category = await tx.tournamentCategory.findUnique({
+        where: { id: categoryId },
+        include: {
+          teams: { include: { player1: true } },
+          groups: {
+            include: {
+              teams: { include: { team: { include: { player1: true } } } }
+            }
+          }
+        }
+      });
+
+      if (!category || category.groups.length === 0) return;
+
+      // 1. Equipos reales actualmente registrados
+      const realRegisteredTeams = category.teams.filter(t => t.player1.phone !== 'DUMMY_PLAZA');
+      const registeredTeamIds = new Set(realRegisteredTeams.map(t => t.id));
+
+      // 2. Limpiar en zonas parejas que hayan sido eliminadas
+      for (const group of category.groups) {
+        for (const placement of group.teams) {
+          if (placement.team.player1.phone !== 'DUMMY_PLAZA' && !registeredTeamIds.has(placement.teamId)) {
+            await tx.tournamentGroupTeam.delete({ where: { id: placement.id } });
+            await tx.tournamentMatch.deleteMany({
+              where: {
+                groupId: group.id,
+                OR: [{ team1Id: placement.teamId }, { team2Id: placement.teamId }]
+              }
+            });
+          }
+        }
+      }
+
+      // 3. Encontrar parejas reales que no están asignadas a ninguna zona
+      const assignedTeamIds = new Set<string>();
+      const currentPlacements = await tx.tournamentGroupTeam.findMany({
+        where: { group: { categoryId } },
+        include: { team: { include: { player1: true } } }
+      });
+      currentPlacements.forEach(p => {
+        if (p.team.player1.phone !== 'DUMMY_PLAZA') assignedTeamIds.add(p.teamId);
+      });
+
+      const unassignedRealTeams = realRegisteredTeams.filter(t => !assignedTeamIds.has(t.id));
+
+      // 4. Asignar parejas pendientes
+      for (const team of unassignedRealTeams) {
+        // Buscar si hay alguna "Plaza Libre" disponible en algún grupo
+        const freeSlot = await tx.tournamentGroupTeam.findFirst({
+          where: {
+            group: { categoryId },
+            team: { player1: { phone: 'DUMMY_PLAZA' } }
+          },
+          include: { team: true }
+        });
+
+        if (freeSlot) {
+          const dummyTeamId = freeSlot.teamId;
+          await tx.tournamentGroupTeam.update({
+            where: { id: freeSlot.id },
+            data: { teamId: team.id }
+          });
+          await tx.tournamentMatch.updateMany({
+            where: { groupId: freeSlot.groupId, team1Id: dummyTeamId },
+            data: { team1Id: team.id }
+          });
+          await tx.tournamentMatch.updateMany({
+            where: { groupId: freeSlot.groupId, team2Id: dummyTeamId },
+            data: { team2Id: team.id }
+          });
+          await tx.tournamentTeam.delete({ where: { id: dummyTeamId } }).catch(() => {});
+        } else {
+          // Agregar al grupo con menos participantes
+          const groups = await tx.tournamentGroup.findMany({
+            where: { categoryId },
+            include: { teams: true }
+          });
+          if (groups.length > 0) {
+            groups.sort((a, b) => a.teams.length - b.teams.length);
+            const targetGroup = groups[0];
+            await tx.tournamentGroupTeam.create({
+              data: {
+                groupId: targetGroup.id,
+                teamId: team.id
+              }
+            });
+
+            // Reconstruir partidos de ese grupo
+            const updatedPlacements = await tx.tournamentGroupTeam.findMany({
+              where: { groupId: targetGroup.id },
+              include: { team: true }
+            });
+            const existingMatches = await tx.tournamentMatch.findMany({
+              where: { groupId: targetGroup.id },
+              orderBy: { matchOrder: 'asc' }
+            });
+            await tx.tournamentMatch.deleteMany({ where: { groupId: targetGroup.id } });
+
+            const teams = updatedPlacements.map(gp => gp.team);
+            const tArr: ({ id: string } | null)[] = [...teams];
+            if (tArr.length % 2 !== 0) tArr.push(null);
+            const n = tArr.length;
+            const matches: { t1: { id: string }; t2: { id: string }; round: number }[] = [];
+            for (let round = 0; round < n - 1; round++) {
+              for (let i = 0; i < n / 2; i++) {
+                const t1 = tArr[i];
+                const t2 = tArr[n - 1 - i];
+                if (t1 && t2) matches.push({ t1, t2, round: round + 1 });
+              }
+              tArr.splice(1, 0, tArr.pop()!);
+            }
+            let matchIndex = 0;
+            for (const m of matches) {
+              const prev = existingMatches[matchIndex];
+              await tx.tournamentMatch.create({
+                data: {
+                  categoryId,
+                  groupId: targetGroup.id,
+                  round: m.round,
+                  matchOrder: matchIndex + 1,
+                  team1Id: m.t1.id,
+                  team2Id: m.t2.id,
+                  roundName: `Zona - Fecha ${m.round}`,
+                  startTime: prev?.startTime || null,
+                  courtId: prev?.courtId || null,
+                  status: 'SCHEDULED'
+                }
+              });
+              matchIndex++;
+            }
+          }
+        }
+      }
+    });
+
+    revalidateTournamentPaths();
+    return { success: true };
+  } catch (error) {
+    console.error('syncCategoryZonesWithTeams error:', error);
+    return { success: false, error: 'Error al sincronizar zonas con parejas inscriptas' };
+  }
+}
+
+// ============================================================
+// ASIGNAR PAREJA DIRECTAMENTE A UNA ZONA ESPECÍFICA
+// ============================================================
+export async function addTeamToSpecificGroup(categoryId: string, groupId: string, teamId: string) {
+  try {
+    await requireAdmin();
+    await prisma.$transaction(async (tx) => {
+      // Verificar si ya está en algún grupo de la categoría
+      const existing = await tx.tournamentGroupTeam.findFirst({
+        where: { group: { categoryId }, teamId }
+      });
+      if (existing) {
+        if (existing.groupId === groupId) return;
+        await tx.tournamentGroupTeam.update({
+          where: { id: existing.id },
+          data: { groupId }
+        });
+      } else {
+        await tx.tournamentGroupTeam.create({
+          data: { groupId, teamId }
+        });
+      }
+
+      // Reconstruir partidos del grupo
+      const placements = await tx.tournamentGroupTeam.findMany({
+        where: { groupId },
+        include: { team: true }
+      });
+      const existingMatches = await tx.tournamentMatch.findMany({
+        where: { groupId },
+        orderBy: { matchOrder: 'asc' }
+      });
+      await tx.tournamentMatch.deleteMany({ where: { groupId } });
+
+      const teams = placements.map(gp => gp.team);
+      const tArr: ({ id: string } | null)[] = [...teams];
+      if (tArr.length % 2 !== 0) tArr.push(null);
+      const n = tArr.length;
+      const matches: { t1: { id: string }; t2: { id: string }; round: number }[] = [];
+      for (let round = 0; round < n - 1; round++) {
+        for (let i = 0; i < n / 2; i++) {
+          const t1 = tArr[i];
+          const t2 = tArr[n - 1 - i];
+          if (t1 && t2) matches.push({ t1, t2, round: round + 1 });
+        }
+        tArr.splice(1, 0, tArr.pop()!);
+      }
+      let matchIndex = 0;
+      for (const m of matches) {
+        const prev = existingMatches[matchIndex];
+        await tx.tournamentMatch.create({
+          data: {
+            categoryId,
+            groupId,
+            round: m.round,
+            matchOrder: matchIndex + 1,
+            team1Id: m.t1.id,
+            team2Id: m.t2.id,
+            roundName: `Zona - Fecha ${m.round}`,
+            startTime: prev?.startTime || null,
+            courtId: prev?.courtId || null,
+            status: 'SCHEDULED'
+          }
+        });
+        matchIndex++;
+      }
+    });
+
+    revalidateTournamentPaths();
+    return { success: true };
+  } catch (error) {
+    console.error('addTeamToSpecificGroup error:', error);
+    return { success: false, error: 'Error al asignar la pareja a la zona' };
   }
 }

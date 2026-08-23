@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ type ZoneConfig = {
 };
 
 export default function TournamentZonesGeneratorModal({ category, tournamentStartDate }: { category: Pick<TournamentCategoryView, 'id' | 'name'>, tournamentStartDate: Date }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [courts, setCourts] = useState<CourtView[]>([]);
@@ -34,7 +36,7 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
         name: `Zona ${String.fromCharCode(65 + i)}`,
         dateStr: defaultDate,
         timeStr: '09:00',
-        intervalMinutes: 90,
+        intervalMinutes: 40,
         courtId: courtList.length > 0 ? (courtList[i % courtList.length]?.id || courtList[0]?.id || '') : ''
     }));
   };
@@ -60,8 +62,8 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
     const formattedConfig = zonesConfig.map(zc => ({
       name: zc.name,
       startTime: `${zc.dateStr}T${zc.timeStr}:00-03:00`,
-      intervalMinutes: Number(zc.intervalMinutes) || 90,
-      courtId: zc.courtId || null
+      intervalMinutes: zc.intervalMinutes,
+      courtId: zc.courtId || null,
     }));
 
     const res = await generateZonesAndSchedule(category.id, {
@@ -70,49 +72,55 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
       zonesConfig: formattedConfig
     });
 
+    setLoading(false);
     if (res.success) {
       setOpen(false);
-      window.location.reload();
+      router.refresh();
     } else {
       alert(res.error || 'Error al generar zonas');
     }
-    setLoading(false);
   };
 
   return (
-    <>
-      <Button variant="secondary" size="sm" className="whitespace-nowrap" onClick={handleOpen}>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button 
+        onClick={handleOpen}
+        variant="secondary"
+        size="sm" 
+        className="whitespace-nowrap"
+      >
         <Settings className="w-4 h-4 mr-1" /> Generar Zonas
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold dark:text-white flex items-center gap-2">
+          <DialogTitle className="text-xl font-black text-slate-900 dark:text-white">
             Configurar Zonas y Horarios - {category.name}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 p-4 rounded-xl text-sm border border-amber-200 dark:border-amber-800/50">
-            <strong>Atención:</strong> Las parejas confirmadas se distribuirán de forma balanceada y los lugares restantes quedarán como plazas libres. El torneo tiene prioridad automática sobre las reservas de canchas.
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-6 pt-4">
+          <div className="grid grid-cols-2 gap-4 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
             <div className="space-y-2">
               <Label className="text-slate-600 dark:text-slate-300 font-bold">Cantidad de Zonas</Label>
               <Input 
-                type="number" min={1} max={16} 
-                value={numZones} onChange={e => { const count = Number(e.target.value); setNumZones(count); setZonesConfig(buildZoneConfig(count)); }}
-                className="bg-white dark:bg-slate-800 font-bold" required
+                type="number" min={1} max={16} required
+                value={numZones} 
+                onChange={e => {
+                  const val = Number(e.target.value);
+                  setNumZones(val);
+                  setZonesConfig(buildZoneConfig(val));
+                }} 
+                className="h-10 text-center font-bold bg-slate-50 dark:bg-slate-900"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-slate-600 dark:text-slate-300 font-bold">Parejas por Zona (Plazas)</Label>
+              <Label className="text-slate-600 dark:text-slate-300 font-bold">Plazas por Zona</Label>
               <Input 
-                type="number" min={2} max={6} 
-                value={teamsPerZone} onChange={e => setTeamsPerZone(Number(e.target.value))}
-                className="bg-white dark:bg-slate-800 font-bold" required
+                type="number" min={2} max={12} required
+                value={teamsPerZone} 
+                onChange={e => setTeamsPerZone(Number(e.target.value))} 
+                className="h-10 text-center font-bold bg-slate-50 dark:bg-slate-900"
               />
             </div>
           </div>
@@ -142,7 +150,7 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duración Turno (min)</Label>
                     <Input 
-                      type="number" required value={zc.intervalMinutes} min={45}
+                      type="number" required value={zc.intervalMinutes} min={15}
                       onChange={e => handleConfigChange(idx, 'intervalMinutes', Number(e.target.value))}
                       className="h-10 text-sm bg-slate-50 dark:bg-slate-900"
                     />
@@ -174,6 +182,5 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
         </form>
       </DialogContent>
     </Dialog>
-    </>
   );
 }
