@@ -1,6 +1,6 @@
 import { getTournamentDetails } from "@/actions/public-tournaments";
 import Link from "next/link";
-import { ArrowLeft, Users, Calendar, Trophy, Clock } from "lucide-react";
+import { ArrowLeft, Users, Calendar, Trophy, Clock, LayoutGrid } from "lucide-react";
 import TournamentBracket from "@/components/TournamentBracket";
 
 export default async function PublicTournamentDetail(props: { params: Promise<{ id: string }> }) {
@@ -117,86 +117,90 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
 
               {/* TABLAS DE ZONAS */}
               {category.groups.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {category.groups.map((g) => {
-                    // Partidos del grupo
-                    const groupMatches = category.matches
-                      ?.filter((m) => m.groupId === g.id)
-                      ?.sort((a, b) => {
-                        if (a.startTime && b.startTime) return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-                        return a.matchOrder - b.matchOrder;
-                      }) || [];
+                category.isZonesPublished ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {category.groups.map((g) => {
+                      // Partidos del grupo
+                      const groupMatches = category.matches
+                        ?.filter((m) => m.groupId === g.id)
+                        ?.sort((a, b) => {
+                          if (a.startTime && b.startTime) return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+                          return a.matchOrder - b.matchOrder;
+                        }) || [];
 
-                    return (
-                      <div key={g.id} className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/50 backdrop-blur-sm">
-                        <h3 className="font-bold text-lg mb-4 text-center text-yellow-400">{g.name}</h3>
-                        
-                        {/* Tabla de posiciones (#11 — mostrar más stats) */}
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-slate-500 border-b border-slate-700/50">
-                              <th className="text-left pb-2">Pareja</th>
-                              <th className="pb-2 text-center">Pts</th>
-                              <th className="pb-2 text-center">PJ</th>
-                              <th className="pb-2 text-center">SG</th>
-                              <th className="pb-2 text-center">SP</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {g.teams.map((gt) => (
-                              <tr key={gt.id} className="border-b border-slate-800/50">
-                                <td className="py-3 font-medium">{gt.team?.name}</td>
-                                <td className="py-3 text-center font-bold text-emerald-400">{gt.points}</td>
-                                <td className="py-3 text-center text-slate-400">{gt.matchesPlayed}</td>
-                                <td className="py-3 text-center text-slate-400">{gt.setsWon}</td>
-                                <td className="py-3 text-center text-slate-400">{gt.setsLost}</td>
+                      return (
+                        <div key={g.id} className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/50 backdrop-blur-sm">
+                          <h3 className="font-bold text-lg mb-4 text-center text-yellow-400">{g.name}</h3>
+                          
+                          {/* Tabla de posiciones */}
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-slate-500 border-b border-slate-700/50">
+                                <th className="text-left pb-2">Pareja</th>
+                                <th className="pb-2 text-center">Pts</th>
+                                <th className="pb-2 text-center">PJ</th>
+                                <th className="pb-2 text-center">SG</th>
+                                <th className="pb-2 text-center">SP</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {g.teams.map((gt) => (
+                                <tr key={gt.id} className="border-b border-slate-800/50">
+                                  <td className="py-3 font-medium">{gt.team?.name}</td>
+                                  <td className="py-3 text-center font-bold text-emerald-400">{gt.points}</td>
+                                  <td className="py-3 text-center text-slate-400">{gt.matchesPlayed}</td>
+                                  <td className="py-3 text-center text-slate-400">{gt.setsWon}</td>
+                                  <td className="py-3 text-center text-slate-400">{gt.setsLost}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
 
-                        {/* Partidos del grupo */}
-                        {groupMatches.length > 0 && (
-                          <div className="mt-4 pt-3 border-t border-slate-700/30 space-y-1.5">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Fixture</p>
-                            {groupMatches.map((m) => (
-                              <div key={m.id} className={`flex items-center text-xs rounded-lg px-2 py-1.5 ${
-                                m.status === 'COMPLETED' ? 'bg-emerald-900/10' :
-                                m.status === 'IN_PROGRESS' ? 'bg-red-900/15' :
-                                'bg-slate-900/30'
-                              }`}>
-                                {m.startTime && (
-                                  <span className="text-slate-500 font-mono w-12 shrink-0 flex items-center gap-0.5">
-                                    <Clock className="w-2.5 h-2.5" />
-                                    {new Date(m.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                )}
-                                <span className={`flex-1 truncate ${m.winnerId === m.team1Id && m.winnerId ? 'font-bold text-emerald-400' : 'text-slate-300'}`}>
-                                  {m.team1?.name || '?'}
-                                </span>
-                                <span className="text-slate-600 mx-1 shrink-0">vs</span>
-                                <span className={`flex-1 truncate text-right ${m.winnerId === m.team2Id && m.winnerId ? 'font-bold text-emerald-400' : 'text-slate-300'}`}>
-                                  {m.team2?.name || '?'}
-                                </span>
-                                {m.status === 'COMPLETED' && m.scoreTeam1 && (
-                                  <span className="ml-2 font-mono text-yellow-400/70 shrink-0 text-[10px]">{m.scoreTeam1} - {m.scoreTeam2}</span>
-                                )}
-                                {m.status === 'IN_PROGRESS' && (
-                                  <span className="ml-1 shrink-0">
-                                    <span className="relative flex h-2 w-2">
-                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                          {/* Partidos del grupo */}
+                          {groupMatches.length > 0 && (
+                            <div className="mt-4 pt-3 border-t border-slate-700/30 space-y-1.5">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Fixture</p>
+                              {groupMatches.map((m) => (
+                                <div key={m.id} className={`flex items-center text-xs rounded-lg px-2 py-1.5 ${
+                                  m.status === 'COMPLETED' ? 'bg-emerald-900/10' :
+                                  m.status === 'IN_PROGRESS' ? 'bg-red-900/15' :
+                                  'bg-slate-900/30'
+                                }`}>
+                                  {m.startTime && (
+                                    <span className="text-slate-500 font-mono w-12 shrink-0 flex items-center gap-0.5">
+                                      <Clock className="w-2.5 h-2.5" />
+                                      {new Date(m.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                                     </span>
+                                  )}
+                                  <span className={`flex-1 truncate ${m.winnerId === m.team1Id && m.winnerId ? 'font-bold text-emerald-400' : 'text-slate-300'}`}>
+                                    {m.team1?.name || '?'}
                                   </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                                  <span className="text-slate-600 mx-1 shrink-0">vs</span>
+                                  <span className={`flex-1 truncate text-right ${m.winnerId === m.team2Id && m.winnerId ? 'font-bold text-emerald-400' : 'text-slate-300'}`}>
+                                    {m.team2?.name || '?'}
+                                  </span>
+                                  {m.status === 'COMPLETED' && (
+                                    <span className="ml-2 font-mono text-emerald-400 font-bold shrink-0">{m.scoreTeam1}-{m.scoreTeam2}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-slate-800/40 rounded-2xl p-8 border border-slate-700/50 text-center">
+                    <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                      <LayoutGrid className="w-6 h-6 text-amber-400" />
+                    </div>
+                    <h3 className="font-bold text-lg text-slate-200">Zonas en Confección</h3>
+                    <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                      El club se encuentra organizando las zonas y horarios para esta categoría. El fixture oficial se publicará a la brevedad.
+                    </p>
+                  </div>
+                )
               )}
 
               {/* CUADRO DE ELIMINACIÓN */}

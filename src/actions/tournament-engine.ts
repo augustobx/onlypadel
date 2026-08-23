@@ -737,3 +737,156 @@ export async function updateMatchTeam(matchId: string, slot: 'team1Id' | 'team2I
     return { success: false, error: 'Error al cambiar equipo' };
   }
 }
+
+// ============================================================
+// PUBLICAR / OCULTAR ZONAS EN LA APP
+// ============================================================
+export async function togglePublishZones(categoryId: string, isPublished: boolean) {
+  try {
+    await requireAdmin();
+    await prisma.tournamentCategory.update({
+      where: { id: categoryId },
+      data: { isZonesPublished: isPublished }
+    });
+    revalidateTournamentPaths();
+    return { success: true };
+  } catch (error) {
+    console.error('togglePublishZones error:', error);
+    return { success: false, error: 'Error al cambiar estado de publicación de zonas.' };
+  }
+}
+
+// ============================================================
+// RENOMBRAR ZONA
+// ============================================================
+export async function renameTournamentGroup(groupId: string, name: string) {
+  try {
+    await requireAdmin();
+    const cleanName = name.trim();
+    if (!cleanName) return { success: false, error: 'El nombre no puede estar vacío.' };
+
+    await prisma.tournamentGroup.update({
+      where: { id: groupId },
+      data: { name: cleanName }
+    });
+    revalidateTournamentPaths();
+    return { success: true };
+  } catch (error) {
+    console.error('renameTournamentGroup error:', error);
+    return { success: false, error: 'Error al renombrar la zona.' };
+  }
+}
+
+// ============================================================
+// MOVER PAREJA DE ZONA
+// ============================================================
+export async function moveTeamToGroup(categoryId: string, placementId: string, targetGroupId: string) {
+  try {
+    await requireAdmin();
+    await prisma.$transaction(async (tx) => {
+      const placement = await tx.tournamentGroupTeam.findUnique({
+        where: { id: placementId },
+        include: { group: true }
+      });
+      if (!placement) throw new Error('PLACEMENT_NOT_FOUND');
+      if (placement.groupId === targetGroupId) return;
+
+      const fromGroupId = placement.groupId;
+
+      // Actualizar el grupo del equipo
+      await tx.tournamentGroupTeam.update({
+        where: { id: placementId },
+        data: { groupId: targetGroupId }
+      });
+
+      // Regenerar partidos para los dos grupos afectados
+      for (const gId of [fromGroupId, targetGroupId]) {
+        const groupPlacements = await tx.tournamentGroupTeam.findMany({
+          where: { groupId: gId },
+          include: { team: true }
+        });
+
+        // Eliminar partidos antiguos del grupo
+        await tx.tournamentMatch.deleteMany({
+          where: { groupId: gId }
+        });
+
+        const teams = groupPlacements.map(gp => gp.team);
+        const t: ({ id: string } | null)[] = [...teams];
+        if (t.length % 2 !== 0) t.push(null);
+
+        const matches: { t1: { id: string }; t2: { id: string }; round: number }[] = [];
+        const n = t.length;
+        for (let round = 0; round < n - 1; round++) {
+          for (let i = 0; i < n / 2; i++) {
+            const t1 = t[i];
+            const t2 = t[n - 1 - i];
+            if (t1 && t2) {
+              matches.push({ t1, t2, round: round + 1 });
+            }
+          }
+          t.splice(1, 0, t.pop()!);
+        }
+
+        let matchIndex = 0;
+        for (const m of matches) {
+          await tx.tournamentMatch.create({
+            data: {
+              categoryId,
+              groupId: gId,
+              round: m.round,
+              matchOrder: matchIndex + 1,
+              team1Id: m.t1.id,
+              team2Id: m.t2.id,
+              roundName: `Zona - Fecha ${m.round}`,
+              status: 'SCHEDULED'
+            }
+          });
+          matchIndex++;
+        }
+      }
+    });
+
+    revalidateTournamentPaths();
+    return { success: true };
+  } catch (error) {
+    console.error('moveTeamToGroup error:', error);
+    return { success: false, error: 'Error al mover la pareja de zona.' };
+  }
+}
+
+// ============================================================
+// ACTUALIZAR HORARIO Y CANCHA DE PARTIDO
+// ============================================================
+export async function updateMatchTimeAndCourt(matchId: string, startTime: string | null, courtId: string | null) {
+  try {
+    await requireAdmin();
+    await prisma.$transaction(async (tx) => {
+      const match = await tx.tournamentMatch.findUnique({ where: { id: matchId } });
+      if (!match) throw new Error('MATCH_NOT_FOUND');
+
+      let parsedDate: Date | null = null;
+      if (startTime && startTime.trim() !== '') {
+        parsedDate = new Date(startTime);
+        if (Number.isNaN(parsedDate.getTime())) throw new Error('INVALID_DATE');
+        if (courtId) {
+          await assertCourtAvailable(tx, courtId, parsedDate, matchId);
+        }
+      }
+
+      await tx.tournamentMatch.update({
+        where: { id: matchId },
+        data: {
+          startTime: parsedDate,
+          courtId: courtId || null
+        }
+      });
+    });
+
+    revalidateTournamentPaths();
+    return { success: true };
+  } catch (error) {
+    console.error('updateMatchTimeAndCourt error:', error);
+    return { success: false, error: 'Error al actualizar el horario del partido.' };
+  }
+}

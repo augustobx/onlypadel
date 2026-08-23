@@ -217,15 +217,16 @@ model Tournament {
 }
 
 model TournamentCategory {
-  id           String            @id @default(uuid())
-  tournamentId String
-  tournament   Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  name         String
-  level        Int?
-  format       TournamentFormat?
-  teams        TournamentTeam[]
-  matches      TournamentMatch[]
-  groups       TournamentGroup[]
+  id               String            @id @default(uuid())
+  tournamentId     String
+  tournament       Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name             String
+  level            Int?
+  format           TournamentFormat?
+  isZonesPublished Boolean           @default(false)
+  teams            TournamentTeam[]
+  matches          TournamentMatch[]
+  groups           TournamentGroup[]
 
   @@unique([tournamentId, name])
 }

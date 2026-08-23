@@ -56,6 +56,7 @@ export type TournamentCategoryView = {
   id: string;
   name: string;
   format: TournamentFormatView | null;
+  isZonesPublished?: boolean;
   teams: TournamentTeamView[];
   matches: TournamentMatchView[];
   groups: TournamentGroupView[];
