@@ -101,6 +101,7 @@ export default function TournamentManager({ tournament }: { tournament: Tourname
   const statusLabels: Record<string, string> = {
     'DRAFT': '📝 Borrador',
     'REGISTRATION': '📋 Inscripciones Abiertas',
+    'REGISTRATION_CLOSED': '🔒 Inscripciones Cerradas',
     'ONGOING': '🔴 En Curso (Jugando)',
     'COMPLETED': '✅ Finalizado',
   };
@@ -233,6 +234,7 @@ export default function TournamentManager({ tournament }: { tournament: Tourname
                       className={
                         tournament.status === key
                           ? key === 'REGISTRATION' ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : key === 'REGISTRATION_CLOSED' ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold'
                           : key === 'ONGOING' ? 'bg-blue-600 hover:bg-blue-700 text-white'
                           : ''
                           : ''

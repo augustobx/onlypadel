@@ -25,6 +25,7 @@ enum BookingStatus {
 enum TournamentStatus {
   DRAFT
   REGISTRATION
+  REGISTRATION_CLOSED
   ONGOING
   COMPLETED
 }

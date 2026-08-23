@@ -130,7 +130,7 @@ export async function updateTournament(id: string, data: unknown) {
 }
 
 // Acción dedicada para cambiar el status (sin pasar por el schema completo)
-const VALID_STATUSES = ['DRAFT', 'REGISTRATION', 'ONGOING', 'COMPLETED'] as const;
+const VALID_STATUSES = ['DRAFT', 'REGISTRATION', 'REGISTRATION_CLOSED', 'ONGOING', 'COMPLETED'] as const;
 type ValidStatus = typeof VALID_STATUSES[number];
 
 export async function updateTournamentStatus(id: string, status: string) {
@@ -148,12 +148,13 @@ export async function updateTournamentStatus(id: string, status: string) {
     });
     if (!tournament) return { success: false, error: 'Torneo no encontrado' };
     const allowed: Record<ValidStatus, ValidStatus[]> = {
-      DRAFT: ['REGISTRATION'],
-      REGISTRATION: ['DRAFT', 'ONGOING'],
-      ONGOING: ['REGISTRATION', 'COMPLETED'],
+      DRAFT: ['REGISTRATION', 'REGISTRATION_CLOSED'],
+      REGISTRATION: ['DRAFT', 'REGISTRATION_CLOSED', 'ONGOING'],
+      REGISTRATION_CLOSED: ['REGISTRATION', 'ONGOING', 'DRAFT'],
+      ONGOING: ['REGISTRATION_CLOSED', 'COMPLETED', 'REGISTRATION'],
       COMPLETED: ['ONGOING'],
     };
-    if (status !== tournament.status && !allowed[tournament.status].includes(status as ValidStatus)) {
+    if (status !== tournament.status && !allowed[tournament.status as ValidStatus]?.includes(status as ValidStatus)) {
       return { success: false, error: `No se puede pasar de ${tournament.status} a ${status}` };
     }
     if (status === 'ONGOING') {

@@ -11,6 +11,7 @@ export default async function TorneosPublicPage() {
   const statusLabels: Record<string, { label: string; color: string }> = {
     'DRAFT': { label: 'Próximamente', color: 'bg-slate-600' },
     'REGISTRATION': { label: 'Inscripciones Abiertas', color: 'bg-emerald-500' },
+    'REGISTRATION_CLOSED': { label: 'Inscripciones Cerradas', color: 'bg-amber-500' },
     'ONGOING': { label: 'En Juego', color: 'bg-red-500 animate-pulse' },
     'COMPLETED': { label: 'Finalizado', color: 'bg-blue-600' },
   };

@@ -100,59 +100,40 @@ async function assertCourtAvailable(
 ) {
   if (Number.isNaN(startTime.getTime())) throw new Error('INVALID_START_TIME');
   const endTime = new Date(startTime.getTime() + DEFAULT_MATCH_DURATION_MINUTES * 60_000);
-  if (endTime.getDate() !== startTime.getDate()) throw new Error('OUTSIDE_BUSINESS_HOURS');
   const court = await tx.court.findFirst({ where: { id: courtId, isActive: true } });
   if (!court) throw new Error('COURT_NOT_AVAILABLE');
 
-  const businessHour = await tx.businessHour.findUnique({
-    where: { courtId_dayOfWeek: { courtId, dayOfWeek: startTime.getDay() } },
-  });
-  if (!businessHour) throw new Error('OUTSIDE_BUSINESS_HOURS');
-  const [openH, openM] = businessHour.openTime.split(':').map(Number);
-  const [closeH, closeM] = businessHour.closeTime.split(':').map(Number);
-  const open = openH * 60 + openM;
-  const configuredClose = closeH * 60 + closeM;
-  const close = configuredClose === 0 ? 24 * 60 : configuredClose;
-  if (minutesOfDay(startTime) < open || minutesOfDay(endTime) > close) throw new Error('OUTSIDE_BUSINESS_HOURS');
-
-  const [booking, block, fixed, tournamentMatch] = await Promise.all([
-    tx.booking.findFirst({
-      where: { courtId, status: { not: 'CANCELLED' }, startTime: { lt: endTime }, endTime: { gt: startTime } },
-      select: { id: true },
-    }),
-    tx.courtBlock.findFirst({
-      where: { courtId, startTime: { lt: endTime }, endTime: { gt: startTime } },
-      select: { id: true },
-    }),
-    tx.fixedBooking.findMany({
-      where: { courtId, isActive: true, dayOfWeek: startTime.getDay(), startDate: { lte: startTime }, endDate: { gte: startTime } },
-    }),
-    tx.tournamentMatch.findFirst({
-      where: {
-        courtId,
-        id: excludeMatchId ? { not: excludeMatchId } : undefined,
-        status: { not: 'CANCELLED' },
-        startTime: {
-          gt: new Date(startTime.getTime() - DEFAULT_MATCH_DURATION_MINUTES * 60_000),
-          lt: endTime,
-        },
+  // Solo verificar colisión con OTROS partidos de torneo en la misma cancha
+  const tournamentMatch = await tx.tournamentMatch.findFirst({
+    where: {
+      courtId,
+      id: excludeMatchId ? { not: excludeMatchId } : undefined,
+      status: { not: 'CANCELLED' },
+      startTime: {
+        gt: new Date(startTime.getTime() - DEFAULT_MATCH_DURATION_MINUTES * 60_000),
+        lt: endTime,
       },
-      select: { id: true },
-    }),
-  ]);
-  if (fixed.some((reservation) => {
-    const [startH, startM] = reservation.startTime.split(':').map(Number);
-    const [endH, endM] = reservation.endTime.split(':').map(Number);
-    const fixedStart = startH * 60 + startM;
-    const fixedEnd = endH * 60 + endM;
-    return minutesOfDay(startTime) < fixedEnd && minutesOfDay(endTime) > fixedStart;
-  })) throw new Error('COURT_CONFLICT');
-  if (booking || block || tournamentMatch) throw new Error('COURT_CONFLICT');
+    },
+    select: { id: true },
+  });
+
+  if (tournamentMatch) throw new Error('COURT_CONFLICT_TOURNAMENT');
+
+  // El torneo tiene prioridad: cancelamos y liberamos turnos regulares en conflicto
+  await tx.booking.updateMany({
+    where: { 
+      courtId, 
+      status: { not: 'CANCELLED' }, 
+      startTime: { lt: endTime }, 
+      endTime: { gt: startTime } 
+    },
+    data: { status: 'CANCELLED', slotKey: null },
+  });
 }
 
 function courtError(error: unknown) {
   if (!(error instanceof Error)) return null;
-  if (error.message === 'COURT_CONFLICT') return 'La cancha ya está ocupada en ese horario';
+  if (error.message === 'COURT_CONFLICT_TOURNAMENT' || error.message === 'COURT_CONFLICT') return 'La cancha ya tiene otro partido de torneo programado en ese horario';
   if (error.message === 'OUTSIDE_BUSINESS_HOURS') return 'El partido queda fuera del horario habilitado de la cancha';
   if (error.message === 'COURT_NOT_AVAILABLE') return 'La cancha no existe o está inactiva';
   if (error.message === 'INVALID_START_TIME') return 'La fecha u hora no es válida';

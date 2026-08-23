@@ -27,6 +27,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
   const statusColors: Record<string, string> = {
     'DRAFT': 'bg-slate-500',
     'REGISTRATION': 'bg-emerald-500',
+    'REGISTRATION_CLOSED': 'bg-amber-500',
     'ONGOING': 'bg-red-500',
     'COMPLETED': 'bg-blue-500',
   };
@@ -46,6 +47,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
               <div className="flex items-center gap-3 mb-4">
                 <span className={`${statusColors[tournament.status] || 'bg-slate-500'} text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider`}>
                   {tournament.status === 'REGISTRATION' ? '📋 Inscripciones Abiertas' :
+                   tournament.status === 'REGISTRATION_CLOSED' ? '🔒 Inscripciones Cerradas' :
                    tournament.status === 'ONGOING' ? '🔴 En Juego' :
                    tournament.status === 'COMPLETED' ? '✅ Finalizado' : '📝 Próximamente'}
                 </span>

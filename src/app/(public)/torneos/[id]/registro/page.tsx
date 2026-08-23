@@ -10,12 +10,21 @@ export default async function TournamentRegistrationPage(props: { params: Promis
   const tournament = response.success && response.data ? response.data : null;
   const session = await getUserSession();
 
-  if (!tournament || tournament.categories.length === 0) {
+  if (!tournament || tournament.categories.length === 0 || tournament.status !== 'REGISTRATION') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 flex flex-col items-center justify-center p-6 text-white">
-        <Trophy className="w-16 h-16 text-slate-700 mb-6" />
-        <h1 className="text-2xl font-bold text-slate-300">Torneo no disponible para inscripción</h1>
-        <Link href="/torneos" className="mt-4 text-blue-400 hover:text-blue-300">← Volver a Torneos</Link>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 flex flex-col items-center justify-center p-6 text-white text-center">
+        <Trophy className="w-16 h-16 text-amber-500 mb-6" />
+        <h1 className="text-2xl font-bold text-slate-300">
+          {tournament?.status === 'REGISTRATION_CLOSED' ? 'Inscripciones Cerradas' : 'Torneo no disponible para inscripción'}
+        </h1>
+        <p className="text-slate-400 mt-2 max-w-sm">
+          {tournament?.status === 'REGISTRATION_CLOSED'
+            ? 'Las inscripciones para este torneo se encuentran cerradas. El club está organizando las zonas y llaves.'
+            : 'Las inscripciones no están habilitadas en este momento.'}
+        </p>
+        <Link href={`/torneos/${tournament?.id || ''}`} className="mt-6 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-xl transition-all">
+          ← Volver al Torneo
+        </Link>
       </div>
     );
   }

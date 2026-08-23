@@ -28,6 +28,8 @@ const assignmentSchema = z.object({
 function refresh() {
   revalidatePath('/admin/categorias-jugadores');
   revalidatePath('/categorias-jugadores');
+  revalidatePath('/admin/usuarios');
+  revalidatePath('/perfil');
   revalidatePath('/');
 }
 
@@ -35,9 +37,29 @@ export async function savePlayerCategoryLevel(input: z.input<typeof levelSchema>
   try {
     await requireAdmin();
     const data = levelSchema.parse(input);
-    const payload = { name: data.name, description: data.description || null, color: normalizeHexColor(data.color, '#10b981'), displayOrder: data.displayOrder, isPublished: data.isPublished };
-    if (data.id) await prisma.playerCategoryLevel.update({ where: { id: data.id }, data: payload });
-    else await prisma.playerCategoryLevel.create({ data: payload });
+    const payload = { 
+      name: data.name, 
+      description: data.description || null, 
+      color: normalizeHexColor(data.color, '#10b981'), 
+      displayOrder: data.displayOrder, 
+      isPublished: data.isPublished 
+    };
+    
+    if (data.id) {
+      const oldLevel = await prisma.playerCategoryLevel.findUnique({ where: { id: data.id }, select: { name: true } });
+      await prisma.playerCategoryLevel.update({ where: { id: data.id }, data: payload });
+      // Si cambió el nombre del nivel, actualizar el campo category en los usuarios asignados
+      if (oldLevel && oldLevel.name !== data.name) {
+        const assignments = await prisma.playerCategoryAssignment.findMany({ where: { levelId: data.id, userId: { not: null } }, select: { userId: true } });
+        const userIds = assignments.map(a => a.userId!).filter(Boolean);
+        if (userIds.length > 0) {
+          await prisma.user.updateMany({ where: { id: { in: userIds } }, data: { category: data.name } });
+        }
+      }
+    } else {
+      await prisma.playerCategoryLevel.create({ data: payload });
+    }
+    
     refresh();
     return { success: true };
   } catch (error) {
@@ -67,20 +89,49 @@ export async function savePlayerCategoryAssignment(input: z.input<typeof assignm
     const data = assignmentSchema.parse(input);
     const userId = data.userId || null;
     const externalName = data.externalName?.trim() || null;
-    if ((!userId && !externalName) || (userId && externalName)) return { success: false, error: 'Elegí un usuario registrado o ingresá una persona externa.' };
-    const payload = { levelId: data.levelId, userId, externalName, externalPhone: userId ? null : data.externalPhone?.trim() || null, publicNote: data.publicNote?.trim() || null, isPublished: data.isPublished };
-    if (data.id) await prisma.playerCategoryAssignment.update({ where: { id: data.id }, data: payload });
-    else await prisma.playerCategoryAssignment.create({ data: payload });
+    
+    if ((!userId && !externalName) || (userId && externalName)) {
+      return { success: false, error: 'Elegí un usuario registrado o ingresá una persona externa.' };
+    }
+    
+    const payload = { 
+      levelId: data.levelId, 
+      userId, 
+      externalName, 
+      externalPhone: userId ? null : data.externalPhone?.trim() || null, 
+      publicNote: data.publicNote?.trim() || null, 
+      isPublished: data.isPublished 
+    };
+    
+    if (data.id) {
+      await prisma.playerCategoryAssignment.update({ where: { id: data.id }, data: payload });
+    } else {
+      // Si el usuario ya tenía asignación previa, actualizarla en vez de duplicar
+      if (userId) {
+        const existing = await prisma.playerCategoryAssignment.findFirst({ where: { userId } });
+        if (existing) {
+          await prisma.playerCategoryAssignment.update({ where: { id: existing.id }, data: payload });
+        } else {
+          await prisma.playerCategoryAssignment.create({ data: payload });
+        }
+      } else {
+        await prisma.playerCategoryAssignment.create({ data: payload });
+      }
+    }
+    
     if (userId) {
       const level = await prisma.playerCategoryLevel.findUnique({ where: { id: data.levelId }, select: { name: true } });
-      if (level) await prisma.user.update({ where: { id: userId }, data: { category: level.name } });
+      if (level) {
+        await prisma.user.update({ where: { id: userId }, data: { category: level.name } });
+      }
     }
+    
     refresh();
     return { success: true };
   } catch (error) {
     console.error('savePlayerCategoryAssignment:', error);
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0]?.message };
-    return { success: false, error: 'No se pudo guardar. Ese usuario puede tener ya una categoría asignada.' };
+    return { success: false, error: 'No se pudo guardar la asignación.' };
   }
 }
 
@@ -89,11 +140,68 @@ export async function deletePlayerCategoryAssignment(id: string) {
     await requireAdmin();
     const current = await prisma.playerCategoryAssignment.findUnique({ where: { id }, select: { userId: true } });
     await prisma.playerCategoryAssignment.delete({ where: { id } });
-    if (current?.userId) await prisma.user.update({ where: { id: current.userId }, data: { category: null } });
+    if (current?.userId) {
+      await prisma.user.update({ where: { id: current.userId }, data: { category: null } });
+    }
     refresh();
     return { success: true };
   } catch (error) {
     console.error('deletePlayerCategoryAssignment:', error);
     return { success: false, error: 'No se pudo quitar al jugador.' };
+  }
+}
+
+export async function syncAllRegisteredUsersCategories() {
+  try {
+    await requireAdmin();
+    // Buscar usuarios con categoría seteada
+    const usersWithCat = await prisma.user.findMany({
+      where: { role: 'PLAYER', category: { not: null } },
+      select: { id: true, category: true, name: true, lastName: true }
+    });
+
+    const levels = await prisma.playerCategoryLevel.findMany();
+    const levelMap = new Map(levels.map(l => [l.name.toLowerCase().trim(), l]));
+
+    for (const u of usersWithCat) {
+      if (!u.category) continue;
+      const catKey = u.category.toLowerCase().trim();
+      let level = levelMap.get(catKey);
+      
+      if (!level) {
+        // Crear nivel si no existía
+        level = await prisma.playerCategoryLevel.create({
+          data: {
+            name: u.category.trim(),
+            color: '#3b82f6',
+            displayOrder: 99,
+            isPublished: true
+          }
+        });
+        levelMap.set(catKey, level);
+      }
+
+      const existing = await prisma.playerCategoryAssignment.findFirst({ where: { userId: u.id } });
+      if (!existing) {
+        await prisma.playerCategoryAssignment.create({
+          data: {
+            userId: u.id,
+            levelId: level.id,
+            isPublished: true
+          }
+        });
+      } else if (existing.levelId !== level.id) {
+        await prisma.playerCategoryAssignment.update({
+          where: { id: existing.id },
+          data: { levelId: level.id }
+        });
+      }
+    }
+
+    refresh();
+    return { success: true };
+  } catch (error) {
+    console.error('syncAllRegisteredUsersCategories:', error);
+    return { success: false, error: 'Error al sincronizar categorías' };
   }
 }

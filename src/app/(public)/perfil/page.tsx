@@ -3,7 +3,7 @@ import { getSettings } from "@/actions/settings";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import PublicNavbar from "@/components/PublicNavbar";
-import { Trophy, CalendarDays, LogOut, Medal, CalendarClock, Phone, IdCard, ChevronRight, Swords, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Trophy, CalendarDays, LogOut, Medal, CalendarClock, Phone, IdCard, ChevronRight, Swords, Clock, BadgeCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { getReadableForeground, normalizeHexColor } from "@/lib/color";
 
@@ -18,26 +18,40 @@ export default async function PerfilPage() {
     const primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');
     const secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
 
-    const bookings = await prisma.booking.findMany({
-        where: { user: { dni: session.dni } },
-        orderBy: { startTime: 'desc' },
-        include: { court: true },
-        take: 20
-    });
+    // Cargar asignación de categoría oficial del jugador
+    const [categoryAssignment, userCategoryLevel, bookings, teams] = await Promise.all([
+        prisma.playerCategoryAssignment.findFirst({
+            where: { userId: session.id },
+            include: { level: true }
+        }),
+        session.category ? prisma.playerCategoryLevel.findFirst({
+            where: { name: session.category }
+        }) : null,
+        prisma.booking.findMany({
+            where: { user: { dni: session.dni } },
+            orderBy: { startTime: 'desc' },
+            include: { court: true },
+            take: 20
+        }),
+        prisma.tournamentTeam.findMany({
+            where: { 
+                OR: [
+                    { player1: { dni: session.dni } },
+                    { player2: { dni: session.dni } }
+                ]
+            },
+            include: {
+                player1: true,
+                player2: true,
+                category: { include: { tournament: true } }
+            }
+        })
+    ]);
 
-    const teams = await prisma.tournamentTeam.findMany({
-        where: { 
-            OR: [
-                { player1: { dni: session.dni } },
-                { player2: { dni: session.dni } }
-            ]
-        },
-        include: {
-            player1: true,
-            player2: true,
-            category: { include: { tournament: true } }
-        }
-    });
+    const officialCategoryName = categoryAssignment?.level?.name || session.category || null;
+    const categoryColor = categoryAssignment?.level?.color || userCategoryLevel?.color || primaryColor;
+    const categoryDescription = categoryAssignment?.level?.description || userCategoryLevel?.description || null;
+    const categoryNote = categoryAssignment?.publicNote || null;
 
     const teamIds = teams.map(t => t.id);
     const tournamentMatches = await prisma.tournamentMatch.findMany({
@@ -114,8 +128,11 @@ export default async function PerfilPage() {
 
                             {/* BADGES DEL PERFIL */}
                             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-700/60">
-                                <span className="inline-flex items-center gap-1.5 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-black px-3 py-1 rounded-xl shadow-sm">
-                                    <Medal className="w-3.5 h-3.5" /> Categoría: {session.category || 'Sin Categoría'}
+                                <span 
+                                    className="inline-flex items-center gap-1.5 text-xs font-black px-3 py-1 rounded-xl shadow-sm text-white"
+                                    style={{ backgroundColor: categoryColor }}
+                                >
+                                    <Medal className="w-3.5 h-3.5" /> Categoría: {officialCategoryName || 'Sin Categoría'}
                                 </span>
                                 {session.phone && (
                                     <span className="inline-flex items-center gap-1.5 bg-slate-800/90 text-slate-200 text-xs font-medium px-2.5 py-1 rounded-xl border border-slate-700/70">
@@ -123,6 +140,46 @@ export default async function PerfilPage() {
                                     </span>
                                 )}
                             </div>
+                        </div>
+                    </div>
+
+                    {/* TARJETA DE CATEGORÍA OFICIAL DEPORTIVA */}
+                    <div className="bg-slate-50 dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm relative overflow-hidden">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <BadgeCheck className="w-5 h-5" style={{ color: categoryColor }} />
+                                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                    Nivel Deportivo Oficial
+                                </h3>
+                            </div>
+                            <span 
+                                className="px-2.5 py-0.5 rounded-full text-xs font-black text-white shadow-sm"
+                                style={{ backgroundColor: categoryColor }}
+                            >
+                                {officialCategoryName || 'Sin Asignar'}
+                            </span>
+                        </div>
+
+                        {categoryDescription && (
+                            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium mb-2">
+                                {categoryDescription}
+                            </p>
+                        )}
+
+                        {categoryNote && (
+                            <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg border border-amber-200 dark:border-amber-800/50 mb-2 font-medium">
+                                📌 {categoryNote}
+                            </p>
+                        )}
+
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-between text-xs">
+                            <span className="text-slate-500 font-medium">¿Querés ver el padrón general?</span>
+                            <Link 
+                                href="/categorias-jugadores" 
+                                className="font-bold text-[var(--color-primary)] hover:underline flex items-center gap-0.5"
+                            >
+                                Ver Categorías <ChevronRight className="w-3.5 h-3.5" />
+                            </Link>
                         </div>
                     </div>
 
