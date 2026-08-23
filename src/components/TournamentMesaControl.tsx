@@ -9,12 +9,14 @@ import { updateMatchScore, setMatchInProgress, resetMatchResult, updateMatchAssi
 import { getCourts } from '@/actions/courts';
 import { useRouter } from 'next/navigation';
 import { Play, CheckCircle2, Clock, ChevronDown, RotateCcw, MapPin } from 'lucide-react';
+import type { CourtView, TournamentMatchView, TournamentView } from '@/lib/tournaments/types';
 
-export default function TournamentMesaControl({ tournament }: { tournament: any }) {
+export default function TournamentMesaControl({ tournament }: { tournament: TournamentView }) {
   const [loading, setLoading] = useState<string | null>(null);
   const [collapsedZones, setCollapsedZones] = useState<Record<string, boolean>>({});
-  const [courts, setCourts] = useState<any[]>([]);
+  const [courts, setCourts] = useState<CourtView[]>([]);
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -23,15 +25,15 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
     });
   }, []);
 
-  const matches = (tournament.categories || []).flatMap((c: any) =>
-    (c.matches || []).map((m: any) => ({ ...m, categoryName: c.name }))
+  const matches: TournamentMatchView[] = (tournament.categories || []).flatMap((c) =>
+    (c.matches || []).map((m) => ({ ...m, categoryName: c.name }))
   );
 
-  const pendingMatches = matches.filter((m: any) => m.status !== 'COMPLETED' && m.team1Id && m.team2Id);
-  const completedMatches = matches.filter((m: any) => m.status === 'COMPLETED' && m.scoreTeam1 !== 'BYE' && m.scoreTeam2 !== 'BYE');
+  const pendingMatches = matches.filter((m) => m.status !== 'COMPLETED' && m.team1Id && m.team2Id);
+  const completedMatches = matches.filter((m) => m.status === 'COMPLETED' && m.scoreTeam1 !== 'BYE' && m.scoreTeam2 !== 'BYE');
 
   // Agrupar pendientes por zona
-  const pendingByZone = pendingMatches.reduce((acc: any, m: any) => {
+  const pendingByZone = pendingMatches.reduce<Record<string, TournamentMatchView[]>>((acc, m) => {
     const zoneName = m.group?.name || 'Fase Final';
     if (!acc[zoneName]) acc[zoneName] = [];
     acc[zoneName].push(m);
@@ -50,7 +52,8 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
 
   const handleStartMatch = async (matchId: string) => {
     setLoading(matchId);
-    await setMatchInProgress(matchId);
+    const result = await setMatchInProgress(matchId);
+    setFeedback(result.success ? { type: 'success', message: 'Partido iniciado.' } : { type: 'error', message: result.error || 'No se pudo iniciar.' });
     setLoading(null);
     router.refresh();
   };
@@ -66,7 +69,8 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
     }
 
     setLoading(matchId);
-    await updateMatchScore(matchId, s1, s2, wId);
+    const result = await updateMatchScore(matchId, s1, s2, wId);
+    setFeedback(result.success ? { type: 'success', message: 'Resultado guardado.' } : { type: 'error', message: result.error || 'No se pudo guardar el resultado.' });
     setLoading(null);
     router.refresh();
   };
@@ -75,7 +79,8 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
   const handleReset = async (matchId: string) => {
     if (!confirm('¿Revertir este resultado? Se limpiarán el score, ganador, estadísticas de zona y propagación al cuadro.')) return;
     setLoading(`reset_${matchId}`);
-    await resetMatchResult(matchId);
+    const result = await resetMatchResult(matchId);
+    setFeedback(result.success ? { type: 'success', message: 'Resultado revertido.' } : { type: 'error', message: result.error || 'No se pudo revertir.' });
     setLoading(null);
     router.refresh();
   };
@@ -86,11 +91,12 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
     const startTime = (document.getElementById(`time-${matchId}`) as HTMLInputElement)?.value || '';
 
     setLoading(`assign_${matchId}`);
-    await updateMatchAssignment(matchId, {
+    const result = await updateMatchAssignment(matchId, {
       courtId: courtId || null,
       startTime: startTime || null,
     });
-    setEditingAssignment(null);
+    if (result.success) setEditingAssignment(null);
+    setFeedback(result.success ? { type: 'success', message: 'Cancha y horario asignados.' } : { type: 'error', message: result.error || 'No se pudo asignar.' });
     setLoading(null);
     router.refresh();
   };
@@ -101,6 +107,11 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
 
   return (
     <div className="space-y-8">
+      {feedback && (
+        <div className={`rounded-xl border p-3 text-sm font-semibold ${feedback.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+          {feedback.message}
+        </div>
+      )}
       {/* PARTIDOS ACTIVOS */}
       {pendingMatches.length > 0 && (
         <div>
@@ -129,7 +140,7 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
                   
                   {!isCollapsed && (
                     <div className="p-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 bg-white dark:bg-slate-900/50">
-                      {zoneMatches.map((m: any) => (
+                      {zoneMatches.map((m) => (
                         <Card key={m.id} className={`border-l-4 shadow-md hover:shadow-lg transition-shadow ${m.status === 'IN_PROGRESS' ? 'border-l-red-500' : 'border-l-blue-300'}`}>
                           <CardContent className="p-4 space-y-3">
                             <div className="flex justify-between items-center mb-1">
@@ -235,7 +246,7 @@ export default function TournamentMesaControl({ tournament }: { tournament: any 
             <CheckCircle2 className="w-5 h-5 text-emerald-500" /> Resultados Cargados ({completedMatches.length})
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {completedMatches.map((m: any) => (
+            {completedMatches.map((m) => (
               <div key={m.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 text-sm group">
                 <div className="flex-1 min-w-0">
                   <span className={`${m.winnerId === m.team1Id ? 'font-bold text-emerald-600' : 'text-slate-500'}`}>{m.team1?.name}</span>

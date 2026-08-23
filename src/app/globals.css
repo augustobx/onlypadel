@@ -133,5 +133,23 @@
 
   html {
     @apply font-sans;
+    color-scheme: light;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
   }
+
+  html:has(.dark) {
+    color-scheme: dark;
+  }
+
+  button, a, input, select, textarea {
+    &:focus-visible {
+      outline: 2px solid var(--color-primary, #10b981);
+      outline-offset: 2px;
+    }
+  }
+}
+
+@supports (min-height: 100dvh) {
+  .min-h-screen { min-height: 100dvh; }
 }

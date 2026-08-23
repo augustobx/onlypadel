@@ -186,7 +186,7 @@ export default function AdminCalendar({ courts, initialDate, highlightBookingId,
                                                         <Button
                                                             size="sm"
                                                             onClick={() => openModal(courtData.court.id, courtData.court.name, slot.time, slot.endTime)}
-                                                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md active:scale-95"
+                                                            className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-bold rounded-xl shadow-md active:scale-95"
                                                         >
                                                             <Plus className="h-4 w-4 md:mr-1" /> <span className="hidden md:inline">Reservar</span>
                                                         </Button>
@@ -279,7 +279,7 @@ export default function AdminCalendar({ courts, initialDate, highlightBookingId,
                                 </div>
                             )}
 
-                            <Button type="submit" disabled={submitting} className="w-full h-12 text-lg font-bold bg-slate-900 hover:bg-slate-800 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white rounded-xl shadow-lg mt-4 transition-all">
+                            <Button type="submit" disabled={submitting} className="w-full h-12 text-lg font-bold bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-xl shadow-lg mt-4 transition-all">
                                 {submitting ? 'Guardando...' : 'Confirmar'}
                             </Button>
                         </form>

@@ -1,4 +1,4 @@
-import { getTournaments, deleteTournament } from "@/actions/tournaments";
+import { getTournaments } from "@/actions/tournaments";
 import TournamentFormModal from "@/components/TournamentFormModal";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

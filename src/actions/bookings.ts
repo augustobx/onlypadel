@@ -4,16 +4,33 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { normalizePhoneForWhatsApp } from '@/lib/whatsapp/notifications';
+import { z } from 'zod';
+import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
+
+const publicBookingSchema = z.object({
+  courtId: z.string().uuid(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  name: z.string().trim().min(2).max(100),
+  phone: z.string().trim().min(6).max(30),
+  requestKey: z.string().min(16).max(64).regex(/^[a-zA-Z0-9_-]+$/),
+});
+
+const activeBookingStatuses = ['PENDING', 'CONFIRMED', 'FIXED', 'BLOCKED'] as const;
+
+function getSlotKey(courtId: string, startTime: Date) {
+  return `${courtId}:${startTime.toISOString()}`;
+}
 
 // 1. Obtener reservas por día (Para el Panel de Admin)
 export async function getBookingsByDate(dateStr: string) {
   try {
     // AUTO-CANCELAR RESERVAS PENDIENTES EXPIRADAS (>5 min)
     try {
-        const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+        const cutoff = new Date(Date.now() - PENDING_BOOKING_TTL_MS);
         await prisma.booking.updateMany({
             where: { status: 'PENDING', createdAt: { lt: cutoff } },
-            data: { status: 'CANCELLED' }
+            data: { status: 'CANCELLED', slotKey: null }
         });
     } catch(e) { console.error("Error auto-canceling pending bookings:", e); }
 
@@ -50,8 +67,14 @@ export async function createBooking(data: {
   time: string;      // "HH:mm"
   name: string;
   phone: string;
+  requestKey: string;
 }) {
   try {
+    const parsed = publicBookingSchema.safeParse(data);
+    if (!parsed.success) {
+      return { success: false, error: 'Revisá los datos ingresados e intentá nuevamente.' };
+    }
+    data = parsed.data;
     // We need to parse time properly, even if time is wrapped around. Wait, public-bookings returns the actual next-day time if wrapped, e.g. "00:30". But we need to use the right date.
     // However, if the time is wrapped (e.g. 00:30) and date is the selected visual day, we should ensure the booking logic handles it. 
     // Actually, in public-bookings, the returned `time` is simply the wrapped "00:30" string. The user selects the `date` visually.
@@ -81,9 +104,31 @@ export async function createBooking(data: {
 
 
     const endTime = new Date(startTime.getTime() + businessHour.slotDuration * 60000);
+    const slotKey = getSlotKey(data.courtId, startTime);
 
     // Importante: Normalizamos el teléfono para que PWA y WhatsApp coincidan siempre
     const normalizedPhone = normalizePhoneForWhatsApp(data.phone);
+
+    // Si el servidor alcanzó a guardar la reserva pero el celular perdió la
+    // respuesta, el mismo requestKey devuelve exactamente la reserva original.
+    const previousAttempt = await prisma.booking.findUnique({ where: { requestKey: data.requestKey } });
+    if (previousAttempt) {
+      if (previousAttempt.courtId !== data.courtId || previousAttempt.startTime.getTime() !== startTime.getTime()) {
+        return { success: false, error: 'La solicitud ya fue utilizada para otro turno. Volvé a elegir el horario.' };
+      }
+      if (previousAttempt.status === 'CANCELLED') {
+        return { success: false, error: 'La reserva anterior venció. Volvé a elegir el horario para generar una nueva.' };
+      }
+      return {
+        success: true,
+        data: {
+          bookingId: previousAttempt.id,
+          fee: Number(previousAttempt.totalAmount),
+          requireDeposit: previousAttempt.status === 'PENDING',
+          reused: true,
+        },
+      };
+    }
 
     // Buscar si hay sesión activa (usuario registrado)
     const { getUserSession } = await import('@/actions/user-auth');
@@ -102,13 +147,15 @@ export async function createBooking(data: {
       });
 
       if (!user) {
-        user = await prisma.user.create({
-          data: {
+        user = await prisma.user.upsert({
+          where: { email: `${normalizedPhone}@cliente.tpadel` },
+          create: {
             email: `${normalizedPhone}@cliente.tpadel`,
             name: data.name,
             phone: normalizedPhone,
             role: 'PLAYER',
-          }
+          },
+          update: { name: data.name, phone: normalizedPhone },
         });
       } else {
         user = await prisma.user.update({
@@ -151,7 +198,7 @@ export async function createBooking(data: {
       const existing = await tx.booking.findFirst({
         where: {
           courtId: data.courtId,
-          status: { in: ['PENDING', 'CONFIRMED', 'FIXED', 'BLOCKED'] },
+          status: { in: [...activeBookingStatuses] },
           startTime: { lt: endTime },
           endTime: { gt: startTime },
         }
@@ -169,6 +216,8 @@ export async function createBooking(data: {
           endTime,
           totalAmount: requireDeposit ? fee : 0,
           status: requireDeposit ? 'PENDING' : 'CONFIRMED',
+          requestKey: data.requestKey,
+          slotKey,
         }
       });
     }, {
@@ -226,6 +275,21 @@ export async function createBooking(data: {
   } catch (error: any) {
     if (error?.message === 'SLOT_TAKEN') {
       return { success: false, error: 'Lo sentimos, este turno acaba de ser reservado por otra persona.' };
+    }
+    if (error?.code === 'P2002') {
+      const existingAttempt = await prisma.booking.findUnique({ where: { requestKey: data.requestKey } });
+      if (existingAttempt && existingAttempt.status !== 'CANCELLED') {
+        return {
+          success: true,
+          data: {
+            bookingId: existingAttempt.id,
+            fee: Number(existingAttempt.totalAmount),
+            requireDeposit: existingAttempt.status === 'PENDING',
+            reused: true,
+          },
+        };
+      }
+      return { success: false, error: 'Ese horario acaba de ocuparse. Elegí otro turno disponible.' };
     }
     console.error('Error creating booking:', error);
     return { success: false, error: 'Ocurrió un error al procesar la reserva.' };

@@ -1,8 +1,11 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
+import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
 
 export async function getDashboardStats() {
+    await requireAdmin();
     const nowART = new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" });
     const d = new Date(nowART);
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -12,10 +15,10 @@ export async function getDashboardStats() {
     try {
         // AUTO-CANCELAR RESERVAS PENDIENTES EXPIRADAS (>5 min)
         try {
-            const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+            const cutoff = new Date(Date.now() - PENDING_BOOKING_TTL_MS);
             await prisma.booking.updateMany({
                 where: { status: 'PENDING', createdAt: { lt: cutoff } },
-                data: { status: 'CANCELLED' }
+                data: { status: 'CANCELLED', slotKey: null }
             });
         } catch(e) { console.error("Error auto-canceling pending bookings:", e); }
 
@@ -63,6 +66,7 @@ export async function getDashboardStats() {
 }
 
 export async function getTodaySnapshot() {
+    await requireAdmin();
     const nowART = new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" });
     const d = new Date(nowART);
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

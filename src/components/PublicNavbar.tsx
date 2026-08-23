@@ -1,9 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarSearch, Trophy, User } from 'lucide-react';
+import { BadgeCheck, BarChart3, CalendarSearch, Trophy, User } from 'lucide-react';
 
-export default function PublicNavbar({ sysSettings }: { sysSettings?: any }) {
+type PublicNavbarSettings = {
+  topbarName?: string | null;
+  sportEmoji?: string | null;
+  tournamentsEnabled?: boolean;
+  rankingsEnabled?: boolean;
+  usersModuleEnabled?: boolean;
+};
+
+export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavbarSettings | null }) {
   const topbarTitle = sysSettings?.topbarName || "T-Padel";
 
   return (
@@ -19,6 +27,22 @@ export default function PublicNavbar({ sysSettings }: { sysSettings?: any }) {
             </Link>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/categorias-jugadores"
+              className="flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300"
+            >
+              <BadgeCheck className="w-4 h-4" />
+              <span className="hidden md:inline">Categorías</span>
+            </Link>
+            {sysSettings?.rankingsEnabled !== false && (
+              <Link
+                href="/ranking"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30 rounded-full transition-colors"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Ranking</span>
+              </Link>
+            )}
             {sysSettings?.tournamentsEnabled && (
               <Link
                 href="/torneos"

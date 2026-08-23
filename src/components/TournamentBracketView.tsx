@@ -3,21 +3,22 @@
 import { useState } from 'react';
 import { updateMatchTeam } from '@/actions/tournament-engine';
 import { useRouter } from 'next/navigation';
+import type { TournamentCategoryView, TournamentMatchView } from '@/lib/tournaments/types';
 
-export default function TournamentBracketView({ category }: { category: any }) {
+export default function TournamentBracketView({ category }: { category: TournamentCategoryView }) {
   const router = useRouter();
   const [loadingMatch, setLoadingMatch] = useState<string | null>(null);
 
   // Filtrar los partidos que pertenecen al cuadro (groupId = null)
-  const bracketMatches = category.matches?.filter((m: any) => !m.groupId) || [];
+  const bracketMatches = category.matches?.filter((m) => !m.groupId) || [];
   
   if (bracketMatches.length === 0) {
     return <p className="text-slate-500 py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">Aún no se ha generado el cuadro para esta categoría.</p>;
   }
 
   // Agrupar partidos por ronda
-  const matchesByRound: Record<number, any[]> = {};
-  bracketMatches.forEach((m: any) => {
+  const matchesByRound: Record<number, TournamentMatchView[]> = {};
+  bracketMatches.forEach((m) => {
     if (!matchesByRound[m.round]) matchesByRound[m.round] = [];
     matchesByRound[m.round].push(m);
   });
@@ -25,11 +26,12 @@ export default function TournamentBracketView({ category }: { category: any }) {
   const maxRound = Math.max(...Object.keys(matchesByRound).map(Number));
   
   // Todos los equipos inscriptos en la categoría para el selector manual
-  const allTeams = category.teams || [];
+  const allTeams = (category.teams || []).filter((team) => team.player1?.phone !== 'DUMMY_PLAZA');
 
   const handleTeamChange = async (matchId: string, slot: 'team1Id' | 'team2Id', teamId: string) => {
     setLoadingMatch(matchId);
-    await updateMatchTeam(matchId, slot, teamId || null);
+    const result = await updateMatchTeam(matchId, slot, teamId || null);
+    if (!result.success) alert(result.error || 'No se pudo cambiar la pareja');
     setLoadingMatch(null);
     router.refresh();
   };
@@ -64,7 +66,7 @@ export default function TournamentBracketView({ category }: { category: any }) {
                         disabled={loadingMatch === match.id}
                       >
                         <option value="">[ Seleccionar Pareja ]</option>
-                        {allTeams.map((t: any) => (
+                        {allTeams.map((t) => (
                           <option key={t.id} value={t.id}>{t.name}</option>
                         ))}
                       </select>
@@ -85,7 +87,7 @@ export default function TournamentBracketView({ category }: { category: any }) {
                         disabled={loadingMatch === match.id}
                       >
                         <option value="">[ Seleccionar Pareja ]</option>
-                        {allTeams.map((t: any) => (
+                        {allTeams.map((t) => (
                           <option key={t.id} value={t.id}>{t.name}</option>
                         ))}
                       </select>

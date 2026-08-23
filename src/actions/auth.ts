@@ -1,7 +1,8 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
+import bcrypt from 'bcryptjs';
+import { clearAdminSession, createAdminSession } from '@/lib/admin-auth';
 
 export async function loginAdmin(formData: FormData) {
   try {
@@ -14,19 +15,18 @@ export async function loginAdmin(formData: FormData) {
       return { success: false, error: 'Error del sistema' };
     }
 
-    if (user === settings.adminUser && pass === settings.adminPass) {
-      // 24 horas de expiración
-      const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      
-      const cookieStore = await cookies();
-      cookieStore.set('admin_auth', 'authenticated', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        expires,
-        path: '/',
-      });
-      
+    const passwordMatches = settings.adminPass.startsWith('$2')
+      ? await bcrypt.compare(pass, settings.adminPass)
+      : pass === settings.adminPass;
+
+    if (user === settings.adminUser && passwordMatches) {
+      if (!settings.adminPass.startsWith('$2')) {
+        await prisma.systemSetting.update({
+          where: { id: settings.id },
+          data: { adminPass: await bcrypt.hash(pass, 12) },
+        });
+      }
+      await createAdminSession(settings.adminUser);
       return { success: true };
     } else {
       return { success: false, error: 'Credenciales inválidas' };
@@ -38,6 +38,5 @@ export async function loginAdmin(formData: FormData) {
 }
 
 export async function logoutAdmin() {
-  const cookieStore = await cookies();
-  cookieStore.delete('admin_auth');
+  await clearAdminSession();
 }

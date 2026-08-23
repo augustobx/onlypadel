@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,31 +9,35 @@ import { generateZonesAndSchedule } from '@/actions/tournament-engine';
 import { getCourts } from '@/actions/courts';
 import { Settings, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import type { CourtView, TournamentCategoryView } from '@/lib/tournaments/types';
 
-export default function TournamentZonesGeneratorModal({ category, tournamentStartDate }: { category: any, tournamentStartDate: Date }) {
+type ZoneConfig = {
+  name: string;
+  dateStr: string;
+  timeStr: string;
+  intervalMinutes: number;
+  courtId: string;
+};
+
+export default function TournamentZonesGeneratorModal({ category, tournamentStartDate }: { category: Pick<TournamentCategoryView, 'id' | 'name'>, tournamentStartDate: Date }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [courts, setCourts] = useState<any[]>([]);
+  const [courts, setCourts] = useState<CourtView[]>([]);
 
   const [numZones, setNumZones] = useState(2);
   const [teamsPerZone, setTeamsPerZone] = useState(3);
-  const [zonesConfig, setZonesConfig] = useState<any[]>([]);
+  const [zonesConfig, setZonesConfig] = useState<ZoneConfig[]>([]);
 
-  useEffect(() => {
-    if (open) {
-      fetchCourts();
-      // Initialize zone config
-      const defaultDate = format(new Date(tournamentStartDate), 'yyyy-MM-dd');
-      const newConfig = Array.from({ length: numZones }).map((_, i) => ({
+  const buildZoneConfig = (count: number) => {
+    const defaultDate = format(new Date(tournamentStartDate), 'yyyy-MM-dd');
+    return Array.from({ length: count }).map((_, i) => ({
         name: `Zona ${String.fromCharCode(65 + i)}`,
         dateStr: defaultDate,
         timeStr: '09:00',
-        intervalMinutes: 60,
+        intervalMinutes: 90,
         courtId: ''
-      }));
-      setZonesConfig(newConfig);
-    }
-  }, [open, numZones, tournamentStartDate]);
+    }));
+  };
 
   const fetchCourts = async () => {
     const res = await getCourts();
@@ -42,10 +46,14 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
     }
   };
 
-  const handleConfigChange = (index: number, field: string, value: any) => {
-    const updated = [...zonesConfig];
-    updated[index][field] = value;
-    setZonesConfig(updated);
+  const handleOpen = () => {
+    setZonesConfig(buildZoneConfig(numZones));
+    setOpen(true);
+    void fetchCourts();
+  };
+
+  const handleConfigChange = <K extends keyof ZoneConfig>(index: number, field: K, value: ZoneConfig[K]) => {
+    setZonesConfig((current) => current.map((zone, zoneIndex) => zoneIndex === index ? { ...zone, [field]: value } : zone));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,7 +85,7 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
 
   return (
     <>
-      <Button variant="secondary" size="sm" className="whitespace-nowrap" onClick={() => setOpen(true)}>
+      <Button variant="secondary" size="sm" className="whitespace-nowrap" onClick={handleOpen}>
         <Settings className="w-4 h-4 mr-1" /> Generar Zonas
       </Button>
 
@@ -91,7 +99,7 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
           <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 p-4 rounded-xl text-sm border border-amber-200 dark:border-amber-800/50">
-            <strong>Atención:</strong> Al generar zonas se crearán "Plazas Libres" con sus partidos pre-programados. Si los jugadores ya se habían inscripto a la categoría sin plaza, se perderá esa asignación. Haz esto <strong>antes</strong> de abrir inscripciones.
+            <strong>Atención:</strong> Se reemplazará el fixture anterior. Las parejas confirmadas se distribuirán de forma balanceada y los lugares restantes quedarán como plazas libres.
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -99,7 +107,7 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
               <Label className="text-slate-600 dark:text-slate-300">Cantidad de Zonas</Label>
               <Input 
                 type="number" min={1} max={16} 
-                value={numZones} onChange={e => setNumZones(Number(e.target.value))}
+                value={numZones} onChange={e => { const count = Number(e.target.value); setNumZones(count); setZonesConfig(buildZoneConfig(count)); }}
                 className="bg-white dark:bg-slate-800" required
               />
             </div>
@@ -138,19 +146,20 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duración (min)</Label>
                     <Input 
-                      type="number" required value={zc.intervalMinutes} min={10}
-                      onChange={e => handleConfigChange(idx, 'intervalMinutes', e.target.value)}
+                      type="number" required value={zc.intervalMinutes} min={90}
+                      onChange={e => handleConfigChange(idx, 'intervalMinutes', Number(e.target.value))}
                       className="h-10 text-sm bg-slate-50 dark:bg-slate-900"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cancha (Opcional)</Label>
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cancha</Label>
                     <select
+                      required
                       value={zc.courtId}
                       onChange={e => handleConfigChange(idx, 'courtId', e.target.value)}
                       className="w-full h-10 px-3 text-sm rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                     >
-                      <option value="">A designar</option>
+                      <option value="">Seleccionar cancha</option>
                       {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>

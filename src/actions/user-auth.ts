@@ -4,8 +4,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-
-const SESSION_COOKIE_NAME = "tpadel_user_session";
+import { clearUserSession, createUserSession, readUserSessionId } from "@/lib/user-session";
 
 export async function registerUser(formData: FormData) {
     const name = formData.get("name") as string;
@@ -48,13 +47,7 @@ export async function registerUser(formData: FormData) {
             }
         });
 
-        const cookieStore = await cookies();
-        cookieStore.set(SESSION_COOKIE_NAME, user.id, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            maxAge: 60 * 60 * 24 * 365 * 10, // 10 years
-            path: "/",
-        });
+        await createUserSession(user.id);
 
         revalidatePath("/");
         return { success: true };
@@ -90,13 +83,7 @@ export async function loginUser(formData: FormData) {
             return { success: false, error: "Credenciales incorrectas." };
         }
 
-        const cookieStore = await cookies();
-        cookieStore.set(SESSION_COOKIE_NAME, user.id, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            maxAge: 60 * 60 * 24 * 365 * 10, // 10 years
-            path: "/",
-        });
+        await createUserSession(user.id);
 
         revalidatePath("/");
         return { success: true };
@@ -106,9 +93,8 @@ export async function loginUser(formData: FormData) {
     }
 }
 
-export async function logoutUser(formData?: FormData) {
-    const cookieStore = await cookies();
-    cookieStore.delete(SESSION_COOKIE_NAME);
+export async function logoutUser() {
+    await clearUserSession();
     revalidatePath("/");
 }
 
@@ -125,8 +111,7 @@ export async function skipRegistration() {
 }
 
 export async function getUserSession() {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const userId = await readUserSessionId();
     
     if (!userId) return null;
 
@@ -138,7 +123,7 @@ export async function getUserSession() {
         
         if (user && user.isActive === false) {
             // Kick out blocked user
-            cookieStore.delete(SESSION_COOKIE_NAME);
+            await clearUserSession();
             return null;
         }
 

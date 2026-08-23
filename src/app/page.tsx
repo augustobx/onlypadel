@@ -9,6 +9,7 @@ import { Trophy } from "lucide-react";
 import { cookies } from "next/headers";
 import UserWelcomeSplash from "@/components/UserWelcomeSplash";
 import { getUserSession } from "@/actions/user-auth";
+import { getReadableForeground, normalizeHexColor } from "@/lib/color";
 
 export default async function HomePage() {
     const pubReq = await getPublicTournaments();
@@ -27,6 +28,12 @@ export default async function HomePage() {
     const usersModuleEnabled = settings?.usersModuleEnabled ?? false;
     
     const session = await getUserSession();
+    const today = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');
+    const secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
 
     if (usersModuleEnabled) {
         const cookieStore = await cookies();
@@ -69,18 +76,20 @@ export default async function HomePage() {
 
     return (
         <div 
-            className={`${theme} min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col md:items-center md:py-8`}
+            className={`${theme} min-h-dvh bg-slate-50 dark:bg-slate-950 flex flex-col md:h-dvh md:items-center md:overflow-hidden md:py-8`}
             style={{ 
-                '--color-primary': settings?.primaryColor || '#10b981', 
-                '--color-secondary': settings?.secondaryColor || '#0ea5e9' 
+                '--color-primary': primaryColor,
+                '--color-primary-foreground': getReadableForeground(primaryColor),
+                '--color-secondary': secondaryColor,
+                '--color-secondary-foreground': getReadableForeground(secondaryColor),
             } as React.CSSProperties}
         >
-            <div className="w-full max-w-md bg-white dark:bg-slate-900 min-h-screen md:min-h-0 md:rounded-[2.5rem] md:shadow-2xl md:border md:border-slate-200 dark:border-slate-800 relative overflow-hidden flex flex-col">
+            <div className="relative flex min-h-dvh w-full max-w-md flex-col overflow-hidden bg-white dark:bg-slate-900 md:h-[calc(100dvh-4rem)] md:max-h-[820px] md:min-h-0 md:rounded-[2.5rem] md:border md:border-slate-200 md:shadow-2xl dark:border-slate-800">
                 <PublicNavbar sysSettings={settings} />
                 {appLayout === 'chat' ? (
-                  <BookingFlowChat courts={courts} sysSettings={settings} session={session} />
+                  <BookingFlowChat courts={courts} sysSettings={settings} session={session} today={today} />
                 ) : (
-                  <BookingFlow courts={courts} sysSettings={settings} session={session} />
+                  <BookingFlow courts={courts} sysSettings={settings} session={session} today={today} />
                 )}
                 
                 {/* BURBUJA DE TORNEO ACTIVO */}

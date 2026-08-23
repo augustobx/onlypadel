@@ -1,45 +1,119 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard } from 'lucide-react';
 import { getAvailableSlots } from '@/actions/public-bookings';
 import { createBooking } from '@/actions/bookings';
 import { createPaymentPreference } from '@/actions/payments';
+import { clearBookingRequestKey, getOrCreateBookingRequestKey } from '@/lib/booking-request';
+import { getReadableForeground, normalizeHexColor } from '@/lib/color';
 
 interface SlotData {
   time: string;
   status: string;
 }
 
-export default function BookingFlow({ courts, sysSettings, session }: { courts: any[], sysSettings?: any, session?: any }) {
-  const isDark = sysSettings?.theme === 'dark';
+interface CourtOption {
+  id: string;
+  name: string;
+  surface?: string | null;
+}
+
+interface PublicSettings {
+  splashDuration?: number;
+  bubbleDuration?: number;
+  splashLogo?: string | null;
+  splashName?: string | null;
+  clubName?: string | null;
+  sportEmoji?: string | null;
+  pwaEnabled?: boolean;
+  bubbleActive?: boolean;
+  bubbleText?: string | null;
+  bubbleColor?: string | null;
+  requireDeposit?: boolean;
+  usersModuleEnabled?: boolean;
+  requireDepositForRegistered?: boolean;
+}
+
+interface UserSession {
+  name?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+}
+
+const BOOKING_DRAFT_KEY = 'tpadel.booking-draft.v1';
+
+export default function BookingFlow({ courts, sysSettings, session, today }: { courts: CourtOption[], sysSettings?: PublicSettings | null, session?: UserSession | null, today: string }) {
 
   // VARIABLES DINÁMICAS DESDE LA BASE DE DATOS
   const splashDuration = sysSettings?.splashDuration || 1500;
   const bubbleDuration = sysSettings?.bubbleDuration || 3000;
   const splashLogo = sysSettings?.splashLogo || "";
+  const hasSplashLogo = /^(https?:\/\/|\/|data:image\/)/i.test(splashLogo);
   const splashName = sysSettings?.splashName || "Sistema T-Padel";
   const clubName = sysSettings?.clubName || "Padel Club";
   const sportEmoji = sysSettings?.sportEmoji || "🎾";
 
   // ESTADOS Y REFS
   const slotsRef = useRef<HTMLDivElement>(null);
-  const [showSplash, setShowSplash] = useState(true);
+  const bookingFormRef = useRef<HTMLFormElement>(null);
+  const retryWhenOnlineRef = useRef(false);
+  const completedRef = useRef(false);
+  const [showSplash, setShowSplash] = useState(sysSettings?.pwaEnabled !== false && splashDuration > 0);
   const [showBubble, setShowBubble] = useState(sysSettings?.bubbleActive || false);
 
   const [step, setStep] = useState(1);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date(`${today}T12:00:00`));
   const [selectedCourt, setSelectedCourt] = useState<string>('');
   const [slots, setSlots] = useState<SlotData[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [loading, setLoading] = useState(false);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
+  const [draftReady, setDraftReady] = useState(false);
 
   // ESTADO RESTAURADO: Solo Nombre y Teléfono (Sin email)
   const [formData, setFormData] = useState({ 
     name: session ? `${session.name} ${session.lastName}`.trim() : '', 
     phone: session?.phone || '' 
   });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.sessionStorage.getItem(BOOKING_DRAFT_KEY);
+        if (raw) {
+          const draft = JSON.parse(raw) as { date?: string; courtId?: string; slot?: string; formData?: { name: string; phone: string }; step?: number };
+          const canRestoreSelection = Boolean(
+            draft.date && draft.date >= today && draft.slot && draft.courtId
+            && courts.some((court) => court.id === draft.courtId),
+          );
+          if (draft.formData) setFormData(draft.formData);
+          if (canRestoreSelection && draft.date && draft.courtId && draft.slot) {
+            setSelectedDate(new Date(`${draft.date}T12:00:00`));
+            setSlotsLoading(true);
+            setSelectedCourt(draft.courtId);
+            setSelectedSlot(draft.slot);
+            if (draft.step === 2) setStep(2);
+          } else {
+            window.sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+          }
+        }
+      } catch {
+        // Si el borrador está dañado, iniciamos un flujo limpio.
+      } finally {
+        setDraftReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [courts, today]);
+
+  useEffect(() => {
+    if (!draftReady || step === 3 || completedRef.current) return;
+    const date = new Date(selectedDate.getTime() - selectedDate.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    window.sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify({ date, courtId: selectedCourt, slot: selectedSlot, formData, step }));
+  }, [draftReady, selectedDate, selectedCourt, selectedSlot, formData, step]);
 
   // Calculate if deposit is required for this specific user
   const clientRequireDeposit = (() => {
@@ -49,16 +123,17 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
   })();
 
   const upcomingDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
+    const d = new Date(`${today}T12:00:00`);
     d.setDate(d.getDate() + i);
     return d;
   });
 
   // EFECTO DEL SPLASH
   useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), splashDuration);
+    if (!showSplash) return;
+    const timer = setTimeout(() => setShowSplash(false), Math.min(Math.max(splashDuration, 400), 5000));
     return () => clearTimeout(timer);
-  }, [splashDuration]);
+  }, [showSplash, splashDuration]);
 
   // EFECTO DE LA BURBUJA CENTRADA (Desaparece según el bubbleDuration)
   useEffect(() => {
@@ -70,7 +145,7 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
 
   useEffect(() => {
     if (selectedCourt && selectedDate) {
-      setLoading(true);
+      let active = true;
       const dateStr = new Date(selectedDate.getTime() - selectedDate.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
       // Auto-scroll a la sección de horarios
@@ -78,15 +153,21 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
         slotsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 150);
 
-      getAvailableSlots(selectedCourt, dateStr).then(res => {
-        if (res.success && res.data) {
-          setSlots(res.data as SlotData[]);
-        } else {
-          setSlots([]);
-        }
-        setLoading(false);
-        setSelectedSlot('');
-      });
+      getAvailableSlots(selectedCourt, dateStr)
+        .then(res => {
+          if (!active) return;
+          setSlots(res.success && res.data ? res.data as SlotData[] : []);
+          if (!res.success) setError(res.error || 'No pudimos consultar los horarios.');
+          setSelectedSlot((current) => res.success && res.data?.some((slot) => slot.time === current && slot.status === 'AVAILABLE') ? current : '');
+        })
+        .catch(() => {
+          if (active) {
+            setSlots([]);
+            setError('No pudimos consultar la agenda. Revisá tu conexión e intentá nuevamente.');
+          }
+        })
+        .finally(() => { if (active) setSlotsLoading(false); });
+      return () => { active = false; };
     }
   }, [selectedCourt, selectedDate]);
 
@@ -98,7 +179,7 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
     if (e) e.preventDefault();
     if (!formData.name || !formData.phone) return;
 
-    setLoading(true);
+    setSubmitting(true);
     setError('');
 
     try {
@@ -110,15 +191,19 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
         time: selectedSlot,
         name: formData.name,
         phone: formData.phone,
+        requestKey: getOrCreateBookingRequestKey(selectedCourt, dateStr, selectedSlot),
       });
 
       if (!bookingResult.success || !bookingResult.data) {
         setError(bookingResult.error || 'Error al crear la reserva');
-        setLoading(false);
+        setSubmitting(false);
         return;
       }
 
       const { bookingId, fee, requireDeposit } = bookingResult.data;
+      retryWhenOnlineRef.current = false;
+      completedRef.current = true;
+      window.sessionStorage.removeItem(BOOKING_DRAFT_KEY);
 
       if (requireDeposit && fee > 0) {
         const paymentResult = await createPaymentPreference(bookingId);
@@ -128,28 +213,41 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
           return;
         } else {
           setStep(3);
-          setLoading(false);
+          setSubmitting(false);
         }
       } else {
+        clearBookingRequestKey();
         setStep(3);
-        setLoading(false);
+        setSubmitting(false);
       }
     } catch (err) {
       console.error('Error en el flujo de reserva:', err);
-      setError('Ocurrió un error inesperado. Intentá de nuevo.');
-      setLoading(false);
+      retryWhenOnlineRef.current = true;
+      setError('La conexión se interrumpió. Estamos verificando la misma reserva para no duplicarla.');
+      setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    const retry = () => {
+      if (retryWhenOnlineRef.current && bookingFormRef.current) {
+        retryWhenOnlineRef.current = false;
+        bookingFormRef.current.requestSubmit();
+      }
+    };
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, []);
 
   // --- PANTALLA SPLASH DE INICIO ---
   if (showSplash) {
     return (
       <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center animate-in fade-in duration-300">
         <div className="flex flex-col items-center animate-bounce">
-          {splashLogo ? (
-            <img src={splashLogo} alt={splashName} className="w-32 h-32 object-contain mb-6 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.3)]" />
+          {hasSplashLogo ? (
+            <Image src={splashLogo} alt={splashName} width={128} height={128} unoptimized className="w-32 h-32 object-contain mb-6 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.3)]" />
           ) : (
-            <div className="w-24 h-24 bg-[var(--color-primary)] rounded-full flex items-center justify-center font-black text-slate-900 text-5xl mb-6 shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+            <div className="w-24 h-24 bg-[var(--color-primary)] rounded-full flex items-center justify-center font-black text-[var(--color-primary-foreground)] text-5xl mb-6 shadow-[0_0_40px_rgba(16,185,129,0.3)]">
               {sportEmoji}
             </div>
           )}
@@ -176,7 +274,16 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
         </p>
       </div>
 
-      <div className="p-5 flex-1 overflow-y-auto pb-32 space-y-8 -mt-2 hide-scrollbar">
+      <div className="hide-scrollbar flex-1 space-y-7 overflow-y-auto p-5 pb-8 -mt-2">
+
+        <ol className="grid grid-cols-3 gap-2 pt-3" aria-label="Progreso de la reserva">
+          {['Disponibilidad', 'Tus datos', 'Confirmación'].map((label, index) => {
+            const number = index + 1;
+            const active = step === number;
+            const complete = step > number;
+            return <li key={label} className={`flex min-w-0 flex-col items-center gap-1 text-center text-[10px] font-black uppercase tracking-wide ${active ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}><span className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs ${active || complete ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-primary-foreground)]' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>{complete ? '✓' : number}</span><span className="truncate">{label}</span></li>;
+          })}
+        </ol>
 
         {/* PASO 1 */}
         {step === 1 && (
@@ -193,9 +300,13 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
                   return (
                     <button
                       key={i}
-                      onClick={() => setSelectedDate(date)}
+                      onClick={() => {
+                        setSelectedDate(date);
+                        setError('');
+                        if (selectedCourt) setSlotsLoading(true);
+                      }}
                       className={`flex-shrink-0 w-16 p-3 rounded-2xl flex flex-col items-center justify-center transition-all snap-start shadow-sm border ${isSelected
-                        ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] ring-4 ring-[var(--color-primary)]/20'
+                        ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)] ring-4 ring-[var(--color-primary)]/20'
                         : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
                         }`}
                     >
@@ -220,10 +331,15 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
                 {courts.map(court => (
                   <button
                     key={court.id}
-                    onClick={() => setSelectedCourt(court.id)}
+                    onClick={() => {
+                      setSelectedCourt(court.id);
+                      setSelectedSlot('');
+                      setError('');
+                      setSlotsLoading(true);
+                    }}
                     className={`p-4 rounded-2xl text-left transition-all border shadow-sm flex flex-col active:scale-[0.98] ${selectedCourt === court.id
-                      ? 'bg-[var(--color-primary)] border-[var(--color-primary)] ring-2 ring-[var(--color-primary)] text-[var(--color-primary)] dark:bg-[var(--color-primary)]/30 dark:text-[var(--color-primary)] transform scale-[1.02]'
-                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-[var(--color-primary)]'
+                      ? 'bg-[var(--color-primary)] border-[var(--color-primary)] ring-2 ring-[var(--color-primary)] text-[var(--color-primary-foreground)] transform scale-[1.02]'
+                      : 'bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700 hover:border-[var(--color-primary)]'
                       }`}
                   >
                     <span className="font-bold text-base">{court.name}</span>
@@ -231,6 +347,13 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
                   </button>
                 ))}
               </div>
+              {courts.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
+                  <MapPin className="mx-auto h-8 w-8 text-slate-400" />
+                  <p className="mt-2 text-sm font-black text-slate-700 dark:text-slate-200">No hay canchas disponibles</p>
+                  <p className="mt-1 text-xs font-medium text-slate-500">Comunicate con el club para consultar horarios.</p>
+                </div>
+              )}
             </div>
 
             {/* Horarios FOMO (Grilla Visual de Ocupación) */}
@@ -244,7 +367,7 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
                   </div>
                 </label>
 
-                {loading ? (
+                {slotsLoading ? (
                   <div className="flex justify-center p-8"><div className="w-8 h-8 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin"></div></div>
                 ) : slots.length > 0 ? (
                   <div className="grid grid-cols-2 gap-3">
@@ -291,7 +414,7 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
 
         {/* --- PASO 2: DATOS DEL CLIENTE --- */}
         {step === 2 && (
-          <form onSubmit={handleFinalSubmit} className="space-y-6 animate-in slide-in-from-right-8 duration-500 pt-4">
+          <form ref={bookingFormRef} onSubmit={handleFinalSubmit} className="space-y-6 animate-in slide-in-from-right-8 duration-500 pt-4">
             <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-lg flex justify-between items-center mb-6">
               <div>
                 <p className="text-[10px] font-bold text-[var(--color-primary)] uppercase tracking-wider mb-1">Resumen de Reserva</p>
@@ -311,11 +434,11 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center"><User className="w-4 h-4 mr-2 text-slate-400" /> Nombre y Apellido</label>
-                <input required type="text" placeholder="Ej: Augusto Basquez" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all shadow-sm" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                <input id="classic-name" required minLength={2} type="text" autoComplete="name" placeholder="Ej: Juan Pérez" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all shadow-sm" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center"><Phone className="w-4 h-4 mr-2 text-slate-400" /> WhatsApp</label>
-                <input required type="tel" placeholder="Ej: 3329 123456" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all shadow-sm" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                <input id="classic-phone" required minLength={6} type="tel" inputMode="tel" autoComplete="tel" placeholder="Ej: 3329 123456" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all shadow-sm" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
               </div>
             </div>
 
@@ -332,7 +455,7 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
         {step === 3 && (
           <div className="flex flex-col items-center justify-center text-center py-12 animate-in zoom-in-95 duration-500">
             <div className="w-24 h-24 bg-[var(--color-primary)] rounded-full flex items-center justify-center mb-6 shadow-inner relative">
-              <CheckCircle2 className="w-12 h-12 text-[var(--color-primary)] absolute" />
+              <CheckCircle2 className="w-12 h-12 text-[var(--color-primary-foreground)] absolute" />
               <div className="w-24 h-24 border-4 border-[var(--color-primary)] rounded-full animate-ping opacity-20"></div>
             </div>
             <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100 mb-3">¡Reserva {clientRequireDeposit ? 'registrada' : 'confirmada'}!</h3>
@@ -369,22 +492,22 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
 
       {/* FOOTER FLOTANTE PWA */}
       {step < 3 && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-50">
+        <div className="z-50 shrink-0 border-t border-slate-200 bg-white/95 p-4 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95">
           {step === 1 ? (
             <button
               onClick={handleNextStep}
               disabled={!selectedCourt || !selectedSlot}
-              className="w-full flex items-center justify-center bg-[var(--color-primary)] text-white font-bold text-lg py-4 rounded-2xl shadow-lg shadow-[var(--color-primary)]/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-[var(--color-primary)] active:scale-[0.98]"
+              className="w-full flex items-center justify-center bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-bold text-lg py-4 rounded-2xl shadow-lg shadow-[var(--color-primary)]/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-[var(--color-primary)] active:scale-[0.98]"
             >
               Continuar <ArrowRight className="w-5 h-5 ml-2" />
             </button>
           ) : (
             <button
               onClick={handleFinalSubmit}
-              disabled={loading || !formData.name || !formData.phone}
+              disabled={submitting || formData.name.trim().length < 2 || formData.phone.trim().length < 6}
               className="w-full flex items-center justify-center bg-slate-900 dark:bg-[var(--color-primary)] text-white font-bold text-lg py-4 rounded-2xl shadow-xl transition-all hover:bg-black dark:hover:bg-[var(--color-primary)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {submitting ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Procesando...
@@ -409,7 +532,7 @@ export default function BookingFlow({ courts, sysSettings, session }: { courts: 
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none">
           <div
             className="p-8 rounded-[2rem] shadow-2xl max-w-sm w-full animate-in zoom-in-90 fade-in slide-in-from-bottom-8 duration-500 pointer-events-auto"
-            style={{ backgroundColor: sysSettings.bubbleColor || '#10b981', color: '#fff' }}
+            style={{ backgroundColor: normalizeHexColor(sysSettings.bubbleColor, '#10b981'), color: getReadableForeground(normalizeHexColor(sysSettings.bubbleColor, '#10b981')) }}
           >
             <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-6xl drop-shadow-md">{sportEmoji}</span>

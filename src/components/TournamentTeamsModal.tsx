@@ -15,8 +15,9 @@ import { registerTeam } from '@/actions/public-tournaments';
 import { deleteTeam, toggleTeamPaid } from '@/actions/tournament-engine';
 import { useRouter } from 'next/navigation';
 import { Users, Trash2, DollarSign } from 'lucide-react';
+import type { TournamentCategoryView } from '@/lib/tournaments/types';
 
-export default function TournamentTeamsModal({ category, tournamentId }: { category: any; tournamentId: string }) {
+export default function TournamentTeamsModal({ category, tournamentId }: { category: TournamentCategoryView; tournamentId: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingPaid, setLoadingPaid] = useState<string | null>(null);
@@ -34,7 +35,12 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
     e.preventDefault();
     if (!formData.player1Name || !formData.player1Phone || !formData.player2Name || !formData.player2Phone) return;
     setLoading(true);
-    await registerTeam(tournamentId, category.id, formData);
+    const result = await registerTeam(tournamentId, category.id, formData);
+    if (!result.success) {
+      alert(result.error || 'No se pudo agregar la pareja');
+      setLoading(false);
+      return;
+    }
     setFormData({ teamName: '', player1Name: '', player1Phone: '', player2Name: '', player2Phone: '' });
     setLoading(false);
     router.refresh();
@@ -58,11 +64,8 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {/* @ts-expect-error - asChild type issue */}
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+      <DialogTrigger render={<Button variant="outline" size="sm" />}>
           <Users className="w-4 h-4 mr-1" /> Inscriptos ({category.teams?.length || 0})
-        </Button>
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
@@ -85,7 +88,7 @@ export default function TournamentTeamsModal({ category, tournamentId }: { categ
                 </tr>
               </thead>
               <tbody>
-                {category.teams?.map((t: any, idx: number) => (
+                {category.teams?.map((t, idx: number) => (
                   <tr key={t.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="p-2 text-slate-400 text-xs font-mono">{idx + 1}</td>
                     <td className="p-2 font-medium">{t.name || '-'}</td>

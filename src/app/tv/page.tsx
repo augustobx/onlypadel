@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getTournamentDetails, getPublicTournaments } from '@/actions/public-tournaments';
 import { Trophy, Wifi, Clock } from 'lucide-react';
+import type { TournamentMatchView, TournamentView } from '@/lib/tournaments/types';
 
 export default function TvModePage() {
-  const [tournament, setTournament] = useState<any>(null);
+  const [tournament, setTournament] = useState<TournamentView | null>(null);
   const [slideIndex, setSlideIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [clock, setClock] = useState('');
@@ -26,8 +27,8 @@ export default function TvModePage() {
   const fetchData = useCallback(async () => {
     try {
       const pubReq = await getPublicTournaments();
-      const active = pubReq.data?.find((t: any) => t.status === 'ONGOING') ||
-                     pubReq.data?.find((t: any) => t.status === 'REGISTRATION') ||
+      const active = pubReq.data?.find((t) => t.status === 'ONGOING') ||
+                     pubReq.data?.find((t) => t.status === 'REGISTRATION') ||
                      pubReq.data?.[0];
 
       if (active) {
@@ -44,9 +45,9 @@ export default function TvModePage() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const initial = setTimeout(() => void fetchData(), 0);
     const interval = setInterval(fetchData, 30000); // Refresh cada 30s
-    return () => clearInterval(interval);
+    return () => { clearTimeout(initial); clearInterval(interval); };
   }, [fetchData]);
 
   // Calcular slides disponibles
@@ -54,13 +55,13 @@ export default function TvModePage() {
     if (!tournament) return [];
     const slides: string[] = [];
 
-    const allMatches = tournament.categories?.flatMap((c: any) =>
-      c.matches?.map((m: any) => ({ ...m, categoryName: c.name })) || []
+    const allMatches: TournamentMatchView[] = tournament.categories?.flatMap((c) =>
+      c.matches?.map((m) => ({ ...m, categoryName: c.name })) || []
     ) || [];
 
-    const live = allMatches.filter((m: any) => m.status === 'IN_PROGRESS');
-    const completed = allMatches.filter((m: any) => m.status === 'COMPLETED' && m.scoreTeam1 !== 'BYE');
-    const scheduled = allMatches.filter((m: any) => m.status === 'SCHEDULED' && m.team1Id && m.team2Id);
+    const live = allMatches.filter((m) => m.status === 'IN_PROGRESS');
+    const completed = allMatches.filter((m) => m.status === 'COMPLETED' && m.scoreTeam1 !== 'BYE');
+    const scheduled = allMatches.filter((m) => m.status === 'SCHEDULED' && m.team1Id && m.team2Id);
 
     if (live.length > 0) slides.push('live');
     slides.push('bracket');
@@ -111,13 +112,13 @@ export default function TvModePage() {
   // ============================================================
   // DATA PROCESSING
   // ============================================================
-  const allMatches = tournament.categories?.flatMap((c: any) =>
-    c.matches?.map((m: any) => ({ ...m, categoryName: c.name })) || []
+  const allMatches: TournamentMatchView[] = tournament.categories?.flatMap((c) =>
+    c.matches?.map((m) => ({ ...m, categoryName: c.name })) || []
   ) || [];
 
-  const liveMatches = allMatches.filter((m: any) => m.status === 'IN_PROGRESS');
-  const completedMatches = allMatches.filter((m: any) => m.status === 'COMPLETED' && m.scoreTeam1 !== 'BYE' && m.scoreTeam2 !== 'BYE');
-  const scheduledMatches = allMatches.filter((m: any) => m.status === 'SCHEDULED' && m.team1Id && m.team2Id);
+  const liveMatches = allMatches.filter((m) => m.status === 'IN_PROGRESS');
+  const completedMatches = allMatches.filter((m) => m.status === 'COMPLETED' && m.scoreTeam1 !== 'BYE' && m.scoreTeam2 !== 'BYE');
+  const scheduledMatches = allMatches.filter((m) => m.status === 'SCHEDULED' && m.team1Id && m.team2Id);
 
   const slides = getSlides();
   const currentSlide = slides[slideIndex % slides.length] || 'bracket';
@@ -135,7 +136,7 @@ export default function TvModePage() {
           <div>
             <h1 className="text-4xl font-black tracking-tight leading-none">{tournament.name}</h1>
             <p className="text-slate-400 text-sm mt-1">
-              {tournament.categories?.map((c: any) => c.name).join(' • ')}
+              {tournament.categories?.map((c) => c.name).join(' • ')}
             </p>
           </div>
         </div>
@@ -185,7 +186,7 @@ export default function TvModePage() {
               Partidos en Curso
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1 content-center">
-              {liveMatches.map((m: any) => (
+              {liveMatches.map((m) => (
                 <div key={m.id} className="bg-gradient-to-br from-slate-800 to-slate-900 border-l-4 border-red-500 rounded-3xl p-8 shadow-2xl shadow-red-500/5">
                   <p className="text-slate-400 font-bold text-lg mb-6 uppercase tracking-wider">{m.categoryName} — {m.roundName || `Ronda ${m.round}`}</p>
                   <div className="space-y-4">
@@ -209,26 +210,26 @@ export default function TvModePage() {
           <div className="h-full flex flex-col" key="bracket">
             <h2 className="text-3xl font-black text-blue-400 mb-8 uppercase tracking-widest text-center">Cuadro del Torneo</h2>
             <div className="flex-1 overflow-x-auto">
-              {tournament.categories?.map((cat: any) => {
+              {tournament.categories?.map((cat) => {
                 if (!cat.matches?.length) return null;
-                const bracketMatches = cat.matches.filter((m: any) => !m.groupId);
-                const rounds = [...new Set(bracketMatches.map((m: any) => m.round))].sort((a: any, b: any) => a - b);
+                const bracketMatches = cat.matches.filter((m) => !m.groupId);
+                const rounds = [...new Set(bracketMatches.map((m) => m.round))].sort((a, b) => a - b);
 
                 return (
                   <div key={cat.id} className="mb-10">
                     <h3 className="text-xl font-bold text-yellow-400 mb-6 text-center">{cat.name}</h3>
                     <div className="flex gap-8 justify-center min-w-max px-4">
-                      {rounds.map((round: any) => {
+                      {rounds.map((round) => {
                         const roundMatches = bracketMatches
-                          .filter((m: any) => m.round === round)
-                          .sort((a: any, b: any) => a.matchOrder - b.matchOrder);
+                          .filter((m) => m.round === round)
+                          .sort((a, b) => a.matchOrder - b.matchOrder);
                         const roundName = roundMatches[0]?.roundName || `Ronda ${round}`;
 
                         return (
                           <div key={round} className="flex flex-col min-w-[280px]" style={{ justifyContent: 'space-around' }}>
                             <h4 className="text-center font-bold text-sm text-slate-500 mb-4 uppercase tracking-wider">{roundName}</h4>
                             <div className="flex flex-col justify-around flex-1 gap-6">
-                              {roundMatches.map((m: any) => {
+                              {roundMatches.map((m) => {
                                 const isBye = m.scoreTeam1 === 'BYE' || m.scoreTeam2 === 'BYE';
                                 if (isBye) return null;
 
@@ -270,7 +271,7 @@ export default function TvModePage() {
           <div className="h-full flex flex-col" key="upcoming">
             <h2 className="text-3xl font-black text-purple-400 mb-8 uppercase tracking-widest text-center">Próximos Cruces</h2>
             <div className="flex-1 flex flex-col justify-center gap-5 max-w-4xl mx-auto w-full">
-              {scheduledMatches.slice(0, 6).map((m: any) => (
+              {scheduledMatches.slice(0, 6).map((m) => (
                 <div key={m.id} className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 flex items-center border border-slate-700/50">
                   <span className="flex-1 text-2xl font-bold text-right truncate pr-6">{m.team1?.name || 'TBD'}</span>
                   <span className="text-slate-600 font-black text-3xl px-6 shrink-0">VS</span>
@@ -287,7 +288,7 @@ export default function TvModePage() {
           <div className="h-full flex flex-col" key="results">
             <h2 className="text-3xl font-black text-emerald-400 mb-8 uppercase tracking-widest text-center">Últimos Resultados</h2>
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 content-center max-w-5xl mx-auto w-full">
-              {completedMatches.slice(-8).map((m: any) => (
+              {completedMatches.slice(-8).map((m) => (
                 <div key={m.id} className="bg-slate-800/50 rounded-2xl p-5 flex items-center justify-between border border-slate-700/30">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">

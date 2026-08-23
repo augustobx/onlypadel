@@ -3,9 +3,11 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { addWeeks } from 'date-fns';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function getFixedBookings() {
     try {
+        await requireAdmin();
         const fixedBookings = await prisma.fixedBooking.findMany({
             include: {
                 user: true,
@@ -27,6 +29,7 @@ export async function getFixedBookings() {
 
 export async function deleteFixedBooking(id: string) {
     try {
+        await requireAdmin();
         await prisma.$transaction(async (tx) => {
             // Delete or mark inactive the fixed booking
             await tx.fixedBooking.update({
@@ -42,7 +45,8 @@ export async function deleteFixedBooking(id: string) {
                     startTime: { gte: now }
                 },
                 data: {
-                    status: 'CANCELLED'
+                    status: 'CANCELLED',
+                    slotKey: null,
                 }
             });
         });
@@ -64,6 +68,7 @@ export async function updateFixedBooking(id: string, data: {
     clientPhone: string;
 }) {
     try {
+        await requireAdmin();
         await prisma.$transaction(async (tx) => {
             const fb = await tx.fixedBooking.findUnique({ where: { id }, include: { user: true } });
             if (!fb) throw new Error("Abono no encontrado");
@@ -109,7 +114,7 @@ export async function updateFixedBooking(id: string, data: {
                     fixedBookingId: id,
                     startTime: { gte: now }
                 },
-                data: { status: 'CANCELLED' }
+                data: { status: 'CANCELLED', slotKey: null }
             });
 
             // Re-generate future bookings until original endDate
@@ -138,6 +143,7 @@ export async function updateFixedBooking(id: string, data: {
                             status: 'FIXED',
                             totalAmount: 0,
                             fixedBookingId: id,
+                            slotKey: `${data.courtId}:${startTime.toISOString()}`,
                         }
                     });
                 }

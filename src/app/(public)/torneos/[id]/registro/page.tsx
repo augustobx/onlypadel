@@ -26,7 +26,7 @@ export default async function TournamentRegistrationPage(props: { params: Promis
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 flex flex-col items-center justify-center p-6 text-white text-center">
         <Lock className="w-16 h-16 text-blue-500 mb-6" />
         <h1 className="text-3xl font-black mb-4">Acceso Restringido</h1>
-        <p className="text-slate-400 mb-8 max-w-sm">Para inscribirte en el torneo "{tournament.name}" necesitas iniciar sesión con tu cuenta de jugador.</p>
+        <p className="text-slate-400 mb-8 max-w-sm">Para inscribirte en el torneo &ldquo;{tournament.name}&rdquo; necesitás iniciar sesión con tu cuenta de jugador.</p>
         <Link href="/login-usuario" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-2xl transition-all shadow-lg shadow-blue-500/30">
           Iniciar Sesión
         </Link>
@@ -35,7 +35,7 @@ export default async function TournamentRegistrationPage(props: { params: Promis
     );
   }
 
-  const categories = tournament.categories.map((c: any) => ({
+  const categories = tournament.categories.map((c) => ({
     id: c.id,
     name: c.name,
     teamCount: c.teams?.length || 0,

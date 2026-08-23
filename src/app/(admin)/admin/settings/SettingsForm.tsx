@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import PushConfig from "@/components/PushConfig";
 import { updateSystemSettings } from "@/actions/settings";
-import { Settings, Palette, Zap, CreditCard, Smartphone, Shield, Users } from 'lucide-react';
+import { Settings, Palette, Zap, CreditCard, Smartphone, Users } from 'lucide-react';
+import type { SystemSetting } from '@prisma/client';
 
-export default function SettingsForm({ settings }: { settings: any }) {
+export default function SettingsForm({ settings }: { settings: SystemSetting }) {
     const [initialSettings] = useState(settings);
     const [activeTab, setActiveTab] = useState('general');
     const [isSaving, setIsSaving] = useState(false);
@@ -226,8 +227,18 @@ export default function SettingsForm({ settings }: { settings: any }) {
                             </div>
                             <div className="flex items-center justify-between p-4 border rounded-xl">
                                 <div>
+                                    <Label htmlFor="rankingsEnabled" className="text-base">Módulo de Rankings</Label>
+                                    <p className="text-xs text-gray-500">Publica las tablas por categoría para visitantes y usuarios.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="rankingsEnabled" name="rankingsEnabled" defaultChecked={initialSettings.rankingsEnabled} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <div className="flex items-center justify-between p-4 border rounded-xl">
+                                <div>
                                     <Label htmlFor="clientCancellations" className="text-base">Cancelaciones de Clientes (Bot)</Label>
-                                    <p className="text-xs text-gray-500">Permite a los usuarios cancelar sus turnos desde "Ver mis reservas".</p>
+                                    <p className="text-xs text-gray-500">Permite a los usuarios cancelar sus turnos desde &quot;Ver mis reservas&quot;.</p>
                                 </div>
                                 <label className="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="clientCancellations" name="clientCancellations" defaultChecked={initialSettings.clientCancellations} className="sr-only peer" />
@@ -302,7 +313,7 @@ export default function SettingsForm({ settings }: { settings: any }) {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="adminPass">Contraseña</Label>
-                                    <Input id="adminPass" name="adminPass" type="password" defaultValue={initialSettings.adminPass} required />
+                                    <Input id="adminPass" name="adminPass" type="password" autoComplete="new-password" placeholder="Dejar vacío para mantener la actual" />
                                 </div>
                             </div>
                         </CardContent>

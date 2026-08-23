@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { normalizePhoneForWhatsApp } from '@/lib/whatsapp/notifications';
+import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
 
 export async function getPublicCourts() {
     try {
@@ -19,10 +20,10 @@ export async function getAvailableSlots(courtId: string, dateStr: string) {
     try {
         // AUTO-CANCELAR RESERVAS PENDIENTES EXPIRADAS (>5 min)
         try {
-            const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+            const cutoff = new Date(Date.now() - PENDING_BOOKING_TTL_MS);
             await prisma.booking.updateMany({
                 where: { status: 'PENDING', createdAt: { lt: cutoff } },
-                data: { status: 'CANCELLED' }
+                data: { status: 'CANCELLED', slotKey: null }
             });
         } catch(e) { console.error("Error auto-canceling pending bookings:", e); }
 
@@ -309,7 +310,7 @@ export async function cancelPublicBooking(bookingId: string, phone: string) {
 
         await prisma.booking.update({
             where: { id: bookingId },
-            data: { status: 'CANCELLED' }
+            data: { status: 'CANCELLED', slotKey: null }
         });
 
         return { success: true };

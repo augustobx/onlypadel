@@ -7,15 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { createCategory, deleteCategory, renameCategory, generateKnockoutBracket, generateKnockoutFromZones } from '@/actions/tournament-engine';
+import { createCategory, deleteCategory, renameCategory, generateKnockoutBracket, generateKnockoutFromZones, autoScheduleKnockout } from '@/actions/tournament-engine';
 import { updateTournamentStatus } from '@/actions/tournaments';
 import TournamentMesaControl from './TournamentMesaControl';
 import TournamentTeamsModal from './TournamentTeamsModal';
 import TournamentZonesGeneratorModal from './TournamentZonesGeneratorModal';
 import TournamentBracketView from './TournamentBracketView';
 import { Trash2, Zap, Users, Settings, LayoutGrid, Trophy, PlayCircle, MonitorPlay, Bot, Edit2, Check, X, Clock } from 'lucide-react';
+import type { TournamentView } from '@/lib/tournaments/types';
 
-export default function TournamentManager({ tournament }: { tournament: any }) {
+export default function TournamentManager({ tournament }: { tournament: TournamentView }) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
   const [newCatName, setNewCatName] = useState('');
@@ -28,7 +29,8 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
 
   const handleStatusChange = async (newStatus: string) => {
     setLoading('status');
-    await updateTournamentStatus(tournament.id, newStatus);
+    const result = await updateTournamentStatus(tournament.id, newStatus);
+    setFeedback(result.success ? 'Estado actualizado correctamente.' : result.error || 'No se pudo cambiar el estado.');
     setLoading(null);
     router.refresh();
   };
@@ -83,6 +85,15 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
     } else {
       setFeedback(res.error || 'Error al generar cuadro desde zonas.');
     }
+    setLoading(null);
+    router.refresh();
+  };
+
+  const handleAutoSchedule = async (categoryId: string) => {
+    if (!confirm('¿Programar automáticamente el cuadro usando la disponibilidad real de las canchas?')) return;
+    setLoading(`schedule_${categoryId}`);
+    const result = await autoScheduleKnockout(categoryId);
+    setFeedback(result.success ? result.message || 'Cronograma generado.' : result.error || 'No se pudo generar el cronograma.');
     setLoading(null);
     router.refresh();
   };
@@ -147,7 +158,7 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
                 <p className="text-slate-500 py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-xl">No hay categorías. Creá una para empezar.</p>
               ) : (
                 <div className="space-y-3">
-                  {tournament.categories.map((cat: any) => (
+                  {tournament.categories.map((cat) => (
                     <div key={cat.id} className="p-4 border rounded-xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 flex justify-between items-center">
                       <div className="flex-1 min-w-0">
                         {editingCat === cat.id ? (
@@ -272,7 +283,7 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
             <CardTitle>Gestión de Inscriptos por Categoría</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {tournament.categories.map((cat: any) => (
+            {tournament.categories.map((cat) => (
               <div key={cat.id} className="p-5 border rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm hover:border-emerald-500/30 transition-colors">
                 <div>
                   <h3 className="font-black text-xl text-slate-800 dark:text-white">{cat.name}</h3>
@@ -293,7 +304,7 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
             <CardTitle>Zonas y Grupos</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {tournament.categories.map((cat: any) => {
+            {tournament.categories.map((cat) => {
               const hasZones = cat.groups && cat.groups.length > 0;
               return (
                 <div key={cat.id} className="p-6 border rounded-2xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 shadow-sm">
@@ -307,10 +318,10 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
                   
                   {hasZones && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                      {cat.groups.map((g: any) => {
+                      {cat.groups.map((g) => {
                         // Filtrar partidos de este grupo
-                        const groupMatches = cat.matches?.filter((m: any) => m.groupId === g.id)
-                          ?.sort((a: any, b: any) => {
+                        const groupMatches = cat.matches?.filter((m) => m.groupId === g.id)
+                          ?.sort((a, b) => {
                             if (a.startTime && b.startTime) return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
                             return a.matchOrder - b.matchOrder;
                           }) || [];
@@ -321,7 +332,7 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
                             
                             {/* Tabla de posiciones */}
                             <div className="space-y-2 mb-4">
-                              {g.teams.map((gt: any, i: number) => (
+                              {g.teams.map((gt, i: number) => (
                                 <div key={gt.id} className="flex justify-between items-center text-sm">
                                   <span className="font-medium text-slate-700 dark:text-slate-200">{i+1}. {gt.team.name}</span>
                                   <div className="flex items-center gap-2">
@@ -336,7 +347,7 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
                             {groupMatches.length > 0 && (
                               <div className="border-t border-slate-100 dark:border-slate-700 pt-3 space-y-1.5">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Partidos</p>
-                                {groupMatches.map((m: any) => (
+                                {groupMatches.map((m) => (
                                   <div key={m.id} className={`flex items-center text-xs rounded-lg px-2 py-1.5 ${
                                     m.status === 'COMPLETED' ? 'bg-emerald-50 dark:bg-emerald-900/10' :
                                     m.status === 'IN_PROGRESS' ? 'bg-red-50 dark:bg-red-900/10' :
@@ -385,7 +396,7 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
             <CardTitle>Cuadro Eliminatorio (Llaves)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-8">
-            {tournament.categories.map((cat: any) => (
+            {tournament.categories.map((cat) => (
               <div key={cat.id} className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden bg-white dark:bg-slate-950 shadow-sm">
                 <div className="bg-slate-50 dark:bg-slate-900 p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <h3 className="font-black text-xl text-slate-800 dark:text-white flex items-center gap-2">
@@ -409,6 +420,14 @@ export default function TournamentManager({ tournament }: { tournament: any }) {
                     >
                       <Zap className="w-4 h-4 mr-2" />
                       Generar Cuadro Vacío
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleAutoSchedule(cat.id)}
+                      disabled={loading === `schedule_${cat.id}` || !cat.matches?.some((match) => !match.groupId)}
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      Programar canchas automáticamente
                     </Button>
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 import { getTournamentDetails } from "@/actions/public-tournaments";
 import Link from "next/link";
-import { ArrowLeft, Users, Calendar, Trophy, ChevronRight, Clock } from "lucide-react";
+import { ArrowLeft, Users, Calendar, Trophy, Clock } from "lucide-react";
 import TournamentBracket from "@/components/TournamentBracket";
 
 export default async function PublicTournamentDetail(props: { params: Promise<{ id: string }> }) {
@@ -59,7 +59,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
             </div>
 
             {tournament.status === 'REGISTRATION' && tournament.categories.length > 0 && (() => {
-              const totalTeams = tournament.categories.reduce((acc: number, cat: any) => acc + (cat.teams?.length || 0), 0);
+              const totalTeams = tournament.categories.reduce((acc, cat) => acc + (cat.teams?.length || 0), 0);
               const isFull = tournament.maxTeams ? totalTeams >= tournament.maxTeams : false;
               
               return (
@@ -105,7 +105,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
             <p className="text-slate-500 text-lg">Las categorías se publicarán próximamente.</p>
           </div>
         ) : (
-          tournament.categories.map((category: any) => (
+          tournament.categories.map((category) => (
             <div key={category.id} className="space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-700/50 pb-3">
                 <Trophy className="w-6 h-6 text-yellow-500" />
@@ -116,11 +116,11 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
               {/* TABLAS DE ZONAS */}
               {category.groups.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {category.groups.map((g: any) => {
+                  {category.groups.map((g) => {
                     // Partidos del grupo
                     const groupMatches = category.matches
-                      ?.filter((m: any) => m.groupId === g.id)
-                      ?.sort((a: any, b: any) => {
+                      ?.filter((m) => m.groupId === g.id)
+                      ?.sort((a, b) => {
                         if (a.startTime && b.startTime) return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
                         return a.matchOrder - b.matchOrder;
                       }) || [];
@@ -141,7 +141,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
                             </tr>
                           </thead>
                           <tbody>
-                            {g.teams.map((gt: any) => (
+                            {g.teams.map((gt) => (
                               <tr key={gt.id} className="border-b border-slate-800/50">
                                 <td className="py-3 font-medium">{gt.team?.name}</td>
                                 <td className="py-3 text-center font-bold text-emerald-400">{gt.points}</td>
@@ -157,7 +157,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
                         {groupMatches.length > 0 && (
                           <div className="mt-4 pt-3 border-t border-slate-700/30 space-y-1.5">
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Fixture</p>
-                            {groupMatches.map((m: any) => (
+                            {groupMatches.map((m) => (
                               <div key={m.id} className={`flex items-center text-xs rounded-lg px-2 py-1.5 ${
                                 m.status === 'COMPLETED' ? 'bg-emerald-900/10' :
                                 m.status === 'IN_PROGRESS' ? 'bg-red-900/15' :

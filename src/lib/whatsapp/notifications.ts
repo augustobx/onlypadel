@@ -155,7 +155,7 @@ export async function sendBookingPendingPayment(
         const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
         const clubName = settings?.clubName || 'Padel Club';
         const sportEmoji = settings?.sportEmoji || '🎾';
-        const template = settings?.wspPending || `{sportEmoji} *¡Reserva registrada, {clientName}!*\n\n📍 *Cancha:* {courtName}\n📅 *Fecha:* {date}\n🕐 *Horario:* {startTime} - {endTime}\n💰 *Seña:* \${fee}\n\n📌 *Estado:* ⏳ Pendiente de pago\n\n👇 *Pagá la seña para confirmar tu turno:*\n{paymentLink}\n\n⏱️ _Tenés 5 minutos para pagar, sino el turno se libera automáticamente._`;
+        const template = settings?.wspPending || `{sportEmoji} *¡Reserva registrada, {clientName}!*\n\n📍 *Cancha:* {courtName}\n📅 *Fecha:* {date}\n🕐 *Horario:* {startTime} - {endTime}\n💰 *Seña:* \${fee}\n\n📌 *Estado:* ⏳ Pendiente de pago\n\n👇 *Pagá la seña para confirmar tu turno:*\n{paymentLink}\n\n⏱️ _Tenés 15 minutos para pagar; después el turno se libera automáticamente._`;
 
         const message = fillTemplate(template, {
             clubName,

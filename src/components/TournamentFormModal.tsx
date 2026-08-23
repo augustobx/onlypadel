@@ -13,8 +13,22 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createTournament, updateTournament } from '@/actions/tournaments';
+import type { TournamentFormatView } from '@/lib/tournaments/types';
 
-export default function TournamentFormModal({ tournament }: { tournament?: any }) {
+type EditableTournament = {
+  id: string;
+  name: string;
+  startDate: string | Date;
+  endDate: string | Date;
+  entryFee: number | string | { toString(): string };
+  isPublished: boolean;
+  requireDeposit: boolean;
+  depositAmount: number | string | { toString(): string };
+  format: TournamentFormatView;
+  maxTeams: number | null;
+};
+
+export default function TournamentFormModal({ tournament }: { tournament?: EditableTournament }) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,18 +88,15 @@ export default function TournamentFormModal({ tournament }: { tournament?: any }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {/* @ts-expect-error - asChild type issue */}
-      <DialogTrigger asChild>
-        {tournament ? (
-          <Button variant="outline" size="icon" title="Editar Torneo">
+      {tournament ? (
+        <DialogTrigger render={<Button variant="outline" size="icon" title="Editar Torneo" />}>
             <Edit className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+        </DialogTrigger>
+      ) : (
+        <DialogTrigger render={<Button className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)]" />}>
             <Plus className="mr-2 h-4 w-4" /> Crear Torneo
-          </Button>
-        )}
-      </DialogTrigger>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -139,7 +150,7 @@ export default function TournamentFormModal({ tournament }: { tournament?: any }
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                 value={formData.format}
-                onChange={(e) => setFormData({ ...formData, format: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, format: e.target.value as TournamentFormatView })}
               >
                 <option value="KNOCKOUT">Eliminación Directa</option>
                 <option value="ROUND_ROBIN">Zonas (Round Robin)</option>

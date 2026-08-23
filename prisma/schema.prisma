@@ -18,8 +18,8 @@ enum BookingStatus {
   PENDING
   CONFIRMED
   CANCELLED
-  BLOCKED  
-  FIXED     
+  BLOCKED
+  FIXED
 }
 
 enum TournamentStatus {
@@ -42,57 +42,63 @@ enum TournamentFormat {
   MIXED
 }
 
+enum RankingSortMode {
+  POINTS
+  MANUAL
+}
+
 // ==========================================
 // CORE: USUARIOS, CANCHAS Y HORARIOS
 // ==========================================
 model User {
-  id              String             @id @default(uuid())
-  email           String?            @unique // Made optional in case they register by DNI only
-  dni             String?            @unique
-  password        String?
-  name            String?
-  lastName        String?
-  phone           String?
-  category        String?
-  role            Role               @default(PLAYER)
-  
-  bookings        Booking[]
-  fixedBookings   FixedBooking[]
-  teamsAsPlayer1  TournamentTeam[]   @relation("Player1")
-  teamsAsPlayer2  TournamentTeam[]   @relation("Player2")
-  pushSubscriptions PushSubscription[]
-  isActive        Boolean            @default(true)
-  
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id       String  @id @default(uuid())
+  email    String? @unique // Made optional in case they register by DNI only
+  dni      String? @unique
+  password String?
+  name     String?
+  lastName String?
+  phone    String?
+  category String?
+  role     Role    @default(PLAYER)
+
+  bookings                  Booking[]
+  fixedBookings             FixedBooking[]
+  teamsAsPlayer1            TournamentTeam[]           @relation("Player1")
+  teamsAsPlayer2            TournamentTeam[]           @relation("Player2")
+  pushSubscriptions         PushSubscription[]
+  rankingEntries            RankingEntry[]
+  playerCategoryAssignments PlayerCategoryAssignment[]
+  isActive                  Boolean                    @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-
 model Court {
-  id              String             @id @default(uuid())
-  name            String
-  sport           String             @default("Padel")
-  surface         String             @default("Piso Sintético")
-  isActive        Boolean            @default(true)
-  
-  bookings        Booking[]
-  fixedBookings   FixedBooking[]
-  blocks          CourtBlock[]
-  businessHours   BusinessHour[]
+  id       String  @id @default(uuid())
+  name     String
+  sport    String  @default("Padel")
+  surface  String  @default("Piso Sintético")
+  isActive Boolean @default(true)
+
+  bookings          Booking[]
+  fixedBookings     FixedBooking[]
+  blocks            CourtBlock[]
+  businessHours     BusinessHour[]
   tournamentMatches TournamentMatch[]
-  
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model BusinessHour {
-  id              String   @id @default(uuid())
-  courtId         String
-  court           Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  dayOfWeek       Int      // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
-  openTime        String   // "HH:mm"
-  closeTime       String   // "HH:mm"
-  slotDuration    Int      @default(90) // Duración en minutos
+  id           String @id @default(uuid())
+  courtId      String
+  court        Court  @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  dayOfWeek    Int // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+  openTime     String // "HH:mm"
+  closeTime    String // "HH:mm"
+  slotDuration Int    @default(90) // Duración en minutos
 
   @@unique([courtId, dayOfWeek])
 }
@@ -101,56 +107,59 @@ model BusinessHour {
 // MOTOR DE RESERVAS Y DISPONIBILIDAD
 // ==========================================
 model Booking {
-  id              String        @id @default(uuid())
-  courtId         String
-  court           Court         @relation(fields: [courtId], references: [id])
-  userId          String?
-  user            User?         @relation(fields: [userId], references: [id])
-  startTime       DateTime
-  endTime         DateTime
-  status          BookingStatus @default(PENDING)
-  paymentId       String?       // ID MercadoPago
-  totalAmount     Decimal       @db.Decimal(10, 2)
-  description     String?
-  fixedBookingId  String?
-  fixedBooking    FixedBooking? @relation(fields: [fixedBookingId], references: [id], onDelete: SetNull)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String        @id @default(uuid())
+  courtId        String
+  court          Court         @relation(fields: [courtId], references: [id])
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id])
+  startTime      DateTime
+  endTime        DateTime
+  status         BookingStatus @default(PENDING)
+  paymentId      String? // ID MercadoPago
+  totalAmount    Decimal       @db.Decimal(10, 2)
+  description    String?
+  fixedBookingId String?
+  fixedBooking   FixedBooking? @relation(fields: [fixedBookingId], references: [id], onDelete: SetNull)
+  // Claves de integridad: requestKey hace los reintentos idempotentes y
+  // slotKey impide que dos solicitudes ocupen el mismo inicio de turno.
+  requestKey     String?       @unique @db.VarChar(64)
+  slotKey        String?       @unique @db.VarChar(128)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([courtId, startTime, endTime])
 }
 
-
 model FixedBooking {
-  id              String   @id @default(uuid())
-  courtId         String
-  court           Court    @relation(fields: [courtId], references: [id])
-  userId          String
-  user            User     @relation(fields: [userId], references: [id])
-  dayOfWeek       Int      // 0 = Domingo, 1 = Lunes...
-  startTime       String   // "HH:mm"
-  endTime         String   // "HH:mm"
-  startDate       DateTime // Inicio vigencia abono
-  endDate         DateTime // Fin vigencia abono
-  isActive        Boolean  @default(true)
-  
-  bookings        Booking[]
+  id        String   @id @default(uuid())
+  courtId   String
+  court     Court    @relation(fields: [courtId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  dayOfWeek Int // 0 = Domingo, 1 = Lunes...
+  startTime String // "HH:mm"
+  endTime   String // "HH:mm"
+  startDate DateTime // Inicio vigencia abono
+  endDate   DateTime // Fin vigencia abono
+  isActive  Boolean  @default(true)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([courtId, dayOfWeek])
 }
 
 model CourtBlock {
-  id              String   @id @default(uuid())
-  courtId         String
-  court           Court    @relation(fields: [courtId], references: [id])
-  startTime       DateTime
-  endTime         DateTime
-  reason          String?  // Ej: "Lluvia", "Mantenimiento"
-  
-  createdAt       DateTime @default(now())
+  id        String   @id @default(uuid())
+  courtId   String
+  court     Court    @relation(fields: [courtId], references: [id])
+  startTime DateTime
+  endTime   DateTime
+  reason    String? // Ej: "Lluvia", "Mantenimiento"
+
+  createdAt DateTime @default(now())
 
   @@index([courtId, startTime, endTime])
 }
@@ -165,192 +174,271 @@ model PushSubscription {
   createdAt DateTime @default(now())
 }
 
-
 // ==========================================
 // FINANZAS Y CONFIGURACIÓN
 // ==========================================
 model Expense {
-  id              String   @id @default(uuid())
-  description     String
-  amount          Decimal  @db.Decimal(10, 2)
-  date            DateTime
-  category        String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String   @id @default(uuid())
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  date        DateTime
+  category    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Setting {
-  key             String   @id
-  value           String   @db.Text
-  updatedAt       DateTime @updatedAt
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
 // TORNEOS (Aislados para Fase 7)
 // ==========================================
 model Tournament {
-  id              String             @id @default(uuid())
-  name            String
-  startDate       DateTime
-  endDate         DateTime
-  status          TournamentStatus   @default(DRAFT)
-  entryFee        Decimal            @db.Decimal(10, 2)
-  categories      TournamentCategory[]
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id         String               @id @default(uuid())
+  name       String
+  startDate  DateTime
+  endDate    DateTime
+  status     TournamentStatus     @default(DRAFT)
+  entryFee   Decimal              @db.Decimal(10, 2)
+  categories TournamentCategory[]
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
-  isPublished     Boolean            @default(false)
-  requireDeposit  Boolean            @default(false)
-  depositAmount   Decimal            @default(0) @db.Decimal(10, 2)
-  format          TournamentFormat   @default(KNOCKOUT)
-  maxTeams        Int?               
+  isPublished    Boolean          @default(false)
+  requireDeposit Boolean          @default(false)
+  depositAmount  Decimal          @default(0) @db.Decimal(10, 2)
+  format         TournamentFormat @default(KNOCKOUT)
+  maxTeams       Int?
 }
 
 model TournamentCategory {
-  id              String             @id @default(uuid())
-  tournamentId    String
-  tournament      Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  name            String
-  level           Int?               
-  format          TournamentFormat?  
-  teams           TournamentTeam[]
-  matches         TournamentMatch[]
-  groups          TournamentGroup[]
+  id           String            @id @default(uuid())
+  tournamentId String
+  tournament   Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name         String
+  level        Int?
+  format       TournamentFormat?
+  teams        TournamentTeam[]
+  matches      TournamentMatch[]
+  groups       TournamentGroup[]
+
   @@unique([tournamentId, name])
 }
 
 model TournamentTeam {
-  id              String             @id @default(uuid())
-  categoryId      String
-  category        TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name            String?
-  player1Id       String
-  player1         User               @relation("Player1", fields: [player1Id], references: [id])
-  player2Id       String?
-  player2         User?              @relation("Player2", fields: [player2Id], references: [id])
-  isPaid          Boolean            @default(false)
-  
-  phone1          String?
-  phone2          String?
-  paymentId       String?
+  id         String             @id @default(uuid())
+  categoryId String
+  category   TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String?
+  player1Id  String
+  player1    User               @relation("Player1", fields: [player1Id], references: [id])
+  player2Id  String?
+  player2    User?              @relation("Player2", fields: [player2Id], references: [id])
+  isPaid     Boolean            @default(false)
 
-  matchesAsTeam1  TournamentMatch[]  @relation("MatchTeam1")
-  matchesAsTeam2  TournamentMatch[]  @relation("MatchTeam2")
-  matchesWon      TournamentMatch[]  @relation("MatchWinner")
+  phone1    String?
+  phone2    String?
+  paymentId String?
+
+  matchesAsTeam1  TournamentMatch[]     @relation("MatchTeam1")
+  matchesAsTeam2  TournamentMatch[]     @relation("MatchTeam2")
+  matchesWon      TournamentMatch[]     @relation("MatchWinner")
   groupPlacements TournamentGroupTeam[]
-  createdAt       DateTime           @default(now())
+  createdAt       DateTime              @default(now())
 }
 
 model TournamentGroup {
-  id              String             @id @default(uuid())
-  categoryId      String
-  category        TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name            String             
-  teams           TournamentGroupTeam[]
-  matches         TournamentMatch[]  
-  
+  id         String                @id @default(uuid())
+  categoryId String
+  category   TournamentCategory    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String
+  teams      TournamentGroupTeam[]
+  matches    TournamentMatch[]
+
   @@unique([categoryId, name])
 }
 
 model TournamentGroupTeam {
-  id              String             @id @default(uuid())
-  groupId         String
-  group           TournamentGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  teamId          String
-  team            TournamentTeam     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  
-  points          Int                @default(0)
-  matchesPlayed   Int                @default(0)
-  matchesWon      Int                @default(0)
-  matchesLost     Int                @default(0)
-  setsWon         Int                @default(0)
-  setsLost        Int                @default(0)
-  gamesWon        Int                @default(0)
-  gamesLost       Int                @default(0)
+  id      String          @id @default(uuid())
+  groupId String
+  group   TournamentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teamId  String
+  team    TournamentTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  points        Int @default(0)
+  matchesPlayed Int @default(0)
+  matchesWon    Int @default(0)
+  matchesLost   Int @default(0)
+  setsWon       Int @default(0)
+  setsLost      Int @default(0)
+  gamesWon      Int @default(0)
+  gamesLost     Int @default(0)
 
   @@unique([groupId, teamId])
 }
 
 model TournamentMatch {
-  id              String             @id @default(uuid())
-  categoryId      String
-  category        TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
-  groupId         String?            
-  group           TournamentGroup?   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  roundName       String?            
+  id         String             @id @default(uuid())
+  categoryId String
+  category   TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
-  round           Int
-  matchOrder      Int
-  nextMatchId     String?
-  team1Id         String?
-  team1           TournamentTeam?    @relation("MatchTeam1", fields: [team1Id], references: [id])
-  team2Id         String?
-  team2           TournamentTeam?    @relation("MatchTeam2", fields: [team2Id], references: [id])
-  scoreTeam1      String?
-  scoreTeam2      String?
-  winnerId        String?
-  winner          TournamentTeam?    @relation("MatchWinner", fields: [winnerId], references: [id])
-  courtId         String?
-  court           Court?             @relation(fields: [courtId], references: [id])
-  startTime       DateTime?
-  status          MatchStatus        @default(SCHEDULED)
+  groupId   String?
+  group     TournamentGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  roundName String?
+
+  round       Int
+  matchOrder  Int
+  nextMatchId String?
+  team1Id     String?
+  team1       TournamentTeam? @relation("MatchTeam1", fields: [team1Id], references: [id])
+  team2Id     String?
+  team2       TournamentTeam? @relation("MatchTeam2", fields: [team2Id], references: [id])
+  scoreTeam1  String?
+  scoreTeam2  String?
+  winnerId    String?
+  winner      TournamentTeam? @relation("MatchWinner", fields: [winnerId], references: [id])
+  courtId     String?
+  court       Court?          @relation(fields: [courtId], references: [id])
+  startTime   DateTime?
+  status      MatchStatus     @default(SCHEDULED)
+
   @@index([categoryId, round, matchOrder])
 }
 
+// ==========================================
+// RANKINGS POR CATEGORÍA
+// ==========================================
+model RankingCategory {
+  id           String          @id @default(uuid())
+  name         String
+  description  String?         @db.Text
+  isPublished  Boolean         @default(true)
+  displayOrder Int             @default(0)
+  sortMode     RankingSortMode @default(POINTS)
+  showPoints   Boolean         @default(true)
+  showPlayed   Boolean         @default(true)
+  showWon      Boolean         @default(true)
+  showLost     Boolean         @default(true)
+  entries      RankingEntry[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([isPublished, displayOrder])
+}
+
+model RankingEntry {
+  id             String          @id @default(uuid())
+  categoryId     String
+  category       RankingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  externalName   String?
+  externalPhone  String?
+  manualPosition Int             @default(0)
+  points         Int             @default(0)
+  matchesPlayed  Int             @default(0)
+  matchesWon     Int             @default(0)
+  matchesLost    Int             @default(0)
+  notes          String?         @db.Text
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([categoryId, userId])
+  @@index([categoryId, points])
+  @@index([categoryId, manualPosition])
+}
+
+// ==========================================
+// PADRÓN DE CATEGORÍAS DE JUGADORES
+// Independiente del ranking competitivo.
+// ==========================================
+model PlayerCategoryLevel {
+  id           String                     @id @default(uuid())
+  name         String                     @unique
+  description  String?                    @db.Text
+  color        String                     @default("#10b981")
+  displayOrder Int                        @default(0)
+  isPublished  Boolean                    @default(true)
+  assignments  PlayerCategoryAssignment[]
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+
+  @@index([isPublished, displayOrder])
+}
+
+model PlayerCategoryAssignment {
+  id            String              @id @default(uuid())
+  levelId       String
+  level         PlayerCategoryLevel @relation(fields: [levelId], references: [id], onDelete: Restrict)
+  userId        String?             @unique
+  user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  externalName  String?
+  externalPhone String?
+  publicNote    String?             @db.Text
+  isPublished   Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([levelId, isPublished])
+  @@index([externalName])
+}
 
 model SystemSetting {
-  id               Int      @id @default(1)
-  
+  id Int @id @default(1)
+
   // --- DATOS DEL CLUB Y PAGOS ---
-  clubName         String   @default("Padel Club")
-  contactPhone     String   @default("")
-  courtPhone       String   @default("")
-  apiPhone         String   @default("")
-  mpAccessToken    String   @default("")
-  reservationFee   Float    @default(0)
-  sportEmoji       String   @default("🎾")
-  topbarName       String   @default("T-Padel")
-  
+  clubName       String @default("Padel Club")
+  contactPhone   String @default("")
+  courtPhone     String @default("")
+  apiPhone       String @default("")
+  mpAccessToken  String @default("")
+  reservationFee Float  @default(0)
+  sportEmoji     String @default("🎾")
+  topbarName     String @default("T-Padel")
+
   // --- FEATURE TOGGLES ---
-  pwaEnabled       Boolean  @default(true)
-  autoWhatsapp     Boolean  @default(false)
-  requireDeposit   Boolean  @default(true)
-  reservationsEnabled  Boolean  @default(true)
-  whatsappReservations Boolean  @default(true)
-  notifyAdmin      Boolean  @default(true)
-  tournamentsEnabled Boolean @default(true)
-  
+  pwaEnabled           Boolean @default(true)
+  autoWhatsapp         Boolean @default(false)
+  requireDeposit       Boolean @default(true)
+  reservationsEnabled  Boolean @default(true)
+  whatsappReservations Boolean @default(true)
+  notifyAdmin          Boolean @default(true)
+  tournamentsEnabled   Boolean @default(true)
+  rankingsEnabled      Boolean @default(true)
+
   // --- USERS MODULE ---
-  usersModuleEnabled Boolean @default(false)
+  usersModuleEnabled          Boolean @default(false)
   requireDepositForRegistered Boolean @default(false)
-  clientCancellations Boolean @default(true)
+  clientCancellations         Boolean @default(true)
 
   // --- SEGURIDAD ADMIN ---
-  adminUser        String   @default("admin")
-  adminPass        String   @default("admin123")
-  
+  adminUser String @default("admin")
+  adminPass String @default("admin123")
+
   // --- CONFIGURACIÓN DE LA APP / PWA ---
-  splashLogo       String   @default("T-Padel")
-  splashName       String   @default("T-Padel")
-  splashDuration   Int      @default(1500)
-  
-  bubbleActive     Boolean  @default(false)
-  bubbleText       String   @default("¡Bienvenidos al club! 🎾")
-  bubbleDuration   Int      @default(3000)
-  bubbleColor      String   @default("#10b981")
-  
-  theme            String   @default("light")
-  appLayout        String   @default("classic")
-  heroImage        String?
-  primaryColor     String   @default("#10b981")
-  secondaryColor   String   @default("#0ea5e9")
-  
+  splashLogo     String @default("T-Padel")
+  splashName     String @default("T-Padel")
+  splashDuration Int    @default(1500)
+
+  bubbleActive   Boolean @default(false)
+  bubbleText     String  @default("¡Bienvenidos al club! 🎾")
+  bubbleDuration Int     @default(3000)
+  bubbleColor    String  @default("#10b981")
+
+  theme          String  @default("light")
+  appLayout      String  @default("classic")
+  heroImage      String?
+  primaryColor   String  @default("#10b981")
+  secondaryColor String  @default("#0ea5e9")
+
   // --- MENSAJES DE WHATSAPP (Personalizables) ---
-  wspWelcome       String?  @db.Text
-  wspConfirmed     String?  @db.Text
-  wspPending       String?  @db.Text
-  
-  updatedAt        DateTime @updatedAt
+  wspWelcome   String? @db.Text
+  wspConfirmed String? @db.Text
+  wspPending   String? @db.Text
+
+  updatedAt DateTime @updatedAt
 }

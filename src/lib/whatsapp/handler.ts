@@ -9,6 +9,7 @@ import { getSession, updateSession, clearSession, cleanupSessions } from './sess
 import { getAvailableSlotsForDate } from './slots';
 // NUEVO: Importamos la notificación para el admin
 import { sendAdminNotification } from './notifications';
+import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
 
 // ============================================================================
 // HELPERS
@@ -95,6 +96,7 @@ async function generatePaymentLink(bookingId: string): Promise<string | null> {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000';
 
         const result = await preference.create({
+            requestOptions: { idempotencyKey: `booking-${booking.id}` },
             body: {
                 items: [
                     {
@@ -129,7 +131,6 @@ async function generatePaymentLink(bookingId: string): Promise<string | null> {
 
 // Limpieza periódica de sesiones viejas + auto-cancel de bookings impagos
 let lastCleanup = 0;
-const PENDING_BOOKING_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 async function maybeCleanupSessions() {
     const now = Date.now();
@@ -137,7 +138,7 @@ async function maybeCleanupSessions() {
         cleanupSessions();
         lastCleanup = now;
 
-        // Auto-cancelar bookings PENDING que pasaron los 5 minutos
+        // Auto-cancelar bookings PENDING que superaron la ventana de pago.
         try {
             const cutoff = new Date(Date.now() - PENDING_BOOKING_TTL_MS);
             const stale = await prisma.booking.updateMany({
@@ -145,10 +146,10 @@ async function maybeCleanupSessions() {
                     status: 'PENDING',
                     createdAt: { lt: cutoff },
                 },
-                data: { status: 'CANCELLED' },
+                data: { status: 'CANCELLED', slotKey: null },
             });
             if (stale.count > 0) {
-                console.log(`🗑️ Auto-canceladas ${stale.count} reservas PENDING sin pagar (>5 min)`);
+                console.log(`🗑️ Auto-canceladas ${stale.count} reservas PENDING sin pagar (>15 min)`);
             }
         } catch (err) {
             console.error('❌ Error auto-cancelando reservas viejas:', err);
@@ -548,8 +549,9 @@ async function createBookingAndSendPaymentLink(phone: string) {
         const { fee, requireDeposit } = await getBookingSettings();
 
         // 3. TRANSACCIÓN ATÓMICA — Anti-duplicación
-        const startTime = new Date(`${session.date}T${session.slotTime}:00`);
-        const endTime = new Date(`${session.date}T${session.slotEnd}:00`);
+        const startTime = new Date(`${session.date}T${session.slotTime}:00-03:00`);
+        const endTime = new Date(`${session.date}T${session.slotEnd}:00-03:00`);
+        if (endTime <= startTime) endTime.setDate(endTime.getDate() + 1);
 
         let booking;
         try {
@@ -575,12 +577,13 @@ async function createBookingAndSendPaymentLink(phone: string) {
                         endTime,
                         totalAmount: requireDeposit ? fee : 0,
                         status: requireDeposit ? 'PENDING' : 'CONFIRMED',
+                        slotKey: `${session.courtId}:${startTime.toISOString()}`,
                     },
                     include: { court: true },
                 });
             });
         } catch (txError: any) {
-            if (txError?.message === 'SLOT_TAKEN') {
+            if (txError?.message === 'SLOT_TAKEN' || txError?.code === 'P2002') {
                 await sendWhatsAppMessage(
                     phone,
                     '😔 ¡Ups! Alguien reservó este turno justo antes que vos. Intentá con otro horario.'
@@ -611,7 +614,7 @@ async function createBookingAndSendPaymentLink(phone: string) {
                     `💰 *Seña:* $${fee.toLocaleString('es-AR')}\n\n` +
                     `📌 *Estado:* ⏳ Pendiente de pago\n\n` +
                     `👇 *Pagá la seña para confirmar tu turno:*\n${paymentLink}\n\n` +
-                    `⏱️ _Tenés 5 minutos para pagar, sino el turno se libera automáticamente._`
+                    `⏱️ _Tenés 15 minutos para pagar; después el turno se libera automáticamente._`
                 );
             } else {
                 await sendWhatsAppMessage(

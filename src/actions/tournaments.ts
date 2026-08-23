@@ -3,9 +3,11 @@
 import { prisma } from '@/lib/prisma';
 import { tournamentSchema } from '@/lib/schemas';
 import { revalidatePath } from 'next/cache';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function getTournaments() {
   try {
+    await requireAdmin();
     const tournaments = await prisma.tournament.findMany({
       orderBy: { startDate: 'desc' },
       include: {
@@ -23,6 +25,7 @@ export async function getTournaments() {
 
 export async function getTournamentFull(id: string) {
   try {
+    await requireAdmin();
     const tournament = await prisma.tournament.findUnique({
       where: { id },
       include: {
@@ -37,7 +40,7 @@ export async function getTournamentFull(id: string) {
             },
             groups: {
               include: {
-                teams: { include: { team: true }, orderBy: { points: 'desc' } },
+                teams: { include: { team: true }, orderBy: [{ points: 'desc' }, { matchesWon: 'desc' }, { setsWon: 'desc' }, { setsLost: 'asc' }, { gamesWon: 'desc' }, { gamesLost: 'asc' }] },
                 matches: { include: { team1: true, team2: true } }
               }
             }
@@ -53,6 +56,7 @@ export async function getTournamentFull(id: string) {
 }
 
 export async function createTournament(data: unknown) {
+  await requireAdmin();
   const result = tournamentSchema.safeParse(data);
 
   if (!result.success) {
@@ -88,6 +92,7 @@ export async function createTournament(data: unknown) {
 }
 
 export async function updateTournament(id: string, data: unknown) {
+  await requireAdmin();
   const result = tournamentSchema.safeParse(data);
 
   if (!result.success) {
@@ -129,11 +134,41 @@ const VALID_STATUSES = ['DRAFT', 'REGISTRATION', 'ONGOING', 'COMPLETED'] as cons
 type ValidStatus = typeof VALID_STATUSES[number];
 
 export async function updateTournamentStatus(id: string, status: string) {
+  await requireAdmin();
   if (!VALID_STATUSES.includes(status as ValidStatus)) {
     return { success: false, error: `Estado inválido: ${status}` };
   }
 
   try {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        categories: { include: { teams: { include: { player1: true } }, matches: true } },
+      },
+    });
+    if (!tournament) return { success: false, error: 'Torneo no encontrado' };
+    const allowed: Record<ValidStatus, ValidStatus[]> = {
+      DRAFT: ['REGISTRATION'],
+      REGISTRATION: ['DRAFT', 'ONGOING'],
+      ONGOING: ['REGISTRATION', 'COMPLETED'],
+      COMPLETED: ['ONGOING'],
+    };
+    if (status !== tournament.status && !allowed[tournament.status].includes(status as ValidStatus)) {
+      return { success: false, error: `No se puede pasar de ${tournament.status} a ${status}` };
+    }
+    if (status === 'ONGOING') {
+      if (!tournament.categories.length) return { success: false, error: 'Creá al menos una categoría antes de iniciar' };
+      const incompleteCategory = tournament.categories.find((category) =>
+        category.teams.filter((team) => team.player1.phone !== 'DUMMY_PLAZA').length < 2
+      );
+      if (incompleteCategory) return { success: false, error: `La categoría ${incompleteCategory.name} necesita al menos dos parejas` };
+    }
+    if (status === 'COMPLETED') {
+      const matches = tournament.categories.flatMap((category) => category.matches);
+      if (!matches.length || matches.some((match) => match.status !== 'COMPLETED')) {
+        return { success: false, error: 'No se puede finalizar mientras haya partidos pendientes' };
+      }
+    }
     await prisma.tournament.update({
       where: { id },
       data: { status: status as ValidStatus }
@@ -151,16 +186,19 @@ export async function updateTournamentStatus(id: string, status: string) {
 
 export async function deleteTournament(id: string) {
   try {
+    await requireAdmin();
     // Eliminar en cascada: primero los datos hijos que no tienen onDelete: Cascade
-    const categories = await prisma.tournamentCategory.findMany({ where: { tournamentId: id } });
-    for (const cat of categories) {
-      await prisma.tournamentMatch.deleteMany({ where: { categoryId: cat.id } });
-      await prisma.tournamentGroupTeam.deleteMany({ where: { group: { categoryId: cat.id } } });
-      await prisma.tournamentGroup.deleteMany({ where: { categoryId: cat.id } });
-      await prisma.tournamentTeam.deleteMany({ where: { categoryId: cat.id } });
-    }
-    await prisma.tournamentCategory.deleteMany({ where: { tournamentId: id } });
-    await prisma.tournament.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      const categories = await tx.tournamentCategory.findMany({ where: { tournamentId: id }, select: { id: true } });
+      for (const category of categories) {
+        await tx.tournamentMatch.deleteMany({ where: { categoryId: category.id } });
+        await tx.tournamentGroupTeam.deleteMany({ where: { group: { categoryId: category.id } } });
+        await tx.tournamentGroup.deleteMany({ where: { categoryId: category.id } });
+        await tx.tournamentTeam.deleteMany({ where: { categoryId: category.id } });
+      }
+      await tx.tournamentCategory.deleteMany({ where: { tournamentId: id } });
+      await tx.tournament.delete({ where: { id } });
+    });
     
     revalidatePath('/admin/torneos');
     revalidatePath('/torneos');

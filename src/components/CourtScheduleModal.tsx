@@ -104,11 +104,8 @@ export default function CourtScheduleModal({ court }: CourtScheduleModalProps) {
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            {/* @ts-expect-error - asChild evita que el menú se rompa */}
-            <DialogTrigger asChild>
-                <Button variant="outline" size="icon" title="Configurar Horarios">
+            <DialogTrigger render={<Button variant="outline" size="icon" title="Configurar Horarios" />}>
                     <Clock className="h-4 w-4 text-blue-600" />
-                </Button>
             </DialogTrigger>
 
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">

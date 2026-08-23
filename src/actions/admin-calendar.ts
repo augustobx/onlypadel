@@ -4,15 +4,18 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { addMinutes, format, parse, startOfDay, endOfDay, addWeeks } from 'date-fns';
+import { requireAdmin } from '@/lib/admin-auth';
+import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
 
 export async function getAdminCalendarData(courtId: string, dateStr: string) {
     try {
+        await requireAdmin();
         // AUTO-CANCELAR RESERVAS PENDIENTES EXPIRADAS (>5 min)
         try {
-            const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+            const cutoff = new Date(Date.now() - PENDING_BOOKING_TTL_MS);
             await prisma.booking.updateMany({
                 where: { status: 'PENDING', createdAt: { lt: cutoff } },
-                data: { status: 'CANCELLED' }
+                data: { status: 'CANCELLED', slotKey: null }
             });
         } catch(e) { console.error("Error auto-canceling pending bookings:", e); }
 
@@ -171,6 +174,7 @@ export async function createAdminBooking(data: {
     clientPhone?: string;
 }) {
     try {
+        await requireAdmin();
         const baseStartTime = new Date(`${data.dateStr}T${data.startTimeStr}:00-03:00`);
         const baseEndTime = new Date(`${data.dateStr}T${data.endTimeStr}:00-03:00`);
         if (baseEndTime <= baseStartTime) {
@@ -246,6 +250,7 @@ export async function createAdminBooking(data: {
                             status: status as any,
                             totalAmount: 0,
                             fixedBookingId: newFixedBookingId,
+                            slotKey: `${data.courtId}:${startTime.toISOString()}`,
                         }
                     });
 
@@ -268,9 +273,10 @@ export async function createAdminBooking(data: {
 
 export async function cancelAdminBooking(bookingId: string) {
     try {
+        await requireAdmin();
         await prisma.booking.update({
             where: { id: bookingId },
-            data: { status: 'CANCELLED' }
+            data: { status: 'CANCELLED', slotKey: null }
         });
         revalidatePath('/admin/calendar');
         return { success: true };

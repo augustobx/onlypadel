@@ -33,6 +33,7 @@ export async function createPaymentPreference(bookingId: string) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000';
 
     const result = await preference.create({
+      requestOptions: { idempotencyKey: `booking-${booking.id}` },
       body: {
         items: [
           {
@@ -74,8 +75,12 @@ export async function createTournamentPaymentPreference(teamId: string) {
     });
 
     if (!team) throw new Error('Equipo no encontrado');
+    if (team.isPaid) return { success: false, error: 'La inscripción ya está pagada.' };
 
     const tournament = team.category.tournament;
+    if (tournament.status !== 'REGISTRATION') {
+      return { success: false, error: 'Las inscripciones están cerradas.' };
+    }
     if (!tournament.requireDeposit || Number(tournament.depositAmount) <= 0) {
       return { success: false, error: 'Este torneo no requiere seña.' };
     }
@@ -92,6 +97,7 @@ export async function createTournamentPaymentPreference(teamId: string) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000';
 
     const result = await preference.create({
+      requestOptions: { idempotencyKey: `tournament-${team.id}` },
       body: {
         items: [
           {

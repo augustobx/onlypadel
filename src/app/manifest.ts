@@ -13,8 +13,9 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     description: `Reserva tu cancha en ${appName}`,
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: settings?.theme === 'dark' ? '#0f172a' : '#ffffff',
+    background_color: settings?.theme === 'dark' ? '#020617' : '#f8fafc',
+    theme_color: settings?.primaryColor || '#10b981',
+    orientation: 'portrait-primary',
     icons: [
       {
         src: '/favicon.ico',
@@ -22,12 +23,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
         type: 'image/x-icon',
       },
       {
-        src: '/assets/icon-192x192.png',
+        src: '/globe_192.png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        src: '/assets/icon-512x512.png',
+        src: '/globe_512.png',
         sizes: '512x512',
         type: 'image/png',
       }

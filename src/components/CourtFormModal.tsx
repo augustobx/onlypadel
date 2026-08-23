@@ -60,18 +60,15 @@ export default function CourtFormModal({ court }: CourtFormModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {/* @ts-expect-error - asChild evita que el menú se rompa */}
-      <DialogTrigger asChild>
-        {court ? (
-          <Button variant="outline" size="icon" title="Editar Cancha">
+      {court ? (
+        <DialogTrigger render={<Button variant="outline" size="icon" title="Editar Cancha" />}>
             <Edit className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-          </Button>
-        ) : (
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+        </DialogTrigger>
+      ) : (
+        <DialogTrigger render={<Button className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)]" />}>
             <Plus className="mr-2 h-4 w-4" /> Agregar Cancha
-          </Button>
-        )}
-      </DialogTrigger>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

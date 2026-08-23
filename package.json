@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start -p 3005",
     "lint": "eslint",
+    "test:tournaments": "node --experimental-strip-types --test tests/tournament-rules.test.ts",
+    "test:rankings": "node --experimental-strip-types --test tests/ranking-rules.test.ts",
+    "seed:integral": "node --experimental-strip-types scripts/seed-integral.ts",
+    "seed:player-categories": "node --experimental-strip-types scripts/seed-player-categories.ts",
     "migrate": "npx tsx scripts/migrate.ts",
     "clean-db": "npx tsx scripts/clean-db.ts"
   },
