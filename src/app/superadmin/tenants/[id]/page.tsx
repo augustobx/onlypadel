@@ -1,5 +1,6 @@
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { CreditCard, Globe2, Settings2 } from 'lucide-react';
+import { ArrowLeft, Building2, CheckCircle2, CreditCard, Globe, Layers, Shield, Users, Store, CalendarDays } from 'lucide-react';
 import { addTenantDomain, setFeatureOverride, verifyTenantDomain } from '@/actions/platform';
 import { registerSaasPayment, updateTenantSuperAdmin } from '@/actions/superadmin';
 import { FEATURE_KEYS } from '@/lib/features';
@@ -13,30 +14,49 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   if (!session) redirect('/superadmin/login');
   const { id } = await params;
   const [tenant, plans] = await Promise.all([
-    platformPrisma.tenant.findUnique({ where: { id }, include: { domains: true, subscriptions: { orderBy: { createdAt: 'desc' }, take: 1, include: { plan: true } }, featureOverrides: true, saasPayments: { orderBy: { createdAt: 'desc' }, take: 8 }, _count: { select: { users: true, courts: true, bookings: true } } } }),
+    platformPrisma.tenant.findUnique({ where: { id }, include: { domains: true, subscriptions: { orderBy: { createdAt: 'desc' }, take: 1, include: { plan: { include: { features: true } } } }, featureOverrides: true, saasPayments: { orderBy: { createdAt: 'desc' }, take: 8 }, _count: { select: { users: true, courts: true, bookings: true } } } }),
     platformPrisma.plan.findMany({ orderBy: { price: 'asc' } }),
   ]);
   if (!tenant) notFound();
   const sub = tenant.subscriptions[0];
+  const primary = tenant.domains.find(d => d.isPrimary)?.hostname || `${tenant.slug}.nanoapps.ar`;
 
   return <div className="space-y-6">
-    <div><h1 className="text-2xl font-bold text-white">{tenant.name}</h1><p className="text-sm text-slate-400 mt-1">{tenant.slug}.nanoapps.ar · {tenant._count.users} usuarios · {tenant._count.courts} canchas · {tenant._count.bookings} reservas</p></div>
-    <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6"><h2 className="font-bold text-white flex items-center gap-2 mb-4"><Settings2 className="w-4 h-4 text-indigo-400" />Datos generales y membresía</h2><form action={updateTenantSuperAdmin} className="grid md:grid-cols-2 gap-4">
-      <input type="hidden" name="tenantId" value={tenant.id} />
-      <div><label className="text-xs text-slate-400">Nombre</label><input name="name" defaultValue={tenant.name} required className="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3" /></div>
-      <div><label className="text-xs text-slate-400">Estado</label><select name="status" defaultValue={tenant.status} className="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3"><option value="ACTIVE">ACTIVO</option><option value="SUSPENDED">SUSPENDIDO</option><option value="ARCHIVED">ARCHIVADO</option></select></div>
-      <div><label className="text-xs text-slate-400">Plan</label><select name="planId" defaultValue={sub?.planId} required className="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3">{plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-      <div><label className="text-xs text-slate-400">Inicio membresía</label><input type="date" name="startsAt" defaultValue={dateValue(sub?.currentPeriodStart || sub?.startsAt)} required className="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3" /></div>
-      <div><label className="text-xs text-slate-400">Vencimiento</label><input type="date" name="expiresAt" defaultValue={dateValue(sub?.currentPeriodEnd || sub?.trialEndsAt)} className="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3" /></div>
-      <button className="md:self-end rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-3 font-bold">Guardar cambios</button>
-    </form></section>
+    <div className="flex items-center justify-between"><Link href="/superadmin/tenants" className="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white"><ArrowLeft className="w-4 h-4" />Volver a Clubes</Link></div>
 
-    <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6"><h2 className="font-bold text-white flex items-center gap-2 mb-4"><CreditCard className="w-4 h-4 text-emerald-400" />Registrar pago y reactivar</h2><form action={registerSaasPayment} className="grid md:grid-cols-4 gap-3"><input type="hidden" name="tenantId" value={tenant.id} /><input name="amount" type="number" min="1" step="0.01" defaultValue={sub ? Number(sub.plan.price) : 0} required placeholder="Monto" className="rounded-xl bg-slate-950 border border-slate-700 px-4 py-3" /><input name="periodStart" type="date" defaultValue={dateValue(new Date())} required className="rounded-xl bg-slate-950 border border-slate-700 px-4 py-3" /><input name="periodEnd" type="date" required className="rounded-xl bg-slate-950 border border-slate-700 px-4 py-3" /><input name="notes" placeholder="Notas" className="rounded-xl bg-slate-950 border border-slate-700 px-4 py-3" /><button className="md:col-span-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 py-3 font-bold">Registrar pago</button></form>
-      <div className="mt-4 space-y-2">{tenant.saasPayments.map(p => <div key={p.id} className="flex justify-between text-xs border-t border-slate-800 pt-2"><span className="text-slate-300">${Number(p.amount).toLocaleString('es-AR')} · {p.status}</span><span className="text-slate-500">{p.paidAt?.toLocaleDateString('es-AR') || p.createdAt.toLocaleDateString('es-AR')}</span></div>)}</div>
-    </section>
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex items-center gap-4"><div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400"><Building2 className="w-7 h-7" /></div><div><div className="flex items-center gap-3"><h1 className="text-xl font-bold text-white">{tenant.name}</h1><span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${tenant.status==='ACTIVE'?'bg-emerald-500/10 text-emerald-400 border-emerald-500/20':'bg-red-500/10 text-red-400 border-red-500/20'}`}>{tenant.status==='ACTIVE'?'Activo':tenant.status==='SUSPENDED'?'Suspendido':'Archivado'}</span></div><div className="text-xs text-indigo-400 font-mono mt-1 flex items-center gap-2"><span>{primary}</span></div></div></div>
+      <div className="flex items-center gap-4 text-xs text-slate-300"><Counter label="Usuarios" value={tenant._count.users}/><Counter label="Canchas" value={tenant._count.courts}/><Counter label="Reservas" value={tenant._count.bookings}/></div>
+    </div>
 
-    <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6"><h2 className="font-bold text-white flex items-center gap-2 mb-4"><Globe2 className="w-4 h-4 text-cyan-400" />Dominios</h2><div className="flex flex-wrap gap-2 mb-4">{tenant.domains.map(d => <span key={d.id} className="rounded-full bg-slate-950 border border-slate-800 px-3 py-1 text-xs">{d.hostname} · {d.verifiedAt ? 'verificado' : <form action={verifyTenantDomain} className="inline"><input type="hidden" name="domainId" value={d.id} /><button className="text-amber-300">verificar</button></form>}</span>)}</div><form action={addTenantDomain} className="flex gap-2"><input type="hidden" name="tenantId" value={tenant.id} /><input name="hostname" required placeholder="dominio personalizado" className="flex-1 rounded-xl bg-slate-950 border border-slate-700 px-4 py-3" /><button className="rounded-xl border border-slate-700 px-4">Agregar</button></form></section>
+    <form action={updateTenantSuperAdmin} className="space-y-6"><input type="hidden" name="tenantId" value={tenant.id}/>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-2"><Shield className="w-4 h-4" />Estado y Plan de Suscripción</h2>
+          <Field label="Nombre del Club"><input name="name" defaultValue={tenant.name} required className="input" /></Field>
+          <Field label="Estado Operativo"><select name="status" defaultValue={tenant.status} className="input"><option value="ACTIVE">Activo (Habilitado 100%)</option><option value="SUSPENDED">Suspendido (Bloqueo de acceso)</option><option value="ARCHIVED">Archivado / Baja</option></select></Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Field label="Fecha de Inicio"><input type="date" name="startsAt" defaultValue={dateValue(sub?.currentPeriodStart || sub?.startsAt)} required className="input" /></Field><Field label="Fecha de Vencimiento"><input type="date" name="expiresAt" defaultValue={dateValue(sub?.currentPeriodEnd || sub?.trialEndsAt)} className="input" /></Field></div>
+          <Field label="Plan SaaS Asignado"><select name="planId" defaultValue={sub?.planId} required className="input">{plans.map(p=><option key={p.id} value={p.id}>{p.name} (${Number(p.price).toLocaleString('es-AR')}/mes)</option>)}</select></Field>
+        </div>
 
-    <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6"><h2 className="font-bold text-white mb-4">Módulos / Overrides</h2><div className="flex flex-wrap gap-2">{FEATURE_KEYS.map(key => { const override = tenant.featureOverrides.find(o => o.key === key); return <form key={key} action={setFeatureOverride}><input type="hidden" name="tenantId" value={tenant.id} /><input type="hidden" name="key" value={key} /><input type="hidden" name="enabled" value={override?.enabled ? 'false' : 'true'} /><button className={`rounded-full px-3 py-1 text-xs font-bold border ${override?.enabled === false ? 'border-red-700 text-red-300' : 'border-emerald-800 text-emerald-300'}`}>{key}{override ? '*' : ''}</button></form>})}</div></section>
+        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-2"><Globe className="w-4 h-4" />Dominios del Tenant</h2>
+          <div className="space-y-2">{tenant.domains.map(d=><div key={d.id} className="flex items-center justify-between gap-3 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><span className="font-mono text-slate-300 truncate">{d.hostname}</span>{d.verifiedAt?<span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/>Verificado</span>:<form action={verifyTenantDomain}><input type="hidden" name="domainId" value={d.id}/><button className="text-amber-300">Verificar</button></form>}</div>)}</div>
+          <div className="pt-3 border-t border-slate-800"><form action={addTenantDomain} className="space-y-2"><input type="hidden" name="tenantId" value={tenant.id}/><label className="block text-xs font-medium text-slate-300">Dominio Personalizado</label><input name="hostname" placeholder="club.midominio.com" className="input"/><button className="w-full rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 py-2 text-sm font-medium">Agregar Dominio</button></form></div>
+        </div>
+
+        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-2"><CreditCard className="w-4 h-4" />Cobro SaaS y Renovación</h2>
+          <form action={registerSaasPayment} className="space-y-3"><input type="hidden" name="tenantId" value={tenant.id}/><Field label="Monto"><input name="amount" type="number" min="1" step="0.01" defaultValue={sub ? Number(sub.plan.price) : 0} required className="input" /></Field><div className="grid grid-cols-2 gap-2"><Field label="Desde"><input name="periodStart" type="date" defaultValue={dateValue(new Date())} required className="input" /></Field><Field label="Hasta"><input name="periodEnd" type="date" required className="input" /></Field></div><Field label="Notas"><input name="notes" className="input" /></Field><button className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 py-2.5 text-sm font-medium">Registrar Cobro SaaS</button></form>
+          <div className="pt-3 border-t border-slate-800 space-y-2">{tenant.saasPayments.map(p=><div key={p.id} className="flex justify-between text-[11px]"><span className="text-slate-300">${Number(p.amount).toLocaleString('es-AR')} · {p.status}</span><span className="text-slate-500">{(p.paidAt||p.createdAt).toLocaleDateString('es-AR')}</span></div>)}</div>
+        </div>
+      </div>
+
+      <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6"><h2 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-2 mb-4"><Layers className="w-4 h-4" />Módulos y Overrides del Tenant</h2><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">{FEATURE_KEYS.map(key=>{const override=tenant.featureOverrides.find(o=>o.key===key); const enabled=override?.enabled!==false; return <form key={key} action={setFeatureOverride}><input type="hidden" name="tenantId" value={tenant.id}/><input type="hidden" name="key" value={key}/><input type="hidden" name="enabled" value={enabled?'false':'true'}/><button className={`w-full text-left rounded-xl border px-3 py-2 text-xs ${enabled?'bg-emerald-500/5 border-emerald-500/20 text-emerald-300':'bg-red-500/5 border-red-500/20 text-red-300'}`}>{key}{override?' *':''}</button></form>})}</div></div>
+      <div className="flex justify-end"><button className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Guardar Configuración del Tenant</button></div>
+    </form>
   </div>;
 }
+
+function Counter({label,value}:{label:string;value:number}){return <div className="px-3 py-2 bg-slate-950 rounded-xl border border-slate-800 text-center"><div className="text-slate-500">{label}</div><div className="font-bold text-white text-sm">{value}</div></div>}
+function Field({label,children}:{label:string;children:React.ReactNode}){return <div><label className="block text-xs font-medium text-slate-300 mb-1">{label}</label>{children}</div>}
