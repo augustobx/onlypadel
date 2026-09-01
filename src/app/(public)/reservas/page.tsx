@@ -12,7 +12,7 @@ import { Trophy, ChevronRight } from 'lucide-react';
 export default async function ReservasPage() {
   const [courts, settings, session, pubReq] = await Promise.all([
     prisma.court.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
-    prisma.systemSetting.findUnique({ where: { id: 1 } }),
+    prisma.systemSetting.findFirst({ where: { id: 1 } }),
     getUserSession(),
     getPublicTournaments(),
   ]);

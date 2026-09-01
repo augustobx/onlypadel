@@ -1,9 +1,15 @@
 // src/lib/whatsapp/api.ts
-// Todas las funciones leen process.env en RUNTIME (no al import)
+import { prisma } from '@/lib/prisma';
+import { requireTenantFeature } from '@/lib/features';
 
-function getConfig() {
-    const token = process.env.WHATSAPP_TOKEN;
-    const phoneId = process.env.WHATSAPP_PHONE_ID;
+async function getConfig() {
+    await requireTenantFeature('whatsapp');
+    const settings = await prisma.systemSetting.findFirst({
+        where: { id: 1 },
+        select: { whatsappToken: true, whatsappPhoneId: true },
+    });
+    const token = settings?.whatsappToken || process.env.WHATSAPP_TOKEN;
+    const phoneId = settings?.whatsappPhoneId || process.env.WHATSAPP_PHONE_ID;
 
     if (!token || !phoneId) {
         throw new Error('❌ Faltan WHATSAPP_TOKEN o WHATSAPP_PHONE_ID en .env');
@@ -22,7 +28,7 @@ function getConfig() {
 // ENVIAR MENSAJE DE TEXTO SIMPLE
 // ============================================================================
 export async function sendWhatsAppMessage(to: string, body: string) {
-    const { url, headers } = getConfig();
+    const { url, headers } = await getConfig();
 
     const payload = {
         messaging_product: 'whatsapp',
@@ -62,7 +68,7 @@ export async function sendInteractiveButtons(
     text: string,
     buttons: { id: string; title: string }[]
 ) {
-    const { url, headers } = getConfig();
+    const { url, headers } = await getConfig();
 
     const payload = {
         messaging_product: 'whatsapp',
@@ -112,7 +118,7 @@ export async function sendInteractiveList(
     headerText: string,
     rows: { id: string; title: string; description?: string }[]
 ) {
-    const { url, headers } = getConfig();
+    const { url, headers } = await getConfig();
 
     const payload = {
         messaging_product: 'whatsapp',
@@ -123,7 +129,7 @@ export async function sendInteractiveList(
             type: 'list',
             header: { type: 'text', text: headerText },
             body: { text: bodyText },
-            footer: { text: 'T-Padel 🎾' },
+            footer: { text: 'OnlyPadel 🎾' },
             action: {
                 button: buttonTitle,
                 sections: [
@@ -164,22 +170,12 @@ export async function sendInteractiveList(
 
 
 export const sendMessage = async (to: string, text: string) => {
-    // Asegurate de que los nombres de estas variables coincidan con los de tu .env
-    const token = process.env.WHATSAPP_TOKEN;
-    const phoneId = process.env.WHATSAPP_PHONE_ID;
-
-    if (!token || !phoneId) {
-        console.error("Faltan credenciales de Meta en el .env");
-        return false;
-    }
+    const { url, headers } = await getConfig();
 
     try {
-        const response = await fetch(`https://graph.facebook.com/v17.0/${phoneId}/messages`, {
+        const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
+            headers,
             body: JSON.stringify({
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
@@ -205,7 +201,7 @@ export async function sendTemplateMessage(
     variables: string[], // Array con los valores para {{1}}, {{2}}, etc.
     languageCode: string = 'es' // Cambialo a 'es_AR' si lo registraste así en Meta
 ) {
-    const { url, headers } = getConfig();
+    const { url, headers } = await getConfig();
 
     // Mapeamos tu array de strings al formato que exige Meta para las variables
     const parameters = variables.map(text => ({

@@ -1,5 +1,6 @@
 import webpush from 'web-push';
 import { prisma } from '@/lib/prisma';
+import { requireTenantFeature } from '@/lib/features';
 
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '';
@@ -14,15 +15,14 @@ if (vapidPublicKey && vapidPrivateKey) {
 }
 
 export async function sendAdminPushNotification(title: string, body: string, url: string = '/admin/dashboard') {
+  await requireTenantFeature('push');
   if (!vapidPublicKey || !vapidPrivateKey) {
     console.warn('VAPID keys not configured, skipping push notification');
     return;
   }
 
   try {
-    const subscriptions = await prisma.pushSubscription.findMany({
-      where: { userId: 'ADMIN' } // Or fetch all if you only save admin subscriptions
-    });
+    const subscriptions = await prisma.pushSubscription.findMany();
 
     const payload = JSON.stringify({ title, body, url });
 

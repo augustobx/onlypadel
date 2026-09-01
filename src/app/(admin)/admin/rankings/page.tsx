@@ -16,7 +16,7 @@ export default async function AdminRankingsPage() {
       orderBy: [{ name: 'asc' }, { lastName: 'asc' }],
       select: { id: true, name: true, lastName: true, dni: true, phone: true, category: true, isActive: true },
     }),
-    prisma.systemSetting.findUnique({ where: { id: 1 }, select: { rankingsEnabled: true } }),
+    prisma.systemSetting.findFirst({ where: { id: 1 }, select: { rankingsEnabled: true } }),
   ]);
 
   return (

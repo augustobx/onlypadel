@@ -42,7 +42,7 @@ interface UserSession {
   phone?: string | null;
 }
 
-const BOOKING_DRAFT_KEY = 'tpadel.booking-draft.v1';
+const BOOKING_DRAFT_KEY = 'onlypadel.booking-draft.v1';
 
 function formatLocalDateStr(date: Date): string {
   const y = date.getFullYear();
@@ -58,7 +58,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
   const bubbleDuration = sysSettings?.bubbleDuration || 3000;
   const splashLogo = sysSettings?.splashLogo || "";
   const hasSplashLogo = /^(https?:\/\/|\/|data:image\/)/i.test(splashLogo);
-  const splashName = sysSettings?.splashName || "Sistema T-Padel";
+  const splashName = sysSettings?.splashName || "OnlyPadel";
   const clubName = sysSettings?.clubName || "Padel Club";
   const sportEmoji = sysSettings?.sportEmoji || "🎾";
 

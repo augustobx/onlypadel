@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sistema T-Padel - Reservas y Torneos",
-  description: "Plataforma de gestión deportiva, reservas de canchas y organización de torneos.",
+  title: "OnlyPadel - Gestión integral de clubes",
+  description: "Plataforma SaaS para reservas, socios, canchas, rankings y torneos de pádel.",
   manifest: "/manifest.json",
 };
 

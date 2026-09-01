@@ -65,8 +65,7 @@ export default function PushConfig() {
       await fetch('/api/push/subscribe', {
         method: 'POST',
         body: JSON.stringify({
-          subscription,
-          userId: 'ADMIN' // Always ADMIN for the control panel notifications
+          subscription
         }),
         headers: { 'Content-Type': 'application/json' }
       });

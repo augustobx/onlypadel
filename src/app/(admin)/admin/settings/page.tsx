@@ -2,15 +2,15 @@ import { prisma } from "@/lib/prisma";
 import SettingsForm from "./SettingsForm";
 
 export default async function SettingsPage() {
-    let settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    let settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
 
     if (!settings) {
         settings = await prisma.systemSetting.create({
             data: {
-                clubName: "T-Padel", topbarName: "T-Padel", contactPhone: "", courtPhone: "", apiPhone: "", mpAccessToken: "", reservationFee: 0,
+                clubName: "OnlyPadel", topbarName: "OnlyPadel", contactPhone: "", courtPhone: "", apiPhone: "", mpAccessToken: "", reservationFee: 0,
                 sportEmoji: "🎾", theme: "light", pwaEnabled: true, autoWhatsapp: false,
                 requireDeposit: true, reservationsEnabled: true, whatsappReservations: true,
-                splashLogo: "T-Padel", splashName: "T-Padel", splashDuration: 1500,
+                splashLogo: "OnlyPadel", splashName: "OnlyPadel", splashDuration: 1500,
                 bubbleActive: false, bubbleText: "¡Bienvenidos!", bubbleDuration: 3000, bubbleColor: "#10b981"
             }
         });
@@ -23,7 +23,7 @@ export default async function SettingsPage() {
                 <p className="text-gray-500">Administra las preferencias generales, reservas y PWA.</p>
             </div>
 
-            <SettingsForm settings={settings} />
+            <SettingsForm settings={{ ...settings, mpAccessToken: '', whatsappPhoneId: '', whatsappToken: '', whatsappVerifyToken: '' }} />
         </div>
     );
 }

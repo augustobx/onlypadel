@@ -8,7 +8,7 @@ import { rankingDisplayName, sortRankingEntries } from '@/lib/rankings';
 
 export default async function PublicRankingPage() {
   const [settings, session] = await Promise.all([
-    prisma.systemSetting.findUnique({ where: { id: 1 } }),
+    prisma.systemSetting.findFirst({ where: { id: 1 } }),
     getUserSession(),
   ]);
   const primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');

@@ -64,7 +64,7 @@ interface Message {
   paymentPending?: boolean;
 }
 
-const CHAT_DRAFT_KEY = 'tpadel.chat-booking-draft.v1';
+const CHAT_DRAFT_KEY = 'onlypadel.chat-booking-draft.v1';
 
 function getDateLabel(date: Date, index: number) {
   if (index === 0) return 'Hoy';
@@ -90,7 +90,7 @@ export default function BookingFlowChat({
   session: UserSession | null;
   today: string;
 }) {
-  const clubName = sysSettings?.clubName || 'T-Padel';
+  const clubName = sysSettings?.clubName || 'OnlyPadel';
   const sportEmoji = sysSettings?.sportEmoji || '🎾';
   const initialName = session ? `${session.name || ''} ${session.lastName || ''}`.trim() : '';
   const initialGreeting = session?.name

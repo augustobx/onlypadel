@@ -5,8 +5,10 @@ import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { clearUserSession, createUserSession, readUserSessionId } from "@/lib/user-session";
+import { requireTenantFeature } from "@/lib/features";
 
 export async function registerUser(formData: FormData) {
+    await requireTenantFeature('users');
     const name = formData.get("name") as string;
     const lastName = formData.get("lastName") as string;
     const dni = formData.get("dni") as string;
@@ -20,14 +22,14 @@ export async function registerUser(formData: FormData) {
 
     try {
         // Find if DNI already exists
-        const existingByDni = await prisma.user.findUnique({ where: { dni } });
+        const existingByDni = await prisma.user.findFirst({ where: { dni } });
         if (existingByDni) {
             return { success: false, error: "El DNI ya está registrado." };
         }
 
         // Only check email if it's provided
         if (email) {
-            const existingByEmail = await prisma.user.findUnique({ where: { email } });
+            const existingByEmail = await prisma.user.findFirst({ where: { email } });
             if (existingByEmail) {
                 return { success: false, error: "El Email ya está registrado." };
             }
@@ -58,6 +60,7 @@ export async function registerUser(formData: FormData) {
 }
 
 export async function loginUser(formData: FormData) {
+    await requireTenantFeature('users');
     const dni = formData.get("dni") as string;
     const password = formData.get("password") as string;
 
@@ -66,7 +69,7 @@ export async function loginUser(formData: FormData) {
     }
 
     try {
-        const user = await prisma.user.findUnique({
+        const user = await prisma.user.findFirst({
             where: { dni }
         });
 
@@ -101,7 +104,7 @@ export async function logoutUser() {
 export async function skipRegistration() {
     const cookieStore = await cookies();
     // Cookie de sesión (sin maxAge) para que se borre al cerrar el navegador
-    cookieStore.set("tpadel_skip_registration", "true", {
+    cookieStore.set("onlypadel_skip_registration", "true", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         path: "/",

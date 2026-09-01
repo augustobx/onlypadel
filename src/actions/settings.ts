@@ -3,12 +3,12 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-auth";
-import bcrypt from "bcryptjs";
 import { normalizeHexColor } from "@/lib/color";
+import { hasTenantFeature } from "@/lib/features";
 
 export async function getSettings() {
     try {
-        const settings = await prisma.systemSetting.findUnique({
+        const settings = await prisma.systemSetting.findFirst({
             where: { id: 1 },
             select: {
                 clubName: true, contactPhone: true, apiPhone: true, reservationFee: true,
@@ -21,7 +21,20 @@ export async function getSettings() {
                 theme: true, appLayout: true, heroImage: true, primaryColor: true, secondaryColor: true,
             },
         });
-        return settings;
+        if (!settings) return null;
+        const [reservations, users, tournaments, rankings, playerCategories, whatsapp] = await Promise.all([
+            hasTenantFeature('reservations'), hasTenantFeature('users'), hasTenantFeature('tournaments'),
+            hasTenantFeature('rankings'), hasTenantFeature('player_categories'), hasTenantFeature('whatsapp'),
+        ]);
+        return {
+            ...settings,
+            reservationsEnabled: settings.reservationsEnabled && reservations,
+            usersModuleEnabled: settings.usersModuleEnabled && users,
+            tournamentsEnabled: settings.tournamentsEnabled && tournaments,
+            rankingsEnabled: settings.rankingsEnabled && rankings,
+            playerCategoriesEnabled: playerCategories,
+            whatsappReservations: settings.whatsappReservations && whatsapp,
+        };
     } catch (error) {
         console.error("Error fetching settings:", error);
         return null;
@@ -49,7 +62,19 @@ export async function updateSystemSettings(formData: FormData) {
         const contactPhone = (formData.get("contactPhone") as string) || "";
         const courtPhone = (formData.get("courtPhone") as string) || "";
         const apiPhone = (formData.get("apiPhone") as string) || "";
-        const mpAccessToken = (formData.get("mpAccessToken") as string) || "";
+        const requestedMpToken = (formData.get("mpAccessToken") as string)?.trim();
+        const requestedWhatsappPhoneId = (formData.get("whatsappPhoneId") as string)?.trim();
+        const requestedWhatsappToken = (formData.get("whatsappToken") as string)?.trim();
+        const requestedWhatsappVerifyToken = (formData.get("whatsappVerifyToken") as string)?.trim();
+        const currentSecrets = await prisma.systemSetting.findFirst({
+            where: { id: 1 },
+            select: { mpAccessToken: true, whatsappPhoneId: true, whatsappToken: true, whatsappVerifyToken: true },
+        });
+        if (!currentSecrets) throw new Error('SETTINGS_NOT_FOUND');
+        const mpAccessToken = requestedMpToken || currentSecrets.mpAccessToken;
+        const whatsappPhoneId = requestedWhatsappPhoneId || currentSecrets.whatsappPhoneId;
+        const whatsappToken = requestedWhatsappToken || currentSecrets.whatsappToken;
+        const whatsappVerifyToken = requestedWhatsappVerifyToken || currentSecrets.whatsappVerifyToken;
         const reservationFee = Number(formData.get("reservationFee")) || 0;
         const sportEmoji = (formData.get("sportEmoji") as string) || "🎾";
         const theme = formData.get("theme") === "dark" ? "dark" : "light";
@@ -58,12 +83,6 @@ export async function updateSystemSettings(formData: FormData) {
         const primaryColor = normalizeHexColor(formData.get("primaryColor") as string, "#10b981");
         const secondaryColor = normalizeHexColor(formData.get("secondaryColor") as string, "#0ea5e9");
 
-        const adminUser = (formData.get("adminUser") as string) || "admin";
-        const requestedAdminPass = (formData.get("adminPass") as string)?.trim();
-        const currentSettings = await prisma.systemSetting.findUnique({ where: { id: 1 }, select: { adminPass: true } });
-        if (!currentSettings) throw new Error('SETTINGS_NOT_FOUND');
-        const adminPass = requestedAdminPass ? await bcrypt.hash(requestedAdminPass, 12) : currentSettings.adminPass;
-
         const splashLogo = (formData.get("splashLogo") as string) || "";
         const splashName = (formData.get("splashName") as string) || "";
         const splashDuration = Number(formData.get("splashDuration")) || 3000;
@@ -71,13 +90,12 @@ export async function updateSystemSettings(formData: FormData) {
         const bubbleColor = normalizeHexColor(formData.get("bubbleColor") as string, "#10b981");
         const bubbleDuration = Number(formData.get("bubbleDuration")) || 3000;
 
-        await prisma.systemSetting.update({
+        await prisma.systemSetting.updateMany({
             where: { id: 1 },
             data: {
-                clubName, topbarName, contactPhone, courtPhone, apiPhone, mpAccessToken, reservationFee, sportEmoji, theme, appLayout,
+                clubName, topbarName, contactPhone, courtPhone, apiPhone, mpAccessToken, whatsappPhoneId, whatsappToken, whatsappVerifyToken, reservationFee, sportEmoji, theme, appLayout,
                 reservationsEnabled, whatsappReservations, pwaEnabled, autoWhatsapp, requireDeposit, notifyAdmin, tournamentsEnabled, rankingsEnabled,
                 usersModuleEnabled, requireDepositForRegistered, clientCancellations,
-                adminUser, adminPass,
                 splashLogo, splashName, splashDuration,
                 bubbleActive, bubbleText, bubbleColor, bubbleDuration,
                 primaryColor, secondaryColor, heroImage: heroImage || null

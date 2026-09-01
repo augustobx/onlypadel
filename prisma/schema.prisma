@@ -48,13 +48,282 @@ enum RankingSortMode {
   MANUAL
 }
 
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELED
+}
+
+enum PlatformRole {
+  SUPERADMIN
+  SUPPORT
+}
+
+enum SaasPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  VOID
+}
+
+// ==========================================
+// PLATAFORMA SAAS ONLYPADEL
+// ==========================================
+model Tenant {
+  id         String       @id @default(uuid())
+  slug       String       @unique(map: "Tenant_slug_key") @db.VarChar(80)
+  name       String       @db.VarChar(160)
+  status     TenantStatus @default(ACTIVE)
+  timezone   String       @default("America/Argentina/Buenos_Aires") @db.VarChar(80)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  archivedAt DateTime?
+
+  domains                   TenantDomain[]
+  subscriptions             TenantSubscription[]
+  featureOverrides          TenantFeatureOverride[]
+  saasPayments              SaasPayment[]
+  adminSessions             AdminSession[]
+  userSessions              UserSession[]
+  users                     User[]
+  courts                    Court[]
+  businessHours             BusinessHour[]
+  bookings                  Booking[]
+  fixedBookings             FixedBooking[]
+  courtBlocks               CourtBlock[]
+  pushSubscriptions         PushSubscription[]
+  expenses                  Expense[]
+  settings                  Setting[]
+  tournaments               Tournament[]
+  tournamentCategories      TournamentCategory[]
+  tournamentTeams           TournamentTeam[]
+  tournamentGroups          TournamentGroup[]
+  tournamentGroupTeams      TournamentGroupTeam[]
+  tournamentMatches         TournamentMatch[]
+  rankingCategories         RankingCategory[]
+  rankingEntries            RankingEntry[]
+  playerCategoryLevels      PlayerCategoryLevel[]
+  playerCategoryAssignments PlayerCategoryAssignment[]
+  systemSetting             SystemSetting?
+  auditLogs                 PlatformAuditLog[]
+
+  @@index([status, createdAt], map: "Tenant_status_createdAt_idx")
+  @@map("tenant")
+}
+
+model TenantDomain {
+  id         String    @id @default(uuid())
+  tenantId   String    @default("")
+  hostname   String    @unique(map: "TenantDomain_hostname_key") @db.VarChar(255)
+  isPrimary  Boolean   @default(false)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "TenantDomain_tenantId_fkey")
+
+  @@index([tenantId, isPrimary], map: "TenantDomain_tenantId_isPrimary_idx")
+  @@map("tenantdomain")
+}
+
+model PlatformUser {
+  id           String       @id @default(uuid())
+  email        String       @unique(map: "PlatformUser_email_key") @db.VarChar(191)
+  name         String       @db.VarChar(160)
+  passwordHash String       @db.VarChar(191)
+  role         PlatformRole @default(SUPERADMIN)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  sessions  PlatformSession[]
+  auditLogs PlatformAuditLog[]
+
+  @@index([isActive], map: "PlatformUser_isActive_idx")
+  @@map("platformuser")
+}
+
+model PlatformSession {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique(map: "PlatformSession_tokenHash_key") @db.Char(64)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user PlatformUser @relation(fields: [userId], references: [id], onDelete: Cascade, map: "PlatformSession_userId_fkey")
+
+  @@index([userId, expiresAt], map: "PlatformSession_userId_expiresAt_idx")
+  @@index([expiresAt, revokedAt], map: "PlatformSession_expiresAt_revokedAt_idx")
+  @@map("platformsession")
+}
+
+model Plan {
+  id              String   @id @default(uuid())
+  code            String   @unique(map: "Plan_code_key") @db.VarChar(80)
+  name            String   @db.VarChar(160)
+  description     String?  @db.Text
+  price           Decimal  @default(0) @db.Decimal(12, 2)
+  currency        String   @default("ARS") @db.Char(3)
+  billingInterval String   @default("MONTHLY") @db.VarChar(24)
+  limits          Json?
+  isActive        Boolean  @default(true)
+  isPublic        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  features      PlanFeature[]
+  subscriptions TenantSubscription[]
+
+  @@index([isActive, isPublic], map: "Plan_isActive_isPublic_idx")
+  @@map("plan")
+}
+
+model PlanFeature {
+  id        String   @id @default(uuid())
+  planId    String
+  key       String   @db.VarChar(80)
+  enabled   Boolean  @default(true)
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade, map: "PlanFeature_planId_fkey")
+
+  @@unique([planId, key], map: "PlanFeature_planId_key_key")
+  @@index([key, enabled], map: "PlanFeature_key_enabled_idx")
+  @@map("planfeature")
+}
+
+model TenantSubscription {
+  id                 String             @id @default(uuid())
+  tenantId           String             @default("")
+  planId             String
+  status             SubscriptionStatus @default(TRIAL)
+  startsAt           DateTime           @default(now())
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  canceledAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "TenantSubscription_tenantId_fkey")
+  plan     Plan          @relation(fields: [planId], references: [id], onDelete: Restrict, map: "TenantSubscription_planId_fkey")
+  payments SaasPayment[]
+
+  @@index([tenantId, status, currentPeriodEnd], map: "TenantSubscription_tenantId_status_periodEnd_idx")
+  @@index([planId, status], map: "TenantSubscription_planId_status_idx")
+  @@map("tenantsubscription")
+}
+
+model TenantFeatureOverride {
+  id        String   @id @default(uuid())
+  tenantId  String   @default("")
+  key       String   @db.VarChar(80)
+  enabled   Boolean
+  config    Json?
+  reason    String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "TenantFeatureOverride_tenantId_fkey")
+
+  @@unique([tenantId, key], map: "TenantFeatureOverride_tenantId_key_key")
+  @@map("tenantfeatureoverride")
+}
+
+model SaasPayment {
+  id                String            @id @default(uuid())
+  tenantId          String            @default("")
+  subscriptionId    String?
+  amount            Decimal           @db.Decimal(12, 2)
+  currency          String            @default("ARS") @db.Char(3)
+  status            SaasPaymentStatus @default(PENDING)
+  provider          String            @default("MANUAL") @db.VarChar(40)
+  providerReference String?           @db.VarChar(191)
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  paidAt            DateTime?
+  notes             String?           @db.Text
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "SaasPayment_tenantId_fkey")
+  subscription TenantSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull, map: "SaasPayment_subscriptionId_fkey")
+
+  @@unique([provider, providerReference], map: "SaasPayment_provider_reference_key")
+  @@index([tenantId, status, createdAt], map: "SaasPayment_tenantId_status_createdAt_idx")
+  @@map("saaspayment")
+}
+
+model PlatformAuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  tenantId   String?
+  action     String   @db.VarChar(120)
+  entityType String   @db.VarChar(80)
+  entityId   String?  @db.VarChar(191)
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor  PlatformUser? @relation(fields: [actorId], references: [id], onDelete: SetNull, map: "PlatformAuditLog_actorId_fkey")
+  tenant Tenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull, map: "PlatformAuditLog_tenantId_fkey")
+
+  @@index([tenantId, createdAt], map: "PlatformAuditLog_tenantId_createdAt_idx")
+  @@index([actorId, createdAt], map: "PlatformAuditLog_actorId_createdAt_idx")
+  @@map("platformauditlog")
+}
+
+model AdminSession {
+  id        String    @id @default(uuid())
+  tenantId  String    @default("")
+  userId    String
+  tokenHash String    @unique(map: "AdminSession_tokenHash_key") @db.Char(64)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "AdminSession_tenantId_fkey")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, map: "AdminSession_userId_fkey")
+
+  @@index([tenantId, userId, expiresAt], map: "AdminSession_tenantId_userId_expiresAt_idx")
+  @@map("adminsession")
+}
+
+model UserSession {
+  id        String    @id @default(uuid())
+  tenantId  String    @default("")
+  userId    String
+  tokenHash String    @unique(map: "UserSession_tokenHash_key") @db.Char(64)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "UserSession_tenantId_fkey")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, map: "UserSession_userId_fkey")
+
+  @@index([tenantId, userId, expiresAt], map: "UserSession_tenantId_userId_expiresAt_idx")
+  @@map("usersession")
+}
+
 // ==========================================
 // CORE: USUARIOS, CANCHAS Y HORARIOS
 // ==========================================
 model User {
   id       String  @id @default(uuid())
-  email    String? @unique // Made optional in case they register by DNI only
-  dni      String? @unique
+  tenantId String  @default("")
+  email    String? // Made optional in case they register by DNI only
+  dni      String?
   password String?
   name     String?
   lastName String?
@@ -69,14 +338,24 @@ model User {
   pushSubscriptions         PushSubscription[]
   rankingEntries            RankingEntry[]
   playerCategoryAssignments PlayerCategoryAssignment[]
+  adminSessions             AdminSession[]
+  userSessions              UserSession[]
   isActive                  Boolean                    @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "User_tenantId_fkey")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, email], map: "User_tenantId_email_key")
+  @@unique([tenantId, dni], map: "User_tenantId_dni_key")
+  @@index([tenantId, role, isActive], map: "User_tenantId_role_isActive_idx")
+  @@map("user")
 }
 
 model Court {
   id       String  @id @default(uuid())
+  tenantId String  @default("")
   name     String
   sport    String  @default("Padel")
   surface  String  @default("Piso Sintético")
@@ -87,21 +366,28 @@ model Court {
   blocks            CourtBlock[]
   businessHours     BusinessHour[]
   tournamentMatches TournamentMatch[]
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "Court_tenantId_fkey")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([tenantId, isActive], map: "Court_tenantId_isActive_idx")
+  @@map("court")
 }
 
 model BusinessHour {
   id           String @id @default(uuid())
+  tenantId     String @default("")
   courtId      String
-  court        Court  @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  court        Court  @relation(fields: [courtId], references: [id], onDelete: Cascade, map: "BusinessHour_courtId_fkey")
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "BusinessHour_tenantId_fkey")
   dayOfWeek    Int // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
   openTime     String // "HH:mm"
   closeTime    String // "HH:mm"
   slotDuration Int    @default(90) // Duración en minutos
 
-  @@unique([courtId, dayOfWeek])
+  @@unique([tenantId, courtId, dayOfWeek], map: "BusinessHour_tenantId_courtId_dayOfWeek_key")
+  @@map("businesshour")
 }
 
 // ==========================================
@@ -109,10 +395,11 @@ model BusinessHour {
 // ==========================================
 model Booking {
   id             String        @id @default(uuid())
+  tenantId       String        @default("")
   courtId        String
-  court          Court         @relation(fields: [courtId], references: [id])
+  court          Court         @relation(fields: [courtId], references: [id], map: "Booking_courtId_fkey")
   userId         String?
-  user           User?         @relation(fields: [userId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id], map: "Booking_userId_fkey")
   startTime      DateTime
   endTime        DateTime
   status         BookingStatus @default(PENDING)
@@ -120,23 +407,29 @@ model Booking {
   totalAmount    Decimal       @db.Decimal(10, 2)
   description    String?
   fixedBookingId String?
-  fixedBooking   FixedBooking? @relation(fields: [fixedBookingId], references: [id], onDelete: SetNull)
+  fixedBooking   FixedBooking? @relation(fields: [fixedBookingId], references: [id], onDelete: SetNull, map: "Booking_fixedBookingId_fkey")
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "Booking_tenantId_fkey")
   // Claves de integridad: requestKey hace los reintentos idempotentes y
   // slotKey impide que dos solicitudes ocupen el mismo inicio de turno.
-  requestKey     String?       @unique @db.VarChar(64)
-  slotKey        String?       @unique @db.VarChar(128)
+  requestKey     String?       @db.VarChar(64)
+  slotKey        String?       @db.VarChar(128)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  @@index([courtId, startTime, endTime])
+  @@unique([tenantId, requestKey], map: "Booking_tenantId_requestKey_key")
+  @@unique([tenantId, slotKey], map: "Booking_tenantId_slotKey_key")
+  @@index([tenantId, courtId, startTime, endTime], map: "Booking_tenantId_court_start_end_idx")
+  @@index([tenantId, status, startTime], map: "Booking_tenantId_status_startTime_idx")
+  @@map("booking")
 }
 
 model FixedBooking {
   id        String   @id @default(uuid())
+  tenantId  String   @default("")
   courtId   String
-  court     Court    @relation(fields: [courtId], references: [id])
+  court     Court    @relation(fields: [courtId], references: [id], map: "FixedBooking_courtId_fkey")
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], map: "FixedBooking_userId_fkey")
   dayOfWeek Int // 0 = Domingo, 1 = Lunes...
   startTime String // "HH:mm"
   endTime   String // "HH:mm"
@@ -145,34 +438,44 @@ model FixedBooking {
   isActive  Boolean  @default(true)
 
   bookings Booking[]
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "FixedBooking_tenantId_fkey")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([courtId, dayOfWeek])
+  @@index([tenantId, courtId, dayOfWeek], map: "FixedBooking_tenantId_courtId_dayOfWeek_idx")
+  @@map("fixedbooking")
 }
 
 model CourtBlock {
   id        String   @id @default(uuid())
+  tenantId  String   @default("")
   courtId   String
-  court     Court    @relation(fields: [courtId], references: [id])
+  court     Court    @relation(fields: [courtId], references: [id], map: "CourtBlock_courtId_fkey")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "CourtBlock_tenantId_fkey")
   startTime DateTime
   endTime   DateTime
   reason    String? // Ej: "Lluvia", "Mantenimiento"
 
   createdAt DateTime @default(now())
 
-  @@index([courtId, startTime, endTime])
+  @@index([tenantId, courtId, startTime, endTime], map: "CourtBlock_tenantId_court_start_end_idx")
+  @@map("courtblock")
 }
 
 model PushSubscription {
   id        String   @id @default(uuid())
+  tenantId  String   @default("")
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "PushSubscription_userId_fkey")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "PushSubscription_tenantId_fkey")
   endpoint  String   @db.Text
   p256dh    String   @db.Text
   auth      String   @db.Text
   createdAt DateTime @default(now())
+
+  @@index([tenantId, userId], map: "PushSubscription_tenantId_userId_idx")
+  @@map("pushsubscription")
 }
 
 // ==========================================
@@ -180,6 +483,7 @@ model PushSubscription {
 // ==========================================
 model Expense {
   id          String   @id @default(uuid())
+  tenantId    String   @default("")
   description String
   amount      Decimal  @db.Decimal(10, 2)
   date        DateTime
@@ -187,12 +491,22 @@ model Expense {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "Expense_tenantId_fkey")
+
+  @@index([tenantId, date], map: "Expense_tenantId_date_idx")
+  @@map("expense")
 }
 
 model Setting {
-  key       String   @id
+  id        String   @id @default(uuid())
+  tenantId  String   @default("")
+  key       String
   value     String   @db.Text
   updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "Setting_tenantId_fkey")
+
+  @@unique([tenantId, key], map: "Setting_tenantId_key_key")
+  @@map("setting")
 }
 
 // ==========================================
@@ -200,6 +514,7 @@ model Setting {
 // ==========================================
 model Tournament {
   id         String               @id @default(uuid())
+  tenantId   String               @default("")
   name       String
   startDate  DateTime
   endDate    DateTime
@@ -214,12 +529,17 @@ model Tournament {
   depositAmount  Decimal          @default(0) @db.Decimal(10, 2)
   format         TournamentFormat @default(KNOCKOUT)
   maxTeams       Int?
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "Tournament_tenantId_fkey")
+
+  @@index([tenantId, status, startDate], map: "Tournament_tenantId_status_startDate_idx")
+  @@map("tournament")
 }
 
 model TournamentCategory {
   id               String            @id @default(uuid())
+  tenantId         String            @default("")
   tournamentId     String
-  tournament       Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament       Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade, map: "TournamentCategory_tournamentId_fkey")
   name             String
   level            Int?
   format           TournamentFormat?
@@ -227,19 +547,22 @@ model TournamentCategory {
   teams            TournamentTeam[]
   matches          TournamentMatch[]
   groups           TournamentGroup[]
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "TournamentCategory_tenantId_fkey")
 
-  @@unique([tournamentId, name])
+  @@unique([tenantId, tournamentId, name], map: "TournamentCategory_tenant_tournament_name_key")
+  @@map("tournamentcategory")
 }
 
 model TournamentTeam {
   id         String             @id @default(uuid())
+  tenantId   String             @default("")
   categoryId String
-  category   TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category   TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade, map: "TournamentTeam_categoryId_fkey")
   name       String?
   player1Id  String
-  player1    User               @relation("Player1", fields: [player1Id], references: [id])
+  player1    User               @relation("Player1", fields: [player1Id], references: [id], map: "TournamentTeam_player1Id_fkey")
   player2Id  String?
-  player2    User?              @relation("Player2", fields: [player2Id], references: [id])
+  player2    User?              @relation("Player2", fields: [player2Id], references: [id], map: "TournamentTeam_player2Id_fkey")
   isPaid     Boolean            @default(false)
 
   phone1    String?
@@ -251,25 +574,34 @@ model TournamentTeam {
   matchesWon      TournamentMatch[]     @relation("MatchWinner")
   groupPlacements TournamentGroupTeam[]
   createdAt       DateTime              @default(now())
+  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "TournamentTeam_tenantId_fkey")
+
+  @@index([tenantId, categoryId], map: "TournamentTeam_tenantId_categoryId_idx")
+  @@map("tournamentteam")
 }
 
 model TournamentGroup {
   id         String                @id @default(uuid())
+  tenantId   String                @default("")
   categoryId String
-  category   TournamentCategory    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category   TournamentCategory    @relation(fields: [categoryId], references: [id], onDelete: Cascade, map: "TournamentGroup_categoryId_fkey")
   name       String
   teams      TournamentGroupTeam[]
   matches    TournamentMatch[]
+  tenant     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "TournamentGroup_tenantId_fkey")
 
-  @@unique([categoryId, name])
+  @@unique([tenantId, categoryId, name], map: "TournamentGroup_tenant_category_name_key")
+  @@map("tournamentgroup")
 }
 
 model TournamentGroupTeam {
-  id      String          @id @default(uuid())
-  groupId String
-  group   TournamentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  teamId  String
-  team    TournamentTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id       String          @id @default(uuid())
+  tenantId String          @default("")
+  groupId  String
+  group    TournamentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade, map: "TournamentGroupTeam_groupId_fkey")
+  teamId   String
+  team     TournamentTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade, map: "TournamentGroupTeam_teamId_fkey")
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "TournamentGroupTeam_tenantId_fkey")
 
   points        Int @default(0)
   matchesPlayed Int @default(0)
@@ -280,35 +612,39 @@ model TournamentGroupTeam {
   gamesWon      Int @default(0)
   gamesLost     Int @default(0)
 
-  @@unique([groupId, teamId])
+  @@unique([tenantId, groupId, teamId], map: "TournamentGroupTeam_tenant_group_team_key")
+  @@map("tournamentgroupteam")
 }
 
 model TournamentMatch {
   id         String             @id @default(uuid())
+  tenantId   String             @default("")
   categoryId String
-  category   TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category   TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade, map: "TournamentMatch_categoryId_fkey")
 
   groupId   String?
-  group     TournamentGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group     TournamentGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade, map: "TournamentMatch_groupId_fkey")
   roundName String?
 
   round       Int
   matchOrder  Int
   nextMatchId String?
   team1Id     String?
-  team1       TournamentTeam? @relation("MatchTeam1", fields: [team1Id], references: [id])
+  team1       TournamentTeam? @relation("MatchTeam1", fields: [team1Id], references: [id], map: "TournamentMatch_team1Id_fkey")
   team2Id     String?
-  team2       TournamentTeam? @relation("MatchTeam2", fields: [team2Id], references: [id])
+  team2       TournamentTeam? @relation("MatchTeam2", fields: [team2Id], references: [id], map: "TournamentMatch_team2Id_fkey")
   scoreTeam1  String?
   scoreTeam2  String?
   winnerId    String?
-  winner      TournamentTeam? @relation("MatchWinner", fields: [winnerId], references: [id])
+  winner      TournamentTeam? @relation("MatchWinner", fields: [winnerId], references: [id], map: "TournamentMatch_winnerId_fkey")
   courtId     String?
-  court       Court?          @relation(fields: [courtId], references: [id])
+  court       Court?          @relation(fields: [courtId], references: [id], map: "TournamentMatch_courtId_fkey")
   startTime   DateTime?
   status      MatchStatus     @default(SCHEDULED)
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "TournamentMatch_tenantId_fkey")
 
-  @@index([categoryId, round, matchOrder])
+  @@index([tenantId, categoryId, round, matchOrder], map: "TournamentMatch_tenant_category_round_order_idx")
+  @@map("tournamentmatch")
 }
 
 // ==========================================
@@ -316,6 +652,7 @@ model TournamentMatch {
 // ==========================================
 model RankingCategory {
   id           String          @id @default(uuid())
+  tenantId     String          @default("")
   name         String
   description  String?         @db.Text
   isPublished  Boolean         @default(true)
@@ -328,16 +665,19 @@ model RankingCategory {
   entries      RankingEntry[]
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "RankingCategory_tenantId_fkey")
 
-  @@index([isPublished, displayOrder])
+  @@index([tenantId, isPublished, displayOrder], map: "RankingCategory_tenant_published_order_idx")
+  @@map("rankingcategory")
 }
 
 model RankingEntry {
   id             String          @id @default(uuid())
+  tenantId       String          @default("")
   categoryId     String
-  category       RankingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category       RankingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade, map: "RankingEntry_categoryId_fkey")
   userId         String?
-  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull, map: "RankingEntry_userId_fkey")
   externalName   String?
   externalPhone  String?
   manualPosition Int             @default(0)
@@ -348,10 +688,12 @@ model RankingEntry {
   notes          String?         @db.Text
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "RankingEntry_tenantId_fkey")
 
-  @@unique([categoryId, userId])
-  @@index([categoryId, points])
-  @@index([categoryId, manualPosition])
+  @@unique([tenantId, categoryId, userId], map: "RankingEntry_tenant_category_user_key")
+  @@index([tenantId, categoryId, points], map: "RankingEntry_tenant_category_points_idx")
+  @@index([tenantId, categoryId, manualPosition], map: "RankingEntry_tenant_category_manual_idx")
+  @@map("rankingentry")
 }
 
 // ==========================================
@@ -360,7 +702,8 @@ model RankingEntry {
 // ==========================================
 model PlayerCategoryLevel {
   id           String                     @id @default(uuid())
-  name         String                     @unique
+  tenantId     String                     @default("")
+  name         String
   description  String?                    @db.Text
   color        String                     @default("#10b981")
   displayOrder Int                        @default(0)
@@ -368,39 +711,53 @@ model PlayerCategoryLevel {
   assignments  PlayerCategoryAssignment[]
   createdAt    DateTime                   @default(now())
   updatedAt    DateTime                   @updatedAt
+  tenant       Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "PlayerCategoryLevel_tenantId_fkey")
 
-  @@index([isPublished, displayOrder])
+  @@unique([tenantId, name], map: "PlayerCategoryLevel_tenantId_name_key")
+  @@index([tenantId, isPublished, displayOrder], map: "PlayerCategoryLevel_tenant_published_order_idx")
+  @@map("playercategorylevel")
 }
 
 model PlayerCategoryAssignment {
   id            String              @id @default(uuid())
+  tenantId      String              @default("")
   levelId       String
-  level         PlayerCategoryLevel @relation(fields: [levelId], references: [id], onDelete: Restrict)
-  userId        String?             @unique
-  user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  level         PlayerCategoryLevel @relation(fields: [levelId], references: [id], onDelete: Restrict, map: "PlayerCategoryAssignment_levelId_fkey")
+  userId        String?
+  user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull, map: "PlayerCategoryAssignment_userId_fkey")
   externalName  String?
   externalPhone String?
   publicNote    String?             @db.Text
   isPublished   Boolean             @default(true)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "PlayerCategoryAssignment_tenantId_fkey")
 
-  @@index([levelId, isPublished])
-  @@index([externalName])
+  @@unique([tenantId, userId], map: "PlayerCategoryAssignment_tenantId_userId_key")
+  @@index([tenantId, levelId, isPublished], map: "PlayerCategoryAssignment_tenant_level_published_idx")
+  @@index([tenantId, externalName], map: "PlayerCategoryAssignment_tenant_externalName_idx")
+  @@map("playercategoryassignment")
 }
 
 model SystemSetting {
-  id Int @id @default(1)
+  tenantId String @id @default("")
+  id       Int    @default(1)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "SystemSetting_tenantId_fkey")
 
   // --- DATOS DEL CLUB Y PAGOS ---
-  clubName       String @default("Padel Club")
-  contactPhone   String @default("")
-  courtPhone     String @default("")
-  apiPhone       String @default("")
-  mpAccessToken  String @default("")
-  reservationFee Float  @default(0)
-  sportEmoji     String @default("🎾")
-  topbarName     String @default("T-Padel")
+  clubName            String @default("Padel Club")
+  contactPhone        String @default("")
+  courtPhone          String @default("")
+  apiPhone            String @default("")
+  mpAccessToken       String @default("")
+  whatsappPhoneId     String @default("")
+  whatsappToken       String @default("") @db.Text
+  whatsappVerifyToken String @default("")
+  reservationFee      Float  @default(0)
+  // MariaDB 10.4 stored the historical DDL default without the emoji.
+  // The application writes the real emoji explicitly when settings are created.
+  sportEmoji          String @default("?")
+  topbarName          String @default("OnlyPadel")
 
   // --- FEATURE TOGGLES ---
   pwaEnabled           Boolean @default(true)
@@ -418,16 +775,17 @@ model SystemSetting {
   clientCancellations         Boolean @default(true)
 
   // --- SEGURIDAD ADMIN ---
-  adminUser String @default("admin")
-  adminPass String @default("admin123")
+  // Legacy columns kept only to migrate old installations. Authentication uses User + persisted sessions.
+  adminUser String @default("")
+  adminPass String @default("")
 
   // --- CONFIGURACIÓN DE LA APP / PWA ---
-  splashLogo     String @default("T-Padel")
-  splashName     String @default("T-Padel")
+  splashLogo     String @default("OnlyPadel")
+  splashName     String @default("OnlyPadel")
   splashDuration Int    @default(1500)
 
   bubbleActive   Boolean @default(false)
-  bubbleText     String  @default("¡Bienvenidos al club! 🎾")
+  bubbleText     String  @default("¡Bienvenidos al club! ?")
   bubbleDuration Int     @default(3000)
   bubbleColor    String  @default("#10b981")
 
@@ -443,4 +801,6 @@ model SystemSetting {
   wspPending   String? @db.Text
 
   updatedAt DateTime @updatedAt
+
+  @@map("systemsetting")
 }

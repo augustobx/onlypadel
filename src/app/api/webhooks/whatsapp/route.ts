@@ -1,6 +1,8 @@
 // src/app/api/webhooks/whatsapp/route.ts
 import { NextResponse } from 'next/server';
 import { handleIncomingMessage } from '@/lib/whatsapp/handler';
+import { prisma } from '@/lib/prisma';
+import { requireTenantFeature } from '@/lib/features';
 
 // ============================================================================
 // GET — Verificación del webhook por parte de Meta
@@ -11,7 +13,9 @@ export async function GET(request: Request) {
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
 
-    if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    const settings = await prisma.systemSetting.findFirst({ where: { id: 1 }, select: { whatsappVerifyToken: true } });
+    const verifyToken = settings?.whatsappVerifyToken || process.env.WHATSAPP_VERIFY_TOKEN;
+    if (mode === 'subscribe' && token === verifyToken) {
         console.log('✅ Webhook de WhatsApp verificado correctamente');
         return new Response(challenge, { status: 200 });
     }
@@ -25,6 +29,7 @@ export async function GET(request: Request) {
 // ============================================================================
 export async function POST(request: Request) {
     try {
+        await requireTenantFeature('whatsapp');
         const body = await request.json();
 
         // Solo procesamos eventos de whatsapp_business_account
@@ -38,11 +43,14 @@ export async function POST(request: Request) {
         const message = value?.messages?.[0];
         const phone = message?.from;
 
+        const settings = await prisma.systemSetting.findFirst({ where: { id: 1 }, select: { autoWhatsapp: true, whatsappPhoneId: true } });
+        const configuredPhoneId = settings?.whatsappPhoneId || process.env.WHATSAPP_PHONE_ID;
+        if (configuredPhoneId && value?.metadata?.phone_number_id !== configuredPhoneId) {
+            return NextResponse.json({ status: 'ignored_wrong_tenant' });
+        }
+
         if (message && phone) {
             // Chequear si el bot está activado en el panel admin
-            const { prisma } = await import('@/lib/prisma');
-            const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-            
             if (settings && settings.autoWhatsapp === false) {
                 // El bot está apagado. Retornamos OK para que Meta no reintente, pero ignoramos el mensaje.
                 return NextResponse.json({ status: 'ignored_bot_disabled' });

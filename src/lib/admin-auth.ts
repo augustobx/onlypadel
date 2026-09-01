@@ -1,47 +1,23 @@
 import 'server-only';
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
+import { platformPrisma } from '@/lib/prisma-core';
+import { resolveTenantContext } from '@/lib/tenant-context';
 
-export const ADMIN_COOKIE_NAME = 'tpadel_admin_session';
+export const ADMIN_COOKIE_NAME = 'onlypadel_admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
-type AdminSession = { username: string; expiresAt: number };
+const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
-async function getSigningSecret() {
-  if (process.env.ADMIN_SESSION_SECRET) return process.env.ADMIN_SESSION_SECRET;
-  const settings = await prisma.systemSetting.findUnique({
-    where: { id: 1 },
-    select: { adminUser: true, adminPass: true },
+export async function createAdminSession(userId: string) {
+  const tenant = await resolveTenantContext();
+  const token = randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
+  await platformPrisma.adminSession.create({
+    data: { tenantId: tenant.id, userId, tokenHash: hashToken(token), expiresAt },
   });
-  if (!settings) throw new Error('ADMIN_NOT_CONFIGURED');
-  return createHmac('sha256', process.env.DATABASE_URL || 'tpadel')
-    .update(`${settings.adminUser}:${settings.adminPass}`)
-    .digest('hex');
-}
-
-function decode(value: string): AdminSession | null {
-  try {
-    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<AdminSession>;
-    if (typeof parsed.username !== 'string' || typeof parsed.expiresAt !== 'number') return null;
-    return { username: parsed.username, expiresAt: parsed.expiresAt };
-  } catch {
-    return null;
-  }
-}
-
-async function sign(value: string) {
-  return createHmac('sha256', await getSigningSecret()).update(value).digest('base64url');
-}
-
-export async function createAdminSession(username: string) {
-  const payload = Buffer.from(JSON.stringify({
-    username,
-    expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000,
-  }), 'utf8').toString('base64url');
-  const cookieStore = await cookies();
-  cookieStore.set(ADMIN_COOKIE_NAME, `${payload}.${await sign(payload)}`, {
+  (await cookies()).set(ADMIN_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
@@ -50,18 +26,17 @@ export async function createAdminSession(username: string) {
   });
 }
 
-export async function getAdminSession(): Promise<AdminSession | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
+export async function getAdminSession() {
+  const token = (await cookies()).get(ADMIN_COOKIE_NAME)?.value;
   if (!token) return null;
-  const [payload, suppliedSignature] = token.split('.');
-  if (!payload || !suppliedSignature) return null;
-  const expectedSignature = await sign(payload);
-  const supplied = Buffer.from(suppliedSignature);
-  const expected = Buffer.from(expectedSignature);
-  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
-  const session = decode(payload);
-  return session && session.expiresAt > Date.now() ? session : null;
+  const tenant = await resolveTenantContext();
+  const session = await platformPrisma.adminSession.findUnique({
+    where: { tokenHash: hashToken(token) },
+    include: { user: true, tenant: true },
+  });
+  if (!session || session.tenantId !== tenant.id || session.revokedAt || session.expiresAt <= new Date() ||
+      session.tenant.status !== 'ACTIVE' || session.user.role !== 'ADMIN' || !session.user.isActive) return null;
+  return { id: session.id, tenantId: session.tenantId, userId: session.userId, name: session.user.name, email: session.user.email, expiresAt: session.expiresAt };
 }
 
 export async function requireAdmin() {
@@ -72,6 +47,9 @@ export async function requireAdmin() {
 
 export async function clearAdminSession() {
   const cookieStore = await cookies();
+  const token = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
+  if (token) await platformPrisma.adminSession.updateMany({ where: { tokenHash: hashToken(token), revokedAt: null }, data: { revokedAt: new Date() } });
   cookieStore.delete(ADMIN_COOKIE_NAME);
+  cookieStore.delete('tpadel_admin_session');
   cookieStore.delete('admin_auth');
 }

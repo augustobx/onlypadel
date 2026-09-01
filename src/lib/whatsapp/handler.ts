@@ -1,5 +1,5 @@
 // src/lib/whatsapp/handler.ts
-// Handler principal del bot de WhatsApp para T-Padel.
+// Handler principal del bot de WhatsApp para OnlyPadel.
 // Flujo completo: Saludo → Fecha → Cancha → Horario → Nombre → Pago MP → Confirmación automática.
 
 import { prisma } from '@/lib/prisma';
@@ -60,7 +60,7 @@ async function findOrCreateUser(phone: string, name?: string): Promise<string> {
 
 /** Obtiene la config de reservas desde SystemSetting */
 async function getBookingSettings(): Promise<{ fee: number; requireDeposit: boolean }> {
-    const settings = await prisma.systemSetting.findUnique({
+    const settings = await prisma.systemSetting.findFirst({
         where: { id: 1 },
     });
     return {
@@ -80,7 +80,7 @@ async function generatePaymentLink(bookingId: string): Promise<string | null> {
         if (!booking) return null;
 
         // Leer el token de MP desde SystemSetting (lo configura el admin desde la web)
-        const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+        const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
         const mpToken = settings?.mpAccessToken;
 
         if (!mpToken) {
@@ -108,7 +108,7 @@ async function generatePaymentLink(bookingId: string): Promise<string | null> {
                     },
                 ],
                 payer: {
-                    email: booking.user?.email || 'cliente@tpadel.local',
+                    email: booking.user?.email || 'cliente@onlypadel.local',
                     name: booking.user?.name || 'Cliente',
                 },
                 back_urls: {
@@ -226,7 +226,7 @@ export async function handleIncomingMessage(phone: string, message: any) {
 // MENÚ PRINCIPAL
 // ============================================================================
 async function sendMainMenu(phone: string) {
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
     const clubName = settings?.clubName || 'Padel Club';
     const template = settings?.wspWelcome || '¡Hola! 👋 Bienvenido a *{clubName}*.\n¿Qué querés hacer hoy?';
 
@@ -637,7 +637,7 @@ async function createBookingAndSendPaymentLink(phone: string) {
                 `🕐 *Horario:* ${session.slotTime} - ${session.slotEnd}\n` +
                 `👤 *A nombre de:* ${clientLabel}\n` +
                 `📌 *Estado:* ✅ Confirmado\n\n` +
-                `¡Te esperamos en T-Padel! 🎾💪`
+                `¡Te esperamos! 🎾💪`
             );
 
             // ---> NUEVO: Avisar al admin que entró una reserva confirmada por WhatsApp <---

@@ -2,9 +2,12 @@
 
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { prisma } from '@/lib/prisma';
+import { requireTenantFeature } from '@/lib/features';
+import { resolveTenantContext } from '@/lib/tenant-context';
 
 export async function createPaymentPreference(bookingId: string) {
   try {
+    await requireTenantFeature('payments');
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
@@ -18,7 +21,7 @@ export async function createPaymentPreference(bookingId: string) {
     }
 
     // Leer el token de MP desde SystemSetting (lo configura el admin desde la web)
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
     const mpToken = settings?.mpAccessToken;
 
     if (!mpToken) {
@@ -30,7 +33,8 @@ export async function createPaymentPreference(bookingId: string) {
     });
 
     const preference = new Preference(client);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000';
+    const tenant = await resolveTenantContext();
+    const appUrl = `https://${tenant.hostname}`;
 
     const result = await preference.create({
       requestOptions: { idempotencyKey: `booking-${booking.id}` },
@@ -45,7 +49,7 @@ export async function createPaymentPreference(bookingId: string) {
           }
         ],
         payer: {
-          email: booking.user?.email || 'cliente@tpadel.local',
+          email: booking.user?.email || 'cliente@onlypadel.local',
           name: booking.user?.name || 'Cliente',
         },
         // CORRECCIÓN: Evitamos el 404 redirigiendo a la raíz de la app con un parámetro de estado.
@@ -69,6 +73,7 @@ export async function createPaymentPreference(bookingId: string) {
 
 export async function createTournamentPaymentPreference(teamId: string) {
   try {
+    await requireTenantFeature('payments');
     const team = await prisma.tournamentTeam.findUnique({
       where: { id: teamId },
       include: { category: { include: { tournament: true } }, player1: true }
@@ -85,7 +90,7 @@ export async function createTournamentPaymentPreference(teamId: string) {
       return { success: false, error: 'Este torneo no requiere seña.' };
     }
 
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
     const mpToken = settings?.mpAccessToken;
 
     if (!mpToken) {
@@ -94,7 +99,8 @@ export async function createTournamentPaymentPreference(teamId: string) {
 
     const client = new MercadoPagoConfig({ accessToken: mpToken });
     const preference = new Preference(client);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000';
+    const tenant = await resolveTenantContext();
+    const appUrl = `https://${tenant.hostname}`;
 
     const result = await preference.create({
       requestOptions: { idempotencyKey: `tournament-${team.id}` },
@@ -109,7 +115,7 @@ export async function createTournamentPaymentPreference(teamId: string) {
           }
         ],
         payer: {
-          email: team.player1?.email || 'cliente@tpadel.local',
+          email: team.player1?.email || 'cliente@onlypadel.local',
           name: team.name || team.player1?.name || 'Jugador',
         },
         back_urls: {

@@ -3,6 +3,7 @@ import { getAdminSession } from "@/lib/admin-auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getReadableForeground, normalizeHexColor } from "@/lib/color";
+import { FEATURE_KEYS, hasTenantFeature } from "@/lib/features";
 
 export default async function AdminLayout({
   children,
@@ -11,7 +12,9 @@ export default async function AdminLayout({
 }) {
   const session = await getAdminSession();
   if (!session) redirect('/login');
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+  const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
+  const featureStates = await Promise.all(FEATURE_KEYS.map(async key => [key, await hasTenantFeature(key)] as const));
+  const enabledFeatures = featureStates.filter(([, enabled]) => enabled).map(([key]) => key);
   const primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');
   const secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
 
@@ -26,7 +29,7 @@ export default async function AdminLayout({
       } as React.CSSProperties}
     >
       {/* El Sidebar maneja su propia lógica responsiva (Menu hamburguesa en mobile) */}
-      <AdminSidebar />
+      <AdminSidebar enabledFeatures={enabledFeatures} />
 
       {/* Contenido Principal */}
       <main className="flex-1 flex flex-col min-h-0 md:h-screen md:overflow-hidden">

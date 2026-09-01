@@ -113,7 +113,7 @@ export async function sendBookingConfirmation(bookingId: string): Promise<void> 
         } else {
             // FALLBACK: Si la plantilla no existe o falla, enviar texto normal
             console.log(`⚠️ Plantilla falló, enviando texto plano a ${phone}`);
-            const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+            const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
             const clubName = settings?.clubName || 'Padel Club';
             const fallbackMsg = `✅ *¡Turno confirmado, ${clientName}!*\n\n📍 *Cancha:* ${courtName}\n📅 *Fecha:* ${fecha}\n🕐 *Horario:* ${horaInicio} - ${horaFin}\n📌 *Estado:* ✅ Confirmado\n\n¡Te esperamos en ${clubName}! 💪`;
             await sendWhatsAppMessage(phone, fallbackMsg);
@@ -152,7 +152,7 @@ export async function sendBookingPendingPayment(
         const amount = Number(booking.totalAmount);
 
         // Obtener configuración para el template
-        const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+        const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
         const clubName = settings?.clubName || 'Padel Club';
         const sportEmoji = settings?.sportEmoji || '🎾';
         const template = settings?.wspPending || `{sportEmoji} *¡Reserva registrada, {clientName}!*\n\n📍 *Cancha:* {courtName}\n📅 *Fecha:* {date}\n🕐 *Horario:* {startTime} - {endTime}\n💰 *Seña:* \${fee}\n\n📌 *Estado:* ⏳ Pendiente de pago\n\n👇 *Pagá la seña para confirmar tu turno:*\n{paymentLink}\n\n⏱️ _Tenés 15 minutos para pagar; después el turno se libera automáticamente._`;
@@ -191,7 +191,7 @@ export async function sendAdminNotification(bookingId: string): Promise<void> {
 
         if (!booking) return;
 
-        const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+        const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
         if (!settings?.courtPhone || !settings.notifyAdmin) return;
 
         const adminPhone = normalizePhoneForWhatsApp(settings.courtPhone);

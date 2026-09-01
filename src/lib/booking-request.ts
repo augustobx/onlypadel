@@ -1,6 +1,6 @@
 'use client';
 
-const STORAGE_KEY = 'tpadel.booking-request.v1';
+const STORAGE_KEY = 'onlypadel.booking-request.v1';
 const MAX_AGE_MS = 30 * 60 * 1000;
 
 type StoredRequest = {

@@ -10,7 +10,7 @@ export default function Error({
   unstable_retry: () => void
 }) {
   useEffect(() => {
-    console.error('[T-Padel Error Boundary]', error)
+    console.error('[OnlyPadel Error Boundary]', error)
   }, [error])
 
   return (

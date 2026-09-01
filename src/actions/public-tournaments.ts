@@ -160,7 +160,7 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
       const p1Dni = data.player1Dni?.trim() || null;
       let p1 = null;
       if (p1Dni) {
-        p1 = await tx.user.findUnique({ where: { dni: p1Dni } });
+        p1 = await tx.user.findFirst({ where: { dni: p1Dni } });
       }
       if (!p1 && phone1) {
         p1 = await tx.user.findFirst({
@@ -200,7 +200,7 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
         p2 = await tx.user.findUnique({ where: { id: selectedPlayer2.id } });
       }
       if (!p2 && p2Dni) {
-        p2 = await tx.user.findUnique({ where: { dni: p2Dni } });
+        p2 = await tx.user.findFirst({ where: { dni: p2Dni } });
       }
       if (!p2 && phone2) {
         p2 = await tx.user.findFirst({

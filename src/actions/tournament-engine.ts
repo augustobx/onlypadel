@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/admin-auth';
-import type { Prisma, TournamentFormat } from '@prisma/client';
+import type { TournamentFormat } from '@prisma/client';
 import { randomInt } from 'node:crypto';
 import { compareStandings, createFirstRoundSlots, parseScore, validateScore } from '@/lib/tournaments/rules';
 
@@ -43,7 +43,11 @@ function validateMatchScore(scoreTeam1: string, scoreTeam2: string, winnerId: st
   return { s1, s2 };
 }
 
-async function recomputeGroupStandings(tx: Prisma.TransactionClient, groupId: string) {
+type TournamentDb = Pick<typeof prisma,
+  'tournamentGroupTeam' | 'tournamentMatch' | 'court' | 'booking' | 'fixedBooking'
+>;
+
+async function recomputeGroupStandings(tx: TournamentDb, groupId: string) {
   const placements = await tx.tournamentGroupTeam.findMany({ where: { groupId } });
   const stats = new Map(placements.map((placement) => [placement.teamId, {
     points: 0, matchesPlayed: 0, matchesWon: 0, matchesLost: 0,
@@ -73,11 +77,11 @@ async function recomputeGroupStandings(tx: Prisma.TransactionClient, groupId: st
   }
 
   await Promise.all([...stats.entries()].map(([teamId, data]) =>
-    tx.tournamentGroupTeam.update({ where: { groupId_teamId: { groupId, teamId } }, data })
+    tx.tournamentGroupTeam.updateMany({ where: { groupId, teamId }, data })
   ));
 }
 
-async function getFeederSlot(tx: Prisma.TransactionClient, matchId: string, nextMatchId: string) {
+async function getFeederSlot(tx: TournamentDb, matchId: string, nextMatchId: string) {
   const feeders = await tx.tournamentMatch.findMany({
     where: { nextMatchId },
     orderBy: [{ round: 'asc' }, { matchOrder: 'asc' }],
@@ -93,7 +97,7 @@ function minutesOfDay(value: Date) {
 }
 
 async function assertCourtAvailable(
-  tx: Prisma.TransactionClient,
+  tx: TournamentDb,
   courtId: string,
   startTime: Date,
   excludeMatchId?: string,
@@ -134,7 +138,7 @@ function shuffled<T>(items: T[]) {
 }
 
 async function buildKnockout(
-  tx: Prisma.TransactionClient,
+  tx: TournamentDb,
   categoryId: string,
   teams: { id: string }[],
 ) {

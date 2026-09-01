@@ -121,8 +121,8 @@ export async function saveRankingEntry(input: z.input<typeof entrySchema>) {
       await prisma.rankingEntry.update({ where: { id: data.id }, data: payload });
     } else {
       if (userId) {
-        const existing = await prisma.rankingEntry.findUnique({
-          where: { categoryId_userId: { categoryId: data.categoryId, userId } },
+        const existing = await prisma.rankingEntry.findFirst({
+          where: { categoryId: data.categoryId, userId },
         });
         if (existing) return { success: false, error: 'Ese usuario ya está incluido en la categoría.' };
       }

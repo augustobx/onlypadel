@@ -2,10 +2,19 @@ export const dynamic = 'force-dynamic';
 
 import { MetadataRoute } from 'next'
 import { prisma } from '@/lib/prisma'
+import { isPlatformRequest } from '@/lib/tenant-context'
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } })
-  const appName = settings?.clubName || 'T-Padel'
+  if (await isPlatformRequest()) {
+    return {
+      name: 'OnlyPadel', short_name: 'OnlyPadel',
+      description: 'Plataforma SaaS para clubes de pádel', start_url: '/', display: 'standalone',
+      background_color: '#020617', theme_color: '#10b981',
+      icons: [{ src: '/favicon.ico', sizes: 'any', type: 'image/x-icon' }],
+    }
+  }
+  const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } })
+  const appName = settings?.clubName || 'OnlyPadel'
 
   return {
     name: `${appName} App`,

@@ -189,7 +189,7 @@ export async function createAdminBooking(data: {
                 data: {
                     name: data.clientName || (data.type === 'BLOQUEO' ? 'Cancha Bloqueada' : 'Turno Local'),
                     phone: data.clientPhone || 'ADMIN_LOCAL',
-                    email: `${Date.now()}@local.tpadel`,
+                    email: `${Date.now()}@local.onlypadel`,
                     role: 'PLAYER'
                 }
             });

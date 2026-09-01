@@ -321,7 +321,7 @@ export default function TvModePage() {
       {/* FOOTER */}
       {/* ============================================================ */}
       <footer className="bg-slate-900/80 border-t border-slate-800 px-8 py-3 flex items-center justify-between shrink-0">
-        <p className="text-slate-600 font-bold text-sm">T-Padel System</p>
+        <p className="text-slate-600 font-bold text-sm">OnlyPadel</p>
         <div className="flex items-center gap-3 text-slate-700 text-xs">
           <Clock className="w-3 h-3" />
           <span>Auto-refresh cada 30s</span>

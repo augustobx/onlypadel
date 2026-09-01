@@ -9,10 +9,11 @@ type PublicNavbarSettings = {
   tournamentsEnabled?: boolean;
   rankingsEnabled?: boolean;
   usersModuleEnabled?: boolean;
+  playerCategoriesEnabled?: boolean;
 };
 
 export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavbarSettings | null }) {
-  const topbarTitle = sysSettings?.topbarName || "T-Padel";
+  const topbarTitle = sysSettings?.topbarName || "OnlyPadel";
 
   return (
     <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 md:rounded-t-[2.5rem] relative z-20">
@@ -27,13 +28,13 @@ export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavb
             </Link>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <Link
+            {sysSettings?.playerCategoriesEnabled !== false && <Link
               href="/categorias-jugadores"
               className="flex items-center gap-1.5 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800/60 px-3 py-1.5 text-xs sm:text-sm font-bold text-sky-800 dark:text-sky-300 transition-all hover:bg-sky-100 dark:hover:bg-sky-900/60 active:scale-95"
             >
               <BadgeCheck className="w-4 h-4 text-sky-600 dark:text-sky-400" />
               <span className="hidden md:inline">Categorías</span>
-            </Link>
+            </Link>}
             {sysSettings?.rankingsEnabled !== false && (
               <Link
                 href="/ranking"

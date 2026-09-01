@@ -84,7 +84,7 @@ export default function SettingsForm({ settings }: { settings: SystemSetting }) 
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="topbarName">Nombre (Barra Superior)</Label>
-                                    <Input id="topbarName" name="topbarName" defaultValue={initialSettings.topbarName || ''} placeholder="Ej: T-Padel" />
+                                    <Input id="topbarName" name="topbarName" defaultValue={initialSettings.topbarName || ''} placeholder="Ej: Mi Club" />
                                 </div>
                             </div>
                             <div className="space-y-2 pt-2 border-t">
@@ -272,7 +272,15 @@ export default function SettingsForm({ settings }: { settings: SystemSetting }) 
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="mpAccessToken">MercadoPago Access Token</Label>
-                                <Input id="mpAccessToken" name="mpAccessToken" type="password" defaultValue={initialSettings.mpAccessToken} />
+                                <Input id="mpAccessToken" name="mpAccessToken" type="password" autoComplete="new-password" placeholder="Dejar vacío para conservar el actual" />
+                            </div>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-2"><Label htmlFor="whatsappPhoneId">WhatsApp Phone ID</Label><Input id="whatsappPhoneId" name="whatsappPhoneId" autoComplete="off" placeholder="Dejar vacío para conservar" /></div>
+                                <div className="space-y-2"><Label htmlFor="whatsappVerifyToken">WhatsApp Verify Token</Label><Input id="whatsappVerifyToken" name="whatsappVerifyToken" type="password" autoComplete="new-password" placeholder="Dejar vacío para conservar" /></div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="whatsappToken">WhatsApp Access Token</Label>
+                                <Input id="whatsappToken" name="whatsappToken" type="password" autoComplete="new-password" placeholder="Dejar vacío para conservar el actual" />
                             </div>
                             <div className="flex items-center justify-between p-4 border rounded-xl bg-gray-50/50 mt-4">
                                 <div>
@@ -300,24 +308,6 @@ export default function SettingsForm({ settings }: { settings: SystemSetting }) 
 
                 {/* USUARIOS Y SEGURIDAD */}
                 <div className={activeTab === 'users' ? 'block space-y-6' : 'hidden'}>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Seguridad Panel Admin</CardTitle>
-                            <CardDescription>Tus accesos para esta página.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="adminUser">Usuario</Label>
-                                    <Input id="adminUser" name="adminUser" defaultValue={initialSettings.adminUser} required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="adminPass">Contraseña</Label>
-                                    <Input id="adminPass" name="adminPass" type="password" autoComplete="new-password" placeholder="Dejar vacío para mantener la actual" />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
                     <Card>
                         <CardHeader>
                             <CardTitle>Módulo de Usuarios Web</CardTitle>

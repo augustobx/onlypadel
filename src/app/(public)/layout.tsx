@@ -1,14 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import { hasTenantFeature } from "@/lib/features";
 
 export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+  const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
+  const reservationsFeature = await hasTenantFeature('reservations');
 
   // Usamos los booleanos correctos de la base de datos
-  const isReservationsEnabled = settings?.reservationsEnabled ?? true;
+  const isReservationsEnabled = (settings?.reservationsEnabled ?? true) && reservationsFeature;
   const isWhatsappReservations = settings?.whatsappReservations ?? true;
 
   // Si el sistema de reservas web está pausado

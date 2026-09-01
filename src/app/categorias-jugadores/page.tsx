@@ -8,7 +8,7 @@ import PlayerCategoryDirectory from './PlayerCategoryDirectory';
 
 export default async function PlayerCategoriesPage() {
   const [settings, session, levels, registeredPlayers] = await Promise.all([
-    prisma.systemSetting.findUnique({ where: { id: 1 } }),
+    prisma.systemSetting.findFirst({ where: { id: 1 } }),
     getUserSession(),
     prisma.playerCategoryLevel.findMany({
       where: { isPublished: true },

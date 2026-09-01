@@ -107,7 +107,7 @@ export async function createBooking(data: {
 
     // Si el servidor alcanzó a guardar la reserva pero el celular perdió la
     // respuesta, el mismo requestKey devuelve exactamente la reserva original.
-    const previousAttempt = await prisma.booking.findUnique({ where: { requestKey: data.requestKey } });
+    const previousAttempt = await prisma.booking.findFirst({ where: { requestKey: data.requestKey } });
     if (previousAttempt) {
       if (previousAttempt.courtId !== data.courtId || previousAttempt.startTime.getTime() !== startTime.getTime()) {
         return { success: false, error: 'La solicitud ya fue utilizada para otro turno. Volvé a elegir el horario.' };
@@ -150,8 +150,8 @@ export async function createBooking(data: {
       });
 
       if (!user) {
-        const emailToUse = `${normalizedPhone}@cliente.tpadel`;
-        const existingByEmail = await prisma.user.findUnique({ where: { email: emailToUse } });
+        const emailToUse = `${normalizedPhone}@cliente.onlypadel`;
+        const existingByEmail = await prisma.user.findFirst({ where: { email: emailToUse } });
         if (existingByEmail) {
           user = await prisma.user.update({
             where: { id: existingByEmail.id },
@@ -189,7 +189,7 @@ export async function createBooking(data: {
     }
 
     // Obtener config
-    const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+    const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
     const fee = settings?.reservationFee ?? 0;
     let requireDeposit = settings?.requireDeposit ?? false;
 
@@ -286,7 +286,7 @@ export async function createBooking(data: {
       return { success: false, error: 'Lo sentimos, este turno acaba de ser reservado por otra persona.' };
     }
     if (error?.code === 'P2002') {
-      const existingAttempt = await prisma.booking.findUnique({ where: { requestKey: data.requestKey } });
+      const existingAttempt = await prisma.booking.findFirst({ where: { requestKey: data.requestKey } });
       if (existingAttempt && existingAttempt.status !== 'CANCELLED') {
         return {
           success: true,

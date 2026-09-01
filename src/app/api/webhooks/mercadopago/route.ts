@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
     if (type === 'payment') {
       // Leer el token de MP desde SystemSetting (lo configura el admin desde la web)
-      const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
+      const settings = await prisma.systemSetting.findFirst({ where: { id: 1 } });
       const mpToken = settings?.mpAccessToken;
 
       if (!mpToken) {

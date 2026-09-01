@@ -1,0 +1,42 @@
+name: OnlyPadel quality gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx tsc --noEmit
+      - run: npm run test:tournaments
+      - run: npm run test:rankings
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_APP_URL: https://onlypadel.nanoapps.ar
+          NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      - name: Build production web image
+        run: >-
+          docker build --target runner --tag onlypadel-web:quality
+          --build-arg NEXT_PUBLIC_APP_URL=https://onlypadel.nanoapps.ar
+          --build-arg NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+          .
+      - name: Build migration image
+        run: >-
+          docker build --target migrator --tag onlypadel-migrator:quality
+          --build-arg NEXT_PUBLIC_APP_URL=https://onlypadel.nanoapps.ar
+          --build-arg NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+          .

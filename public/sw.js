@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tpadel-static-v3';
+const CACHE_NAME = 'onlypadel-static-v1';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [OFFLINE_URL, '/globe_192.png', '/globe_512.png'];
 
@@ -51,10 +51,10 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data.json();
   } catch {
-    data = { title: 'T-Padel', body: event.data.text(), url: '/admin/dashboard' };
+    data = { title: 'OnlyPadel', body: event.data.text(), url: '/admin/dashboard' };
   }
 
-  event.waitUntil(self.registration.showNotification(data.title || 'T-Padel', {
+  event.waitUntil(self.registration.showNotification(data.title || 'OnlyPadel', {
     body: data.body || '',
     icon: '/globe_192.png',
     badge: '/globe_192.png',

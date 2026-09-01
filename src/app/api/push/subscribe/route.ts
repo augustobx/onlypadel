@@ -1,33 +1,21 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function POST(req: Request) {
   try {
     const data = await req.json();
-    const { subscription, userId } = data;
+    const { subscription } = data;
+    const session = await requireAdmin();
 
-    if (!subscription || !subscription.endpoint || !userId) {
+    if (!subscription || !subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    if (userId === 'ADMIN') {
-      // Ensure dummy user exists to avoid ForeignKeyConstraintViolation
-      await prisma.user.upsert({
-        where: { email: 'admin_push@system.local' },
-        update: {},
-        create: {
-          id: 'ADMIN',
-          email: 'admin_push@system.local',
-          name: 'System Admin',
-          role: 'ADMIN'
-        }
-      });
-    }
-
-    // Upsert subscription
+    await prisma.pushSubscription.deleteMany({ where: { endpoint: subscription.endpoint } });
     await prisma.pushSubscription.create({
       data: {
-        userId,
+        userId: session.userId,
         endpoint: subscription.endpoint,
         p256dh: subscription.keys.p256dh,
         auth: subscription.keys.auth,
@@ -37,6 +25,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error saving push subscription:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const status = error instanceof Error && error.message === 'UNAUTHORIZED' ? 401 : 500;
+    return NextResponse.json({ error: status === 401 ? 'Unauthorized' : 'Internal server error' }, { status });
   }
 }

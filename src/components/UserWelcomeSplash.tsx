@@ -22,7 +22,7 @@ export default function UserWelcomeSplash() {
                 </div>
                 
                 <h1 className="text-3xl font-black text-slate-900 dark:text-white mb-2">
-                    Comunidad T-Padel
+                    Comunidad OnlyPadel
                 </h1>
                 <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
                     Únete para llevar tu historial y acceder a beneficios exclusivos.

@@ -10,8 +10,27 @@ import { cookies } from "next/headers";
 import UserWelcomeSplash from "@/components/UserWelcomeSplash";
 import { getUserSession } from "@/actions/user-auth";
 import { getReadableForeground, normalizeHexColor } from "@/lib/color";
+import { isPlatformRequest, resolveTenantContext } from "@/lib/tenant-context";
+import { notFound } from "next/navigation";
 
 export default async function HomePage() {
+    if (await isPlatformRequest()) {
+        return (
+            <main className="min-h-screen bg-slate-950 text-white grid place-items-center p-6">
+                <div className="max-w-3xl text-center">
+                    <p className="text-emerald-400 font-black tracking-[0.3em] text-sm">ONLYPADEL</p>
+                    <h1 className="text-5xl md:text-7xl font-black mt-5">Tu club, completamente online.</h1>
+                    <p className="text-slate-400 text-lg md:text-xl mt-6">Reservas, socios, torneos, rankings y operación diaria en una plataforma SaaS segura para cada club.</p>
+                    <Link href="/platform/login" className="inline-block mt-9 rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">Acceso de plataforma</Link>
+                </div>
+            </main>
+        );
+    }
+    try {
+        await resolveTenantContext();
+    } catch {
+        notFound();
+    }
     const pubReq = await getPublicTournaments();
     // Mostrar banner para cualquier torneo publicado que no esté terminado
     const activeTournament = pubReq.data?.find(t => t.status !== 'COMPLETED');
@@ -38,7 +57,7 @@ export default async function HomePage() {
     if (usersModuleEnabled) {
         const cookieStore = await cookies();
         const hasSession = !!session;
-        const hasSkipped = cookieStore.get("tpadel_skip_registration");
+        const hasSkipped = cookieStore.get("onlypadel_skip_registration");
 
         if (!hasSession && !hasSkipped) {
             return <UserWelcomeSplash />;
