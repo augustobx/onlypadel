@@ -45,7 +45,9 @@ export async function createTenant(formData: FormData) {
   const parsed = tenantSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || 'Datos inválidos.');
   const data = parsed.data;
-  const hostname = normalizeHostname(`${data.slug}.${process.env.TENANT_BASE_DOMAIN || 'onlypadel.nanoapps.ar'}`);
+  const reservedPlatformSlug = (process.env.PLATFORM_HOST || 'onlypadel.nanoapps.ar').toLowerCase().split('.')[0];
+  if (data.slug === reservedPlatformSlug) throw new Error('Ese subdominio está reservado para la plataforma.');
+  const hostname = normalizeHostname(`${data.slug}.${process.env.TENANT_BASE_DOMAIN || 'nanoapps.ar'}`);
   const password = await bcrypt.hash(data.ownerPassword, 12);
   try {
     await platformPrisma.$transaction(async (tx) => {
@@ -145,7 +147,9 @@ export async function addTenantDomain(formData: FormData) {
   const tenantId = z.string().uuid().parse(formData.get('tenantId'));
   const hostname = normalizeHostname(z.string().min(4).max(255).parse(formData.get('hostname')));
   if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(hostname)) throw new Error('Dominio inválido');
-  const baseDomain = (process.env.TENANT_BASE_DOMAIN || 'onlypadel.nanoapps.ar').toLowerCase();
+  const platformHost = (process.env.PLATFORM_HOST || 'onlypadel.nanoapps.ar').toLowerCase();
+  if (hostname === platformHost) throw new Error('El dominio de plataforma está reservado.');
+  const baseDomain = (process.env.TENANT_BASE_DOMAIN || 'nanoapps.ar').toLowerCase();
   const autoVerified = hostname.endsWith(`.${baseDomain}`);
   await platformPrisma.$transaction(async tx => {
     const domain = await tx.tenantDomain.create({ data: { tenantId, hostname, isPrimary: false, verifiedAt: autoVerified ? new Date() : null } });
