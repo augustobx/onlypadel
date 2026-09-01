@@ -12,7 +12,7 @@ export type TenantContext = {
 };
 
 const PLATFORM_HOST = (process.env.PLATFORM_HOST || 'onlypadel.nanoapps.ar').toLowerCase();
-const BASE_DOMAIN = (process.env.TENANT_BASE_DOMAIN || 'onlypadel.nanoapps.ar').toLowerCase();
+const BASE_DOMAIN = (process.env.TENANT_BASE_DOMAIN || 'nanoapps.ar').toLowerCase();
 const cache = new Map<string, { expiresAt: number; value: Promise<TenantContext | null> }>();
 
 export class TenantResolutionError extends Error {
@@ -41,7 +41,9 @@ async function findTenant(hostname: string): Promise<TenantContext | null> {
   let tenant = domain?.verifiedAt ? domain.tenant : null;
   if (!tenant && hostname.endsWith(`.${BASE_DOMAIN}`)) {
     const slug = hostname.slice(0, -(BASE_DOMAIN.length + 1));
-    if (slug && !slug.includes('.')) tenant = await platformPrisma.tenant.findUnique({ where: { slug } });
+    if (slug && !slug.includes('.') && slug !== PLATFORM_HOST.split('.')[0]) {
+      tenant = await platformPrisma.tenant.findUnique({ where: { slug } });
+    }
   }
 
   if (!tenant || tenant.status !== 'ACTIVE') return null;
