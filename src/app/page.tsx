@@ -10,8 +10,8 @@ import { cookies } from "next/headers";
 import UserWelcomeSplash from "@/components/UserWelcomeSplash";
 import { getUserSession } from "@/actions/user-auth";
 import { getReadableForeground, normalizeHexColor } from "@/lib/color";
-import { isPlatformRequest, resolveTenantContext } from "@/lib/tenant-context";
-import { notFound } from "next/navigation";
+import { isPlatformRequest, resolveTenantContext, TenantResolutionError } from "@/lib/tenant-context";
+import { notFound, redirect } from "next/navigation";
 
 export default async function HomePage() {
     if (await isPlatformRequest()) {
@@ -21,18 +21,18 @@ export default async function HomePage() {
                     <p className="text-emerald-400 font-black tracking-[0.3em] text-sm">ONLYPADEL</p>
                     <h1 className="text-5xl md:text-7xl font-black mt-5">Tu club, completamente online.</h1>
                     <p className="text-slate-400 text-lg md:text-xl mt-6">Reservas, socios, torneos, rankings y operación diaria en una plataforma SaaS segura para cada club.</p>
-                    <Link href="/platform/login" className="inline-block mt-9 rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">Acceso de plataforma</Link>
+                    <Link href="/superadmin/login" className="inline-block mt-9 rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">Acceso de plataforma</Link>
                 </div>
             </main>
         );
     }
     try {
         await resolveTenantContext();
-    } catch {
+    } catch (error) {
+        if (error instanceof TenantResolutionError && error.message === 'TENANT_SUSPENDED') redirect('/suspendido');
         notFound();
     }
     const pubReq = await getPublicTournaments();
-    // Mostrar banner para cualquier torneo publicado que no esté terminado
     const activeTournament = pubReq.data?.find(t => t.status !== 'COMPLETED');
 
     const courtsRes = await getPublicCourts();
@@ -65,7 +65,6 @@ export default async function HomePage() {
     }
 
     if (!isReservationsEnabled) {
-        // NUEVA LÓGICA: Prioriza apiPhone, si está vacío usa contactPhone
         const phoneToUse = settings?.apiPhone || settings?.contactPhone || "";
         const phone = phoneToUse.replace(/\D/g, '');
         const waLink = `https://wa.me/${phone}?text=Hola,%20quiero%20reservar%20un%20turno.`;
@@ -105,8 +104,6 @@ export default async function HomePage() {
         >
             <div className="relative flex min-h-dvh w-full max-w-md flex-col overflow-hidden bg-white dark:bg-slate-900 md:h-[calc(100dvh-4rem)] md:max-h-[820px] md:min-h-0 md:rounded-[2.5rem] md:border md:border-slate-200 md:shadow-2xl dark:border-slate-800">
                 <PublicNavbar sysSettings={settings} />
-
-                {/* BANNER DE TORNEO ACTIVO (Posición superior integrada) */}
                 {settings?.tournamentsEnabled && activeTournament && (
                   <div className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-4 py-2 text-white shadow-sm z-30 shrink-0 border-b border-amber-600/30">
                     <Link href={`/torneos/${activeTournament.id}`} className="flex items-center justify-between gap-2 hover:opacity-95 transition-opacity">
@@ -122,7 +119,6 @@ export default async function HomePage() {
                     </Link>
                   </div>
                 )}
-                
                 {appLayout === 'chat' ? (
                   <BookingFlowChat courts={courts} sysSettings={settings} session={session} today={today} />
                 ) : (
