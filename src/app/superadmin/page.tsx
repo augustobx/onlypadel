@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Building2, Layers, DollarSign, TrendingUp, AlertTriangle, Plus, ArrowUpRight, ShieldCheck } from 'lucide-react';
@@ -44,7 +45,7 @@ export default async function SuperAdminDashboard() {
   </div>;
 }
 
-function Kpi({label,value,icon,tone,children}:{label:string;value:string|number;icon:React.ReactNode;tone:'indigo'|'emerald'|'cyan'|'red';children:React.ReactNode}) {
+function Kpi({label,value,icon,tone,children}:{label:string;value:string|number;icon:ReactNode;tone:'indigo'|'emerald'|'cyan'|'red';children:ReactNode}) {
   const tones={indigo:'bg-indigo-500/10 text-indigo-400',emerald:'bg-emerald-500/10 text-emerald-400',cyan:'bg-cyan-500/10 text-cyan-400',red:'bg-red-500/10 text-red-400'};
   return <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5"><div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</span><div className={`p-2 rounded-lg ${tones[tone]}`}>{icon}</div></div><div className="mt-3"><span className="text-3xl font-extrabold text-white">{value}</span><div className="flex items-center gap-2 mt-1 text-xs text-slate-400">{children}</div></div></div>;
 }
