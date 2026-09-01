@@ -11,7 +11,7 @@ export type TenantContext = {
   timezone: string;
 };
 
-const PLATFORM_HOST = (process.env.PLATFORM_HOST || 'onlypadel.nanoapps.ar').toLowerCase();
+const PLATFORM_HOST = (process.env.PLATFORM_HOST || 'onlypade.nanoapps.ar').toLowerCase();
 const BASE_DOMAIN = (process.env.TENANT_BASE_DOMAIN || 'nanoapps.ar').toLowerCase();
 const cache = new Map<string, { expiresAt: number; value: Promise<TenantContext | null> }>();
 
