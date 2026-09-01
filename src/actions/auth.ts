@@ -3,6 +3,7 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { clearAdminSession, createAdminSession } from '@/lib/admin-auth';
+import { TenantResolutionError } from '@/lib/tenant-context';
 
 export async function loginAdmin(formData: FormData) {
   try {
@@ -16,6 +17,9 @@ export async function loginAdmin(formData: FormData) {
     await createAdminSession(user.id);
     return { success: true };
   } catch (error) {
+    if (error instanceof TenantResolutionError && error.message === 'TENANT_SUSPENDED') {
+      return { success: false, suspended: true, error: 'La membresía del club se encuentra suspendida.' };
+    }
     console.error('Admin login failed', error instanceof Error ? error.message : 'unknown');
     return { success: false, error: 'Error interno del servidor' };
   }
