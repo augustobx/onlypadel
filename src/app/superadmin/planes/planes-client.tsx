@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Layers, Users, Store, CalendarDays, Save, Loader2 } from "lucide-react";
 import { FEATURE_KEYS } from "@/lib/features";
 import { savePlanSuperAdmin } from "@/actions/superadmin";
@@ -43,4 +43,4 @@ function PlanEditor({ plan }: { plan: any }) {
   </div>;
 }
 
-function Limit({icon,label,value,setValue}:{icon:React.ReactNode;label:string;value:number;setValue:(n:number)=>void}){return <div><label className="text-[11px] text-slate-500 flex gap-1">{icon}{label}</label><input type="number" value={value} onChange={e=>setValue(Number(e.target.value))} className="mt-1 w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-white" /></div>}
+function Limit({icon,label,value,setValue}:{icon:ReactNode;label:string;value:number;setValue:(n:number)=>void}){return <div><label className="text-[11px] text-slate-500 flex gap-1">{icon}{label}</label><input type="number" value={value} onChange={e=>setValue(Number(e.target.value))} className="mt-1 w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-white" /></div>}
