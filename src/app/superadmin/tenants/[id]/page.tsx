@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArrowLeft, Building2, CheckCircle2, CreditCard, Globe, Layers, Shield, Users, Store, CalendarDays } from 'lucide-react';
+import { ArrowLeft, Building2, CheckCircle2, CreditCard, Globe, Layers, Shield } from 'lucide-react';
 import { addTenantDomain, setFeatureOverride, verifyTenantDomain } from '@/actions/platform';
 import { registerSaasPayment, updateTenantSuperAdmin } from '@/actions/superadmin';
 import { FEATURE_KEYS } from '@/lib/features';
@@ -8,6 +9,7 @@ import { getPlatformSession } from '@/lib/platform-auth';
 import { platformPrisma } from '@/lib/prisma-core';
 
 const dateValue = (date?: Date | null) => date ? date.toISOString().slice(0, 10) : '';
+const inputClass = 'w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none';
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getPlatformSession();
@@ -33,21 +35,21 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h2 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-2"><Shield className="w-4 h-4" />Estado y Plan de Suscripción</h2>
-          <Field label="Nombre del Club"><input name="name" defaultValue={tenant.name} required className="input" /></Field>
-          <Field label="Estado Operativo"><select name="status" defaultValue={tenant.status} className="input"><option value="ACTIVE">Activo (Habilitado 100%)</option><option value="SUSPENDED">Suspendido (Bloqueo de acceso)</option><option value="ARCHIVED">Archivado / Baja</option></select></Field>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Field label="Fecha de Inicio"><input type="date" name="startsAt" defaultValue={dateValue(sub?.currentPeriodStart || sub?.startsAt)} required className="input" /></Field><Field label="Fecha de Vencimiento"><input type="date" name="expiresAt" defaultValue={dateValue(sub?.currentPeriodEnd || sub?.trialEndsAt)} className="input" /></Field></div>
-          <Field label="Plan SaaS Asignado"><select name="planId" defaultValue={sub?.planId} required className="input">{plans.map(p=><option key={p.id} value={p.id}>{p.name} (${Number(p.price).toLocaleString('es-AR')}/mes)</option>)}</select></Field>
+          <Field label="Nombre del Club"><input name="name" defaultValue={tenant.name} required className={inputClass} /></Field>
+          <Field label="Estado Operativo"><select name="status" defaultValue={tenant.status} className={inputClass}><option value="ACTIVE">Activo (Habilitado 100%)</option><option value="SUSPENDED">Suspendido (Bloqueo de acceso)</option><option value="ARCHIVED">Archivado / Baja</option></select></Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Field label="Fecha de Inicio"><input type="date" name="startsAt" defaultValue={dateValue(sub?.currentPeriodStart || sub?.startsAt)} required className={inputClass} /></Field><Field label="Fecha de Vencimiento"><input type="date" name="expiresAt" defaultValue={dateValue(sub?.currentPeriodEnd || sub?.trialEndsAt)} className={inputClass} /></Field></div>
+          <Field label="Plan SaaS Asignado"><select name="planId" defaultValue={sub?.planId} required className={inputClass}>{plans.map(p=><option key={p.id} value={p.id}>{p.name} (${Number(p.price).toLocaleString('es-AR')}/mes)</option>)}</select></Field>
         </div>
 
         <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h2 className="text-sm font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-2"><Globe className="w-4 h-4" />Dominios del Tenant</h2>
           <div className="space-y-2">{tenant.domains.map(d=><div key={d.id} className="flex items-center justify-between gap-3 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><span className="font-mono text-slate-300 truncate">{d.hostname}</span>{d.verifiedAt?<span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/>Verificado</span>:<form action={verifyTenantDomain}><input type="hidden" name="domainId" value={d.id}/><button className="text-amber-300">Verificar</button></form>}</div>)}</div>
-          <div className="pt-3 border-t border-slate-800"><form action={addTenantDomain} className="space-y-2"><input type="hidden" name="tenantId" value={tenant.id}/><label className="block text-xs font-medium text-slate-300">Dominio Personalizado</label><input name="hostname" placeholder="club.midominio.com" className="input"/><button className="w-full rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 py-2 text-sm font-medium">Agregar Dominio</button></form></div>
+          <div className="pt-3 border-t border-slate-800"><form action={addTenantDomain} className="space-y-2"><input type="hidden" name="tenantId" value={tenant.id}/><label className="block text-xs font-medium text-slate-300">Dominio Personalizado</label><input name="hostname" placeholder="club.midominio.com" className={inputClass}/><button className="w-full rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 py-2 text-sm font-medium">Agregar Dominio</button></form></div>
         </div>
 
         <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h2 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-2"><CreditCard className="w-4 h-4" />Cobro SaaS y Renovación</h2>
-          <form action={registerSaasPayment} className="space-y-3"><input type="hidden" name="tenantId" value={tenant.id}/><Field label="Monto"><input name="amount" type="number" min="1" step="0.01" defaultValue={sub ? Number(sub.plan.price) : 0} required className="input" /></Field><div className="grid grid-cols-2 gap-2"><Field label="Desde"><input name="periodStart" type="date" defaultValue={dateValue(new Date())} required className="input" /></Field><Field label="Hasta"><input name="periodEnd" type="date" required className="input" /></Field></div><Field label="Notas"><input name="notes" className="input" /></Field><button className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 py-2.5 text-sm font-medium">Registrar Cobro SaaS</button></form>
+          <form action={registerSaasPayment} className="space-y-3"><input type="hidden" name="tenantId" value={tenant.id}/><Field label="Monto"><input name="amount" type="number" min="1" step="0.01" defaultValue={sub ? Number(sub.plan.price) : 0} required className={inputClass} /></Field><div className="grid grid-cols-2 gap-2"><Field label="Desde"><input name="periodStart" type="date" defaultValue={dateValue(new Date())} required className={inputClass} /></Field><Field label="Hasta"><input name="periodEnd" type="date" required className={inputClass} /></Field></div><Field label="Notas"><input name="notes" className={inputClass} /></Field><button className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 py-2.5 text-sm font-medium">Registrar Cobro SaaS</button></form>
           <div className="pt-3 border-t border-slate-800 space-y-2">{tenant.saasPayments.map(p=><div key={p.id} className="flex justify-between text-[11px]"><span className="text-slate-300">${Number(p.amount).toLocaleString('es-AR')} · {p.status}</span><span className="text-slate-500">{(p.paidAt||p.createdAt).toLocaleDateString('es-AR')}</span></div>)}</div>
         </div>
       </div>
@@ -59,4 +61,4 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 }
 
 function Counter({label,value}:{label:string;value:number}){return <div className="px-3 py-2 bg-slate-950 rounded-xl border border-slate-800 text-center"><div className="text-slate-500">{label}</div><div className="font-bold text-white text-sm">{value}</div></div>}
-function Field({label,children}:{label:string;children:React.ReactNode}){return <div><label className="block text-xs font-medium text-slate-300 mb-1">{label}</label>{children}</div>}
+function Field({label,children}:{label:string;children:ReactNode}){return <div><label className="block text-xs font-medium text-slate-300 mb-1">{label}</label>{children}</div>}
