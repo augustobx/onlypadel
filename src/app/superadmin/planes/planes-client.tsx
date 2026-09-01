@@ -2,8 +2,12 @@
 
 import { useState, type ReactNode } from "react";
 import { Layers, Users, Store, CalendarDays, Save, Loader2 } from "lucide-react";
-import { FEATURE_KEYS } from "@/lib/features";
 import { savePlanSuperAdmin } from "@/actions/superadmin";
+
+const FEATURE_KEYS = [
+  'reservations', 'users', 'tournaments', 'rankings', 'player_categories',
+  'expenses', 'whatsapp', 'push', 'payments',
+] as const;
 
 export function PlanesClient({ plans }: { plans: any[] }) {
   return <div className="space-y-6">
