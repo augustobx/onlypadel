@@ -2,6 +2,7 @@ import 'server-only';
 
 import { headers } from 'next/headers';
 import { platformPrisma } from '@/lib/prisma-core';
+import { syncTenantMembership } from '@/lib/membership';
 
 export type TenantContext = {
   id: string;
@@ -26,13 +27,13 @@ export function normalizeHostname(value: string) {
   return value.trim().toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '');
 }
 
-async function requestHostname() {
+export async function getRequestHostname() {
   const headerStore = await headers();
   const forwardedHost = headerStore.get('x-forwarded-host')?.split(',')[0];
   return normalizeHostname(forwardedHost || headerStore.get('host') || '');
 }
 
-export async function findTenant(hostname: string): Promise<TenantContext | null> {
+async function findTenantRecord(hostname: string) {
   const domain = await platformPrisma.tenantDomain.findUnique({
     where: { hostname },
     include: { tenant: true },
@@ -46,15 +47,37 @@ export async function findTenant(hostname: string): Promise<TenantContext | null
     }
   }
 
-  if (!tenant || tenant.status !== 'ACTIVE') return null;
+  if (!tenant || tenant.status === 'ARCHIVED') return null;
+  return syncTenantMembership(tenant.id);
+}
+
+function toContext(tenant: { id: string; slug: string; name: string; timezone: string }, hostname: string): TenantContext {
   return { id: tenant.id, slug: tenant.slug, name: tenant.name, hostname, timezone: tenant.timezone };
+}
+
+export async function findTenantOwnership(hostname: string): Promise<TenantContext | null> {
+  const tenant = await findTenantRecord(hostname);
+  return tenant ? toContext(tenant, hostname) : null;
+}
+
+export async function getTenantAccessStatus(hostname: string): Promise<'ACTIVE' | 'SUSPENDED' | 'NOT_FOUND'> {
+  const tenant = await findTenantRecord(hostname);
+  if (!tenant) return 'NOT_FOUND';
+  return tenant.status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED';
+}
+
+export async function findTenant(hostname: string): Promise<TenantContext | null> {
+  const tenant = await findTenantRecord(hostname);
+  if (!tenant || tenant.status !== 'ACTIVE') return null;
+  return toContext(tenant, hostname);
 }
 
 export async function resolveTenantContext(): Promise<TenantContext> {
   const trustedTenantId = process.env.ONLYPADEL_TENANT_ID;
   if (trustedTenantId) {
-    const tenant = await platformPrisma.tenant.findUnique({ where: { id: trustedTenantId } });
-    if (!tenant || tenant.status !== 'ACTIVE') throw new TenantResolutionError();
+    const tenant = await syncTenantMembership(trustedTenantId);
+    if (!tenant) throw new TenantResolutionError();
+    if (tenant.status !== 'ACTIVE') throw new TenantResolutionError('TENANT_SUSPENDED');
     return {
       id: tenant.id,
       slug: tenant.slug,
@@ -64,19 +87,25 @@ export async function resolveTenantContext(): Promise<TenantContext> {
     };
   }
 
-  const hostname = await requestHostname();
+  const hostname = await getRequestHostname();
   if (!hostname || hostname === PLATFORM_HOST) throw new TenantResolutionError();
   const existing = cache.get(hostname);
   if (existing && existing.expiresAt > Date.now()) {
     const value = await existing.value;
     if (value) return value;
+    const status = await getTenantAccessStatus(hostname);
+    if (status === 'SUSPENDED') throw new TenantResolutionError('TENANT_SUSPENDED');
     throw new TenantResolutionError();
   }
 
   const value = findTenant(hostname);
   cache.set(hostname, { value, expiresAt: Date.now() + 2_000 });
   const tenant = await value;
-  if (!tenant) throw new TenantResolutionError();
+  if (!tenant) {
+    const status = await getTenantAccessStatus(hostname);
+    if (status === 'SUSPENDED') throw new TenantResolutionError('TENANT_SUSPENDED');
+    throw new TenantResolutionError();
+  }
   return tenant;
 }
 
@@ -85,6 +114,6 @@ export function clearTenantResolutionCache() {
 }
 
 export async function isPlatformRequest() {
-  const hostname = await requestHostname();
+  const hostname = await getRequestHostname();
   return hostname === PLATFORM_HOST || (process.env.NODE_ENV !== 'production' && ['localhost', '127.0.0.1'].includes(hostname));
 }
