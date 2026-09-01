@@ -23,12 +23,13 @@ export async function syncTenantMembership(tenantId: string) {
   const expiresAt = effectiveExpiry(subscription);
 
   if (tenant.status === 'ACTIVE' && expiresAt && expiresAt.getTime() < Date.now()) {
-    await platformPrisma.$transaction([
-      platformPrisma.tenant.update({ where: { id: tenant.id }, data: { status: 'SUSPENDED' } }),
-      ...(subscription
-        ? [platformPrisma.tenantSubscription.update({ where: { id: subscription.id }, data: { status: 'SUSPENDED' } })]
-        : []),
-    ]);
+    await platformPrisma.$transaction(async tx => {
+      await tx.tenant.update({ where: { id: tenant.id }, data: { status: 'SUSPENDED' } });
+      if (subscription) await tx.tenantSubscription.update({ where: { id: subscription.id }, data: { status: 'SUSPENDED' } });
+      await tx.adminSession.updateMany({ where: { tenantId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.userSession.updateMany({ where: { tenantId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.platformAuditLog.create({ data: { tenantId, action: 'TENANT_AUTO_SUSPENDED', entityType: 'Tenant', entityId: tenantId, metadata: { expiresAt } } });
+    });
     return { ...tenant, status: 'SUSPENDED' as const };
   }
 
