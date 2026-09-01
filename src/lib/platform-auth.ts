@@ -19,7 +19,7 @@ export async function createPlatformSession(userId: string) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: SESSION_TTL_SECONDS,
-    path: '/platform',
+    path: '/',
   });
 }
 
