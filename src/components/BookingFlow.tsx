@@ -259,8 +259,6 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     return () => window.removeEventListener('online', retry);
   }, []);
 
-  const clientRequireDeposit = sysSettings?.requireDeposit && !(session && sysSettings?.requireDepositForRegistered === false);
-
   // --- PANTALLA SPLASH DE INICIO ---
   if (showSplash) {
     if (hasSplashFullImage) {
