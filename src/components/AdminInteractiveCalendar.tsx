@@ -80,10 +80,26 @@ export default function AdminInteractiveCalendar({
     clientName: string;
     clientPhone: string;
     type: 'RESERVA' | 'BLOQUEO' | 'FIJO';
+    paymentMethod: 'CASH' | 'TRANSFER' | 'PENDING';
+    amountPaid: number;
   }>({
     clientName: '',
     clientPhone: '',
     type: 'RESERVA',
+    paymentMethod: 'CASH',
+    amountPaid: 0,
+  });
+
+  const [fastBookingOpen, setFastBookingOpen] = useState(false);
+  const [fastForm, setFastForm] = useState({
+    courtId: courts[0]?.id || '',
+    dateStr: format(currentDate, 'yyyy-MM-dd'),
+    startTimeStr: '18:00',
+    durationMins: 90,
+    clientName: '',
+    clientPhone: '',
+    paymentMethod: 'CASH' as 'CASH' | 'TRANSFER' | 'PENDING',
+    amountPaid: 0,
   });
 
   const formattedCurrentDate = useMemo(() => format(currentDate, 'yyyy-MM-dd'), [currentDate]);
@@ -147,7 +163,7 @@ export default function AdminInteractiveCalendar({
   // Actions
   const openNewBookingModal = (courtId: string, courtName: string, dateStr: string, time: string, endTime: string) => {
     setSlotData({ courtId, courtName, dateStr, time, endTime });
-    setFormData({ clientName: '', clientPhone: '', type: 'RESERVA' });
+    setFormData({ clientName: '', clientPhone: '', type: 'RESERVA', paymentMethod: 'CASH', amountPaid: 0 });
     setModalOpen(true);
   };
 
@@ -164,6 +180,8 @@ export default function AdminInteractiveCalendar({
       type: formData.type,
       clientName: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? formData.clientName : undefined,
       clientPhone: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? formData.clientPhone : undefined,
+      paymentMethod: formData.type === 'RESERVA' ? formData.paymentMethod : undefined,
+      amountPaid: formData.type === 'RESERVA' ? Number(formData.amountPaid) || 0 : undefined,
     });
 
     if (res.success) {
@@ -171,6 +189,42 @@ export default function AdminInteractiveCalendar({
       loadData();
     } else {
       alert(res.error || 'No se pudo guardar la reserva.');
+    }
+    setSubmitting(false);
+  };
+
+  const handleFastBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fastForm.courtId || !fastForm.clientName) return;
+    setSubmitting(true);
+
+    const [hrs, mins] = fastForm.startTimeStr.split(':').map(Number);
+    const startD = new Date(`${fastForm.dateStr}T${fastForm.startTimeStr}:00-03:00`);
+    const endD = new Date(startD);
+    endD.setMinutes(endD.getMinutes() + (Number(fastForm.durationMins) || 90));
+    const endHrs = String(endD.getHours()).padStart(2, '0');
+    const endMins = String(endD.getMinutes()).padStart(2, '0');
+    const endTimeStr = `${endHrs}:${endMins}`;
+
+    const res = await createAdminBooking({
+      courtId: fastForm.courtId,
+      dateStr: fastForm.dateStr,
+      startTimeStr: fastForm.startTimeStr,
+      endTimeStr,
+      type: 'RESERVA',
+      clientName: fastForm.clientName.trim(),
+      clientPhone: fastForm.clientPhone.trim() || undefined,
+      paymentMethod: fastForm.paymentMethod,
+      amountPaid: Number(fastForm.amountPaid) || 0,
+      notes: 'Mostrador Rápido',
+    });
+
+    if (res.success) {
+      setFastBookingOpen(false);
+      setFastForm(prev => ({ ...prev, clientName: '', clientPhone: '', amountPaid: 0 }));
+      loadData();
+    } else {
+      alert(res.error || 'No se pudo registrar el turno express.');
     }
     setSubmitting(false);
   };
@@ -299,6 +353,23 @@ export default function AdminInteractiveCalendar({
               );
             })}
           </div>
+
+          {/* Botón Turno Express Mostrador */}
+          <Button
+            type="button"
+            onClick={() => {
+              setFastForm(prev => ({
+                ...prev,
+                dateStr: format(currentDate, 'yyyy-MM-dd'),
+                courtId: selectedCourt !== 'ALL' ? selectedCourt : (courts[0]?.id || ''),
+              }));
+              setFastBookingOpen(true);
+            }}
+            className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm rounded-2xl shadow-md shadow-emerald-600/20 flex items-center gap-1.5 active:scale-95 transition-all"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>⚡ Turno Rápido</span>
+          </Button>
 
           <Button 
             variant="ghost" 
@@ -679,6 +750,43 @@ export default function AdminInteractiveCalendar({
                       className="rounded-xl"
                     />
                   </div>
+                  {formData.type === 'RESERVA' && (
+                    <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                        Cobro de Mostrador
+                      </Label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: 'CASH', label: '💵 Efectivo' },
+                          { id: 'TRANSFER', label: '📲 Transf.' },
+                          { id: 'PENDING', label: '⏳ Pendiente' },
+                        ].map(m => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, paymentMethod: m.id as any }))}
+                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all ${
+                              formData.paymentMethod === m.id
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="pt-1">
+                        <Input
+                          type="number"
+                          placeholder="Monto cobrado ($)"
+                          value={formData.amountPaid || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, amountPaid: Number(e.target.value) || 0 }))}
+                          className="rounded-xl text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {formData.type === 'FIJO' && (
                     <p className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold bg-purple-50 dark:bg-purple-950/40 p-2.5 rounded-xl border border-purple-200 dark:border-purple-900/50">
                       ℹ️ Se creará un abono semanal recurrente por 24 semanas para este día y horario.
@@ -715,6 +823,162 @@ export default function AdminInteractiveCalendar({
                   className="flex-1 rounded-xl bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-bold hover:opacity-90"
                 >
                   {submitting ? 'Guardando...' : 'Confirmar'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TURNO RÁPIDO / MOSTRADOR EXPRESS */}
+      {fastBookingOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Sparkles className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Turno Rápido en Mostrador
+                  </h3>
+                  <p className="text-xs text-slate-500">Carga veloz para llamadas o recepción</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setFastBookingOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleFastBookingSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Cancha</Label>
+                  <select
+                    value={fastForm.courtId}
+                    onChange={(e) => setFastForm(prev => ({ ...prev, courtId: e.target.value }))}
+                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                    required
+                  >
+                    {courts.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Fecha</Label>
+                  <Input
+                    type="date"
+                    value={fastForm.dateStr}
+                    onChange={(e) => setFastForm(prev => ({ ...prev, dateStr: e.target.value }))}
+                    className="rounded-xl text-xs h-10 font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Horario de Inicio</Label>
+                  <Input
+                    type="time"
+                    value={fastForm.startTimeStr}
+                    onChange={(e) => setFastForm(prev => ({ ...prev, startTimeStr: e.target.value }))}
+                    className="rounded-xl text-xs h-10 font-bold"
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Duración</Label>
+                  <select
+                    value={fastForm.durationMins}
+                    onChange={(e) => setFastForm(prev => ({ ...prev, durationMins: Number(e.target.value) }))}
+                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                  >
+                    <option value={60}>60 minutos (1 hora)</option>
+                    <option value={90}>90 minutos (1.5 hs)</option>
+                    <option value={120}>120 minutos (2 hs)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Nombre del Jugador</Label>
+                <Input
+                  required
+                  placeholder="Ej: Martínez / Los Pérez"
+                  value={fastForm.clientName}
+                  onChange={(e) => setFastForm(prev => ({ ...prev, clientName: e.target.value }))}
+                  className="rounded-xl font-bold"
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Teléfono (Opcional)</Label>
+                <Input
+                  placeholder="Ej: 11 2345 6789"
+                  value={fastForm.clientPhone}
+                  onChange={(e) => setFastForm(prev => ({ ...prev, clientPhone: e.target.value }))}
+                  className="rounded-xl text-xs"
+                />
+              </div>
+
+              {/* Cobro */}
+              <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  Cobro de Mostrador
+                </Label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'CASH', label: '💵 Efectivo' },
+                    { id: 'TRANSFER', label: '📲 Transf.' },
+                    { id: 'PENDING', label: '⏳ Pendiente' },
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setFastForm(prev => ({ ...prev, paymentMethod: m.id as any }))}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all ${
+                        fastForm.paymentMethod === m.id
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="pt-1">
+                  <Input
+                    type="number"
+                    placeholder="Monto cobrado ($)"
+                    value={fastForm.amountPaid || ''}
+                    onChange={(e) => setFastForm(prev => ({ ...prev, amountPaid: Number(e.target.value) || 0 }))}
+                    className="rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setFastBookingOpen(false)}
+                  className="flex-1 rounded-xl"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submitting || !fastForm.clientName.trim()}
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-md shadow-emerald-600/20"
+                >
+                  {submitting ? 'Creando...' : '⚡ Confirmar Turno'}
                 </Button>
               </div>
             </form>

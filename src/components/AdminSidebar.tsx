@@ -8,7 +8,7 @@ import { logoutAdmin } from '@/actions/auth';
 import { 
   LayoutDashboard, Calendar, MapPin, CreditCard, Settings, Menu, X, LogOut, 
   Trophy, ClipboardList, CalendarDays, Users, BarChart3, BadgeCheck, ExternalLink,
-  Sparkles
+  Sparkles, Coffee, DollarSign
 } from 'lucide-react';
 
 interface NavSection {
@@ -28,6 +28,8 @@ const navSections: NavSection[] = [
     items: [
       { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard', feature: 'reservations' },
       { name: 'Calendario', icon: Calendar, href: '/admin/calendar', feature: 'reservations', badge: 'Día/Sem/Mes' },
+      { name: 'Caja Diaria', icon: DollarSign, href: '/admin/caja', feature: 'reservations', badge: 'Arqueo' },
+      { name: 'Cantina & POS', icon: Coffee, href: '/admin/cantina', feature: 'reservations' },
       { name: 'Abonos Fijos', icon: CalendarDays, href: '/admin/abonos', feature: 'reservations' },
       { name: 'Historial', icon: ClipboardList, href: '/admin/history', feature: 'reservations' },
     ]
@@ -37,7 +39,7 @@ const navSections: NavSection[] = [
     items: [
       { name: 'Canchas & Horarios', icon: MapPin, href: '/admin/courts', feature: 'reservations' },
       { name: 'Socios & Usuarios', icon: Users, href: '/admin/usuarios', feature: 'users' },
-      { name: 'Gastos & Caja', icon: CreditCard, href: '/admin/expenses', feature: 'expenses' },
+      { name: 'Gastos Operativos', icon: CreditCard, href: '/admin/expenses', feature: 'expenses' },
     ]
   },
   {

@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard, Share2, Download, ExternalLink, Sparkles, Check } from 'lucide-react';
 import { getAvailableSlots } from '@/actions/public-bookings';
 import { createBooking } from '@/actions/bookings';
 import { createPaymentPreference } from '@/actions/payments';
 import { clearBookingRequestKey, getOrCreateBookingRequestKey } from '@/lib/booking-request';
 import { getReadableForeground, normalizeHexColor } from '@/lib/color';
+import { getGoogleCalendarUrl, downloadIcsFile } from '@/lib/calendar-export';
+import { shareBooking } from '@/lib/share-booking';
 
 interface SlotData {
   time: string;
@@ -108,6 +110,8 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     phone: session?.phone || '' 
   });
   const [paymentFeedback, setPaymentFeedback] = useState<'approved' | 'rejected' | 'pending' | null>(null);
+  const [timeFilter, setTimeFilter] = useState<'ALL' | 'MORNING' | 'AFTERNOON' | 'NIGHT'>('ALL');
+  const [shareToast, setShareToast] = useState('');
   const [confirmedDetails, setConfirmedDetails] = useState<{
     courtName: string;
     dateFormatted: string;
@@ -485,49 +489,97 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
             {/* Horarios FOMO (Grilla Visual de Ocupación) */}
             {selectedCourt && (
               <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500" ref={slotsRef}>
-                <label className="text-sm font-bold text-[var(--foreground)] flex items-center justify-between">
-                  <div className="flex items-center"><Clock className="w-4 h-4 mr-2 text-[var(--color-primary)]" /> Horarios</div>
-                  <div className="flex items-center space-x-2 text-[10px] font-bold text-slate-400 uppercase">
-                    <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-[var(--color-primary)] mr-1"></span>Libre</span>
-                    <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-slate-400 mr-1"></span>Ocupado</span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-bold text-[var(--foreground)] flex items-center">
+                      <Clock className="w-4 h-4 mr-2 text-[var(--color-primary)]" /> Horarios disponibles
+                    </label>
+                    <div className="flex items-center space-x-2 text-[10px] font-bold text-slate-400 uppercase">
+                      <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-[var(--color-primary)] mr-1"></span>Libre</span>
+                      <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-slate-400 mr-1"></span>Ocupado</span>
+                    </div>
                   </div>
-                </label>
+
+                  {/* Filtro Rápido por Franja Horaria */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
+                    {[
+                      { id: 'ALL', label: '⚡ Todos' },
+                      { id: 'MORNING', label: '☀️ Mañana' },
+                      { id: 'AFTERNOON', label: '⛅ Tarde' },
+                      { id: 'NIGHT', label: '🌙 Noche' },
+                    ].map((tf) => (
+                      <button
+                        key={tf.id}
+                        type="button"
+                        onClick={() => setTimeFilter(tf.id as any)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                          timeFilter === tf.id
+                            ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-sm scale-105'
+                            : 'bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--color-primary)]/50'
+                        }`}
+                      >
+                        {tf.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {slotsLoading ? (
                   <div className="flex justify-center p-8"><div className="w-8 h-8 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin"></div></div>
                 ) : slots.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    {slots.map((slot, idx) => {
-                      const isAvailable = slot.status === 'AVAILABLE';
-                      const isSelected = selectedSlot === slot.time;
+                  (() => {
+                    const visibleSlots = slots.filter((slot) => {
+                      if (timeFilter === 'ALL') return true;
+                      const hour = parseInt(slot.time.split(':')[0], 10);
+                      if (timeFilter === 'MORNING') return hour < 14;
+                      if (timeFilter === 'AFTERNOON') return hour >= 14 && hour < 19;
+                      if (timeFilter === 'NIGHT') return hour >= 19;
+                      return true;
+                    });
 
+                    if (visibleSlots.length === 0) {
                       return (
-                        <button
-                          key={idx}
-                          disabled={!isAvailable}
-                          onClick={() => setSelectedSlot(slot.time)}
-                          className={`relative p-3.5 rounded-2xl text-center font-bold text-sm transition-all border overflow-hidden flex flex-col items-center justify-center active:scale-[0.98]
-                            ${isAvailable
-                              ? isSelected
-                                ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)] ring-4 ring-[var(--color-primary)]/20 shadow-lg shadow-[var(--color-primary)]/30 transform scale-[1.02]'
-                                : 'bg-[var(--card)] text-[var(--card-foreground)] border-[var(--border)] shadow-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'
-                              : 'bg-[var(--card)]/40 text-slate-500 border-[var(--border)]/40 cursor-not-allowed opacity-50'
-                            }
-                          `}
-                        >
-                          <span className="text-lg">{slot.time} hs</span>
-                          <span className="text-[10px] uppercase tracking-wider mt-0.5 opacity-80">
-                            {isAvailable ? (isSelected ? 'Seleccionado' : 'Disponible') :
-                              slot.status === 'FIXED' ? 'Abono Fijo' :
-                                slot.status === 'BLOCKED' ? 'Cancha Cerrada' : 'Ocupado'}
-                          </span>
-                          {!isAvailable && (
-                            <Lock className="absolute -right-2 -bottom-2 w-10 h-10 text-slate-400/30 opacity-50" />
-                          )}
-                        </button>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-slate-500 text-xs font-medium">
+                          No encontramos horarios en la franja seleccionada. Probá tocando <strong>"⚡ Todos"</strong>.
+                        </div>
                       );
-                    })}
-                  </div>
+                    }
+
+                    return (
+                      <div className="grid grid-cols-2 gap-3">
+                        {visibleSlots.map((slot, idx) => {
+                          const isAvailable = slot.status === 'AVAILABLE';
+                          const isSelected = selectedSlot === slot.time;
+
+                          return (
+                            <button
+                              key={idx}
+                              disabled={!isAvailable}
+                              onClick={() => setSelectedSlot(slot.time)}
+                              className={`relative p-3.5 rounded-2xl text-center font-bold text-sm transition-all border overflow-hidden flex flex-col items-center justify-center active:scale-[0.98]
+                                ${isAvailable
+                                  ? isSelected
+                                    ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)] ring-4 ring-[var(--color-primary)]/20 shadow-lg shadow-[var(--color-primary)]/30 transform scale-[1.02]'
+                                    : 'bg-[var(--card)] text-[var(--card-foreground)] border-[var(--border)] shadow-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'
+                                  : 'bg-[var(--card)]/40 text-slate-500 border-[var(--border)]/40 cursor-not-allowed opacity-50'
+                                }
+                              `}
+                            >
+                              <span className="text-lg">{slot.time} hs</span>
+                              <span className="text-[10px] uppercase tracking-wider mt-0.5 opacity-80">
+                                {isAvailable ? (isSelected ? 'Seleccionado' : 'Disponible') :
+                                  slot.status === 'FIXED' ? 'Abono Fijo' :
+                                    slot.status === 'BLOCKED' ? 'Cancha Cerrada' : 'Ocupado'}
+                              </span>
+                              {!isAvailable && (
+                                <Lock className="absolute -right-2 -bottom-2 w-10 h-10 text-slate-400/30 opacity-50" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
                 ) : (
                   <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-center text-slate-500 text-sm font-medium">
                     No hay horarios configurados para este día.
@@ -548,23 +600,49 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                   {selectedDate.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace(/^\w/, c => c.toUpperCase())} • {selectedSlot} hs
                 </p>
               </div>
-              <button type="button" onClick={() => setStep(1)} className="text-xs font-bold bg-white/20 px-3 py-1.5 rounded-full hover:bg-white/30 transition-colors">Modificar</button>
+              <div className="text-right">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cancha</p>
+                <p className="text-sm font-bold text-[var(--color-primary)]">
+                  {courts.find(c => c.id === selectedCourt)?.name || 'Cancha'}
+                </p>
+              </div>
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm font-medium">
-                ⚠️ {error}
+              <div className="p-4 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl border border-rose-200 dark:border-rose-800 text-sm font-bold animate-in shake">
+                {error}
               </div>
             )}
 
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center"><User className="w-4 h-4 mr-2 text-slate-400" /> Nombre y Apellido</label>
-                <input id="classic-name" required minLength={2} type="text" autoComplete="name" placeholder="Ej: Juan Pérez" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all shadow-sm" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Nombre y Apellido</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Juan Pérez"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center"><Phone className="w-4 h-4 mr-2 text-slate-400" /> WhatsApp</label>
-                <input id="classic-phone" required minLength={6} type="tel" inputMode="tel" autoComplete="tel" placeholder="Ej: 3329 123456" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all shadow-sm" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Teléfono de Contacto</label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+                  <input
+                    type="tel"
+                    required
+                    placeholder="Ej: 11 1234 5678"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
+                  />
+                </div>
               </div>
             </div>
 
@@ -578,63 +656,177 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
         )}
 
         {/* --- PASO 3: ESPERANDO PAGO / ÉXITO --- */}
-        {step === 3 && (
-          <div className="flex flex-col items-center justify-center text-center py-10 px-4 animate-in zoom-in-95 duration-500">
-            <div className="w-20 h-20 bg-emerald-500/15 text-emerald-500 rounded-full flex items-center justify-center mb-5 shadow-inner relative ring-8 ring-emerald-500/5">
-              <CheckCircle2 className="w-10 h-10" />
+        {step === 3 && (() => {
+          const displayCourtName = confirmedDetails?.courtName || courts.find(c => c.id === selectedCourt)?.name || 'Cancha Principal';
+          const displayDateFormatted = confirmedDetails?.dateFormatted || selectedDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+          const displaySlotTime = confirmedDetails?.slotTime || selectedSlot || '18:00';
+          const bookingCode = `#OP-${(displaySlotTime.replace(':', '') || 'PAD')}${selectedDate.getDate()}`;
+
+          // Armado de fechas para exportar a Calendarios
+          const [hrs, mins] = displaySlotTime.split(':').map(Number);
+          const startEvent = new Date(selectedDate);
+          if (!isNaN(hrs)) startEvent.setHours(hrs, mins || 0, 0, 0);
+          const endEvent = new Date(startEvent);
+          endEvent.setMinutes(endEvent.getMinutes() + 90);
+
+          const googleCalendarUrl = getGoogleCalendarUrl({
+            title: `🎾 Pádel en ${clubName} (${displayCourtName})`,
+            description: `Turno confirmado en ${displayCourtName}. Código de reserva: ${bookingCode}`,
+            location: `${displayCourtName} - ${clubName}`,
+            startDate: startEvent,
+            endDate: endEvent,
+          });
+
+          const handleIcsDownload = () => {
+            downloadIcsFile(
+              {
+                title: `🎾 Pádel en ${clubName} (${displayCourtName})`,
+                description: `Turno confirmado en ${displayCourtName}. Código: ${bookingCode}`,
+                location: `${displayCourtName} - ${clubName}`,
+                startDate: startEvent,
+                endDate: endEvent,
+              },
+              `turno-${displaySlotTime.replace(':', '')}.ics`
+            );
+          };
+
+          const handleShareGroup = async () => {
+            const res = await shareBooking({
+              courtName: displayCourtName,
+              dateStr: displayDateFormatted,
+              timeStr: displaySlotTime,
+              bookingCode,
+              clubName,
+              sportEmoji,
+              playerName: confirmedDetails?.playerName || formData.name || 'Jugador 1',
+            });
+            if (res.method === 'clipboard') {
+              setShareToast('¡Convocatoria copiada! Pegala en el grupo de WhatsApp de tu partido.');
+              setTimeout(() => setShareToast(''), 4000);
+            }
+          };
+
+          return (
+            <div className="flex flex-col items-center justify-center text-center py-6 px-1 sm:px-4 animate-in zoom-in-95 duration-500 max-w-md mx-auto">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-500/15 text-emerald-500 rounded-full flex items-center justify-center mb-4 shadow-inner relative ring-8 ring-emerald-500/5">
+                <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10" />
+              </div>
+
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-slate-100 mb-1">
+                {paymentFeedback === 'approved' 
+                  ? '¡Pago Aprobado y Turno Confirmado!' 
+                  : `¡Reserva ${clientRequireDeposit ? 'registrada' : 'confirmada'}!`}
+              </h3>
+
+              <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium px-2 leading-relaxed mb-5">
+                {paymentFeedback === 'approved'
+                  ? `Tu seña fue acreditada con éxito en Mercado Pago. Te esperamos en la cancha. ${sportEmoji}`
+                  : clientRequireDeposit
+                  ? `Tu turno queda confirmado una vez acreditada la seña. ${sportEmoji}`
+                  : `¡Tu lugar está asegurado! Te esperamos en la cancha. ${sportEmoji}`}
+              </p>
+
+              {/* TICKET DEPORTIVO DIGITAL */}
+              <div className="w-full bg-gradient-to-b from-slate-900 to-slate-950 text-white p-5 sm:p-6 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden mb-5 text-left">
+                {/* Badge de estado & Código */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Turno Confirmado</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-slate-400 bg-white/10 px-2.5 py-1 rounded-lg">
+                    {bookingCode}
+                  </span>
+                </div>
+
+                {/* Detalles de Cancha, Día y Hora */}
+                <div className="py-4 space-y-3">
+                  <div className="flex items-center text-slate-200">
+                    <MapPin className="w-5 h-5 mr-3 text-[var(--color-primary)] flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Cancha</span>
+                      <span className="font-bold text-base sm:text-lg">{displayCourtName}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center text-slate-200">
+                    <CalendarIcon className="w-5 h-5 mr-3 text-[var(--color-primary)] flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Fecha</span>
+                      <span className="font-bold text-base sm:text-lg capitalize">{displayDateFormatted}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center text-slate-200">
+                    <Clock className="w-5 h-5 mr-3 text-[var(--color-primary)] flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Horario</span>
+                      <span className="font-black text-lg sm:text-xl text-[var(--color-primary)]">{displaySlotTime} hs</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Decoración Ticket Punch */}
+                <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-slate-100 dark:bg-slate-900 rounded-full"></div>
+                <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-slate-100 dark:bg-slate-900 rounded-full"></div>
+              </div>
+
+              {/* FEEDBACK TOAST DE COMPARTIR */}
+              {shareToast && (
+                <div className="w-full mb-3 p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-xl flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top-2">
+                  <Check className="w-4 h-4" />
+                  <span>{shareToast}</span>
+                </div>
+              )}
+
+              {/* BOTONES DE ACCIÓN PROFESIONALES */}
+              <div className="w-full space-y-2.5 mb-4">
+                {/* 1. Compartir con el grupo de 4 */}
+                <button
+                  type="button"
+                  onClick={handleShareGroup}
+                  className="w-full flex items-center justify-center gap-2.5 bg-[var(--color-primary)] hover:opacity-90 text-[var(--color-primary-foreground)] font-black text-sm py-3.5 px-5 rounded-2xl shadow-md transition-all active:scale-[0.98]"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>🎾 Compartir Convocatoria con el Grupo</span>
+                </button>
+
+                {/* 2. Fila Calendarios: Google Calendar & Apple/Outlook (.ics) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={googleCalendarUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs py-3 px-3 rounded-2xl border border-slate-200 dark:border-slate-700 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Google Calendar</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleIcsDownload}
+                    className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs py-3 px-3 rounded-2xl border border-slate-200 dark:border-slate-700 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Apple / Outlook (.ics)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* BOTÓN VOLVER AL INICIO */}
+              <button 
+                onClick={() => {
+                  try {
+                    window.sessionStorage.removeItem('last_confirmed_booking');
+                    window.sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+                  } catch {}
+                  window.location.href = '/';
+                }} 
+                className="font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white py-2.5 px-6 rounded-xl transition-colors text-xs"
+              >
+                Volver al inicio
+              </button>
             </div>
-
-            <h3 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-slate-100 mb-2">
-              {paymentFeedback === 'approved' 
-                ? '¡Pago Aprobado y Turno Confirmado!' 
-                : `¡Reserva ${clientRequireDeposit ? 'registrada' : 'confirmada'}!`}
-            </h3>
-
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium px-2 leading-relaxed mb-6">
-              {paymentFeedback === 'approved'
-                ? `Tu seña fue acreditada con éxito en Mercado Pago. Te esperamos en la cancha. ${sportEmoji}`
-                : clientRequireDeposit
-                ? `Tu turno queda confirmado una vez acreditada la seña. ${sportEmoji}`
-                : `¡Tu lugar está asegurado! Te esperamos en la cancha. ${sportEmoji}`}
-            </p>
-
-            {/* RESUMEN DEL TURNO EN PANTALLA DE ÉXITO */}
-            <div className="w-full max-w-sm bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 text-left space-y-4 mb-6 shadow-sm">
-              <p className="text-xs uppercase tracking-wider font-bold text-slate-400 mb-1">Detalles de tu turno</p>
-              <div className="flex items-center text-slate-700 dark:text-slate-200">
-                <MapPin className="w-5 h-5 mr-3 text-[var(--color-primary)]" />
-                <span className="font-bold text-lg">
-                  {confirmedDetails?.courtName || courts.find(c => c.id === selectedCourt)?.name || 'Cancha Principal'}
-                </span>
-              </div>
-              <div className="flex items-center text-slate-700 dark:text-slate-200">
-                <CalendarIcon className="w-5 h-5 mr-3 text-[var(--color-primary)]" />
-                <span className="font-bold text-lg capitalize">
-                  {confirmedDetails?.dateFormatted || selectedDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </span>
-              </div>
-              <div className="flex items-center text-slate-700 dark:text-slate-200">
-                <Clock className="w-5 h-5 mr-3 text-[var(--color-primary)]" />
-                <span className="font-bold text-lg">
-                  {confirmedDetails?.slotTime || selectedSlot ? `${confirmedDetails?.slotTime || selectedSlot} hs` : 'Horario reservado'}
-                </span>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => {
-                try {
-                  window.sessionStorage.removeItem('last_confirmed_booking');
-                  window.sessionStorage.removeItem(BOOKING_DRAFT_KEY);
-                } catch {}
-                window.location.href = '/';
-              }} 
-              className="font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 py-3.5 px-8 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors w-full max-w-sm text-sm"
-            >
-              Volver al inicio
-            </button>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* FOOTER FLOTANTE PWA */}

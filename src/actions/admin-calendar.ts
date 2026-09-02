@@ -199,6 +199,9 @@ export async function createAdminBooking(data: {
     type: 'RESERVA' | 'BLOQUEO' | 'FIJO';
     clientName?: string;
     clientPhone?: string;
+    paymentMethod?: 'CASH' | 'TRANSFER' | 'MERCADOPAGO' | 'PENDING';
+    amountPaid?: number;
+    notes?: string;
 }) {
     try {
         await requireAdmin();
@@ -229,6 +232,9 @@ export async function createAdminBooking(data: {
 
         // Si es FIJO, generamos por 6 meses (24 semanas). Si es normal, solo 1 semana.
         const weeksToGenerate = data.type === 'FIJO' ? 24 : 1;
+        const formattedDesc = data.paymentMethod 
+            ? `[${data.paymentMethod}] ${data.notes || 'Mostrador'}`.trim() 
+            : (data.notes || null);
 
         // Transacción para insertar las reservas
         await prisma.$transaction(async (tx) => {
@@ -275,7 +281,8 @@ export async function createAdminBooking(data: {
                             startTime,
                             endTime,
                             status: status as any,
-                            totalAmount: 0,
+                            totalAmount: data.amountPaid || 0,
+                            description: formattedDesc,
                             fixedBookingId: newFixedBookingId,
                             slotKey: `${data.courtId}:${startTime.toISOString()}`,
                         }
