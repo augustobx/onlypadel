@@ -156,10 +156,30 @@ export async function getAdminCalendarData(courtId: string, dateStr: string) {
             results.push({ court, businessHour, slots });
         }
 
-        return { success: true, data: results };
+// Obtener datos de la semana completa (7 días) para vista semanal interactiva
+export async function getAdminCalendarWeekData(courtId: string, weekStartStr: string) {
+    try {
+        await requireAdmin();
+        const [year, month, day] = weekStartStr.split('-').map(Number);
+        const baseDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+        const daysResult = [];
+        for (let i = 0; i < 7; i++) {
+            const currentD = new Date(baseDate);
+            currentD.setUTCDate(baseDate.getUTCDate() + i);
+            const dateStr = currentD.toISOString().split('T')[0];
+            const dayData = await getAdminCalendarData(courtId, dateStr);
+            daysResult.push({
+                dateStr,
+                dayIndex: i,
+                dayData: dayData.success && dayData.data ? dayData.data : []
+            });
+        }
+
+        return { success: true, data: daysResult };
     } catch (error) {
-        console.error(error);
-        return { success: false, error: 'Error al cargar el calendario.' };
+        console.error("Error fetching week calendar data:", error);
+        return { success: false, error: 'Error al cargar la semana.' };
     }
 }
 

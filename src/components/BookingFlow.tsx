@@ -34,6 +34,9 @@ interface PublicSettings {
   requireDeposit?: boolean;
   usersModuleEnabled?: boolean;
   requireDepositForRegistered?: boolean;
+  clubLogo?: string | null;
+  splashMode?: 'logo' | 'full_image' | null;
+  splashFullImage?: string | null;
 }
 
 interface UserSession {
@@ -54,10 +57,13 @@ function formatLocalDateStr(date: Date): string {
 export default function BookingFlow({ courts, sysSettings, session, today }: { courts: CourtOption[], sysSettings?: PublicSettings | null, session?: UserSession | null, today: string }) {
 
   // VARIABLES DINÁMICAS DESDE LA BASE DE DATOS
-  const splashDuration = sysSettings?.splashDuration || 1500;
+  const splashDuration = sysSettings?.splashDuration || 1800;
   const bubbleDuration = sysSettings?.bubbleDuration || 3000;
-  const splashLogo = sysSettings?.splashLogo || "";
+  const splashLogo = sysSettings?.clubLogo || sysSettings?.splashLogo || "";
   const hasSplashLogo = /^(https?:\/\/|\/|data:image\/)/i.test(splashLogo);
+  const splashMode = sysSettings?.splashMode || (sysSettings?.splashFullImage ? 'full_image' : 'logo');
+  const splashFullImage = sysSettings?.splashFullImage || "";
+  const hasSplashFullImage = splashMode === 'full_image' && /^(https?:\/\/|\/|data:image\/)/i.test(splashFullImage);
   const splashName = sysSettings?.splashName || "OnlyPadel";
   const clubName = sysSettings?.clubName || "Padel Club";
   const sportEmoji = sysSettings?.sportEmoji || "🎾";
@@ -255,21 +261,52 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
 
   // --- PANTALLA SPLASH DE INICIO ---
   if (showSplash) {
+    if (hasSplashFullImage) {
+      return (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-between p-8 animate-in fade-in duration-300">
+          <Image 
+            src={splashFullImage} 
+            alt={splashName} 
+            fill 
+            unoptimized 
+            priority
+            className="object-cover opacity-90 scale-105 animate-pulse" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/60 pointer-events-none" />
+          
+          {/* Top Badge */}
+          <div className="relative z-10 w-full flex justify-center pt-8 animate-in slide-in-from-top-4 duration-500">
+            <span className="text-xs font-black tracking-widest uppercase px-4 py-1.5 rounded-full bg-white/10 text-white backdrop-blur-md border border-white/20">
+              {clubName}
+            </span>
+          </div>
+
+          {/* Bottom Title & Spinner */}
+          <div className="relative z-10 w-full flex flex-col items-center text-center pb-8 space-y-3 animate-in slide-in-from-bottom-4 duration-500">
+            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight drop-shadow-lg">
+              {splashName}
+            </h1>
+            <div className="w-8 h-8 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center animate-in fade-in duration-300">
+      <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
         <div className="flex flex-col items-center animate-bounce">
           {hasSplashLogo ? (
-            <Image src={splashLogo} alt={splashName} width={128} height={128} unoptimized className="w-32 h-32 object-contain mb-6 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.3)]" />
+            <Image src={splashLogo} alt={splashName} width={128} height={128} unoptimized className="w-32 h-32 object-contain mb-6 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.3)] bg-slate-900/60 p-2 border border-slate-800" />
           ) : (
-            <div className="w-24 h-24 bg-[var(--color-primary)] rounded-full flex items-center justify-center font-black text-[var(--color-primary-foreground)] text-5xl mb-6 shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+            <div className="w-24 h-24 bg-[var(--color-primary)] rounded-3xl flex items-center justify-center font-black text-[var(--color-primary-foreground)] text-5xl mb-6 shadow-[0_0_50px_rgba(16,185,129,0.3)]">
               {sportEmoji}
             </div>
           )}
         </div>
-        <h1 className="text-3xl font-black tracking-tight text-white mb-1">
+        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mb-1.5 text-center">
           {splashName}
         </h1>
-        <p className="text-[var(--color-primary)] font-bold tracking-widest text-sm uppercase">{clubName}</p>
+        <p className="text-[var(--color-primary)] font-bold tracking-widest text-xs md:text-sm uppercase text-center">{clubName}</p>
       </div>
     );
   }

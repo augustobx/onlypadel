@@ -138,8 +138,70 @@
     -webkit-text-size-adjust: 100%;
   }
 
-  html:has(.dark) {
+  html:has(.dark), html.dark {
     color-scheme: dark;
+  }
+
+  /* --- TEMAS ÉPICOS ONLYPADEL --- */
+  
+  /* Cyber Padel / Emerald Neon */
+  .theme-cyber-padel, [data-theme="cyber-padel"] {
+    --background: #06090e;
+    --foreground: #f1f5f9;
+    --card: #0b111a;
+    --card-foreground: #f8fafc;
+    --border: rgba(16, 185, 129, 0.18);
+    --input: rgba(16, 185, 129, 0.15);
+    --primary: #10b981;
+    --primary-foreground: #022c22;
+    --secondary: #0ea5e9;
+    --secondary-foreground: #082f49;
+    --muted: #111b27;
+    --muted-foreground: #94a3b8;
+    --color-primary: #10b981;
+    --color-primary-foreground: #022c22;
+    --color-secondary: #00e5ff;
+    --color-secondary-foreground: #082f49;
+  }
+
+  /* Sunset Clay / Roland Padel */
+  .theme-sunset-clay, [data-theme="sunset-clay"] {
+    --background: #140e0c;
+    --foreground: #fff7ed;
+    --card: #1f1613;
+    --card-foreground: #ffedd5;
+    --border: rgba(234, 88, 12, 0.2);
+    --input: rgba(234, 88, 12, 0.18);
+    --primary: #ea580c;
+    --primary-foreground: #431407;
+    --secondary: #f59e0b;
+    --secondary-foreground: #451a03;
+    --muted: #291d19;
+    --muted-foreground: #fdba74;
+    --color-primary: #ea580c;
+    --color-primary-foreground: #ffffff;
+    --color-secondary: #f59e0b;
+    --color-secondary-foreground: #451a03;
+  }
+
+  /* Ocean Frost / Nordic Midnight */
+  .theme-ocean-frost, [data-theme="ocean-frost"] {
+    --background: #050d18;
+    --foreground: #f0f9ff;
+    --card: #0b192b;
+    --card-foreground: #e0f2fe;
+    --border: rgba(14, 165, 233, 0.2);
+    --input: rgba(14, 165, 233, 0.18);
+    --primary: #0284c7;
+    --primary-foreground: #f0f9ff;
+    --secondary: #06b6d4;
+    --secondary-foreground: #083344;
+    --muted: #10243d;
+    --muted-foreground: #7dd3fc;
+    --color-primary: #0284c7;
+    --color-primary-foreground: #ffffff;
+    --color-secondary: #06b6d4;
+    --color-secondary-foreground: #083344;
   }
 
   button, a, input, select, textarea {
@@ -148,6 +210,22 @@
       outline-offset: 2px;
     }
   }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
 }
 
 @supports (min-height: 100dvh) {

@@ -11,7 +11,7 @@ export async function getSettings() {
         const settings = await prisma.systemSetting.findFirst({
             where: { id: 1 },
             select: {
-                clubName: true, contactPhone: true, apiPhone: true, reservationFee: true,
+                clubName: true, contactPhone: true, apiPhone: true, courtPhone: true, reservationFee: true,
                 sportEmoji: true, topbarName: true, pwaEnabled: true, autoWhatsapp: true,
                 requireDeposit: true, reservationsEnabled: true, whatsappReservations: true,
                 notifyAdmin: true, tournamentsEnabled: true, rankingsEnabled: true, usersModuleEnabled: true,
@@ -22,12 +22,28 @@ export async function getSettings() {
             },
         });
         if (!settings) return null;
+
+        // Custom key-values from Setting table (club_logo, splash_mode, splash_full_image)
+        const customSettings = await prisma.setting.findMany({
+            where: {
+                key: { in: ['club_logo', 'splash_mode', 'splash_full_image'] }
+            }
+        });
+        const customMap = Object.fromEntries(customSettings.map(s => [s.key, s.value]));
+
+        const clubLogo = customMap['club_logo'] || settings.splashLogo || '';
+        const splashMode = (customMap['splash_mode'] as 'logo' | 'full_image') || (settings.heroImage ? 'full_image' : 'logo');
+        const splashFullImage = customMap['splash_full_image'] || settings.heroImage || '';
+
         const [reservations, users, tournaments, rankings, playerCategories, whatsapp] = await Promise.all([
             hasTenantFeature('reservations'), hasTenantFeature('users'), hasTenantFeature('tournaments'),
             hasTenantFeature('rankings'), hasTenantFeature('player_categories'), hasTenantFeature('whatsapp'),
         ]);
         return {
             ...settings,
+            clubLogo,
+            splashMode,
+            splashFullImage,
             reservationsEnabled: settings.reservationsEnabled && reservations,
             usersModuleEnabled: settings.usersModuleEnabled && users,
             tournamentsEnabled: settings.tournamentsEnabled && tournaments,
@@ -77,15 +93,23 @@ export async function updateSystemSettings(formData: FormData) {
         const whatsappVerifyToken = requestedWhatsappVerifyToken || currentSecrets.whatsappVerifyToken;
         const reservationFee = Number(formData.get("reservationFee")) || 0;
         const sportEmoji = (formData.get("sportEmoji") as string) || "🎾";
-        const theme = formData.get("theme") === "dark" ? "dark" : "light";
+        
+        // Theme selection: supports light, dark, cyber-padel, sunset-clay, ocean-frost
+        const rawTheme = (formData.get("theme") as string) || "light";
+        const theme = ['light', 'dark', 'cyber-padel', 'sunset-clay', 'ocean-frost'].includes(rawTheme) ? rawTheme : 'light';
+        
         const appLayout = formData.get("appLayout") === "chat" ? "chat" : "classic";
         const heroImage = (formData.get("heroImage") as string) || "";
         const primaryColor = normalizeHexColor(formData.get("primaryColor") as string, "#10b981");
         const secondaryColor = normalizeHexColor(formData.get("secondaryColor") as string, "#0ea5e9");
 
-        const splashLogo = (formData.get("splashLogo") as string) || "";
+        const clubLogo = ((formData.get("clubLogo") as string) || (formData.get("splashLogo") as string) || "").trim();
+        const splashLogo = clubLogo;
         const splashName = (formData.get("splashName") as string) || "";
         const splashDuration = Number(formData.get("splashDuration")) || 3000;
+        const splashMode = (formData.get("splashMode") as string) === 'full_image' ? 'full_image' : 'logo';
+        const splashFullImage = ((formData.get("splashFullImage") as string) || heroImage || "").trim();
+
         const bubbleText = (formData.get("bubbleText") as string) || "";
         const bubbleColor = normalizeHexColor(formData.get("bubbleColor") as string, "#10b981");
         const bubbleDuration = Number(formData.get("bubbleDuration")) || 3000;
@@ -98,14 +122,39 @@ export async function updateSystemSettings(formData: FormData) {
                 usersModuleEnabled, requireDepositForRegistered, clientCancellations,
                 splashLogo, splashName, splashDuration,
                 bubbleActive, bubbleText, bubbleColor, bubbleDuration,
-                primaryColor, secondaryColor, heroImage: heroImage || null
+                primaryColor, secondaryColor, heroImage: splashFullImage || heroImage || null
             },
         });
 
+        // Upsert custom settings in Setting table
+        const customEntries = [
+            { key: 'club_logo', value: clubLogo },
+            { key: 'splash_mode', value: splashMode },
+            { key: 'splash_full_image', value: splashFullImage },
+        ];
+
+        for (const entry of customEntries) {
+            const existing = await prisma.setting.findFirst({ where: { key: entry.key } });
+            if (existing) {
+                await prisma.setting.update({ where: { id: existing.id }, data: { value: entry.value } });
+            } else {
+                await prisma.setting.create({
+                    data: {
+                        id: `setting_${entry.key}_${Date.now()}`,
+                        key: entry.key,
+                        value: entry.value,
+                    }
+                });
+            }
+        }
+
         revalidatePath("/admin/settings");
+        revalidatePath("/admin");
         revalidatePath("/");
+        return { success: true };
 
     } catch (error) {
         console.error("Error updating settings:", error);
+        return { success: false, error: 'Ocurrió un error al guardar la configuración.' };
     }
 }

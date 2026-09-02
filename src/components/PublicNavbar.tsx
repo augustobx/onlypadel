@@ -1,11 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { BadgeCheck, BarChart3, CalendarSearch, Trophy, User } from 'lucide-react';
 
 type PublicNavbarSettings = {
   topbarName?: string | null;
   sportEmoji?: string | null;
+  clubLogo?: string | null;
+  splashLogo?: string | null;
   tournamentsEnabled?: boolean;
   rankingsEnabled?: boolean;
   usersModuleEnabled?: boolean;
@@ -14,15 +17,21 @@ type PublicNavbarSettings = {
 
 export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavbarSettings | null }) {
   const topbarTitle = sysSettings?.topbarName || "OnlyPadel";
+  const logo = sysSettings?.clubLogo || sysSettings?.splashLogo || "";
+  const hasLogoImage = /^(https?:\/\/|\/|data:image\/)/i.test(logo);
 
   return (
     <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 md:rounded-t-[2.5rem] relative z-20">
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link href="/" className="flex items-center gap-2 group">
-              <span className="text-xl group-hover:scale-110 transition-transform">{sysSettings?.sportEmoji || "🎾"}</span>
-              <span className="font-black text-xl text-slate-900 dark:text-white tracking-tight">
+            <Link href="/" className="flex items-center gap-2.5 group">
+              {hasLogoImage ? (
+                <Image src={logo} alt={topbarTitle} width={30} height={30} unoptimized className="w-7 h-7 object-contain rounded-lg p-0.5 group-hover:scale-105 transition-transform" />
+              ) : (
+                <span className="text-xl group-hover:scale-110 transition-transform">{sysSettings?.sportEmoji || "🎾"}</span>
+              )}
+              <span className="font-black text-lg sm:text-xl text-slate-900 dark:text-white tracking-tight">
                 {topbarTitle}
               </span>
             </Link>

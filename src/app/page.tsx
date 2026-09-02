@@ -40,6 +40,15 @@ export default async function HomePage() {
 
     const settings = await getSettings();
     const theme = settings?.theme || 'light';
+    const themeClass = theme === 'cyber-padel'
+        ? 'dark theme-cyber-padel'
+        : theme === 'sunset-clay'
+        ? 'dark theme-sunset-clay'
+        : theme === 'ocean-frost'
+        ? 'dark theme-ocean-frost'
+        : theme === 'dark'
+        ? 'dark'
+        : '';
     const appLayout = settings?.appLayout || 'classic';
 
     const isReservationsEnabled = settings?.reservationsEnabled ?? true;
@@ -70,10 +79,10 @@ export default async function HomePage() {
         const waLink = `https://wa.me/${phone}?text=Hola,%20quiero%20reservar%20un%20turno.`;
 
         return (
-            <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-100'}`}>
-                <div className={`max-w-md w-full rounded-3xl shadow-xl p-8 text-center border ${theme === 'dark' ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+            <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${themeClass || (theme === 'dark' ? 'bg-slate-950' : 'bg-slate-100')}`}>
+                <div className={`max-w-md w-full rounded-3xl shadow-xl p-8 text-center border ${theme === 'dark' || themeClass.includes('dark') ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
                     <h1 className="text-2xl font-black mb-2">Reservas Pausadas</h1>
-                    <p className={`mb-8 font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className={`mb-8 font-medium ${theme === 'dark' || themeClass.includes('dark') ? 'text-slate-400' : 'text-slate-500'}`}>
                         El sistema automático de turnos se encuentra desactivado momentáneamente.
                     </p>
 
@@ -94,7 +103,7 @@ export default async function HomePage() {
 
     return (
         <div 
-            className={`${theme} min-h-dvh bg-slate-50 dark:bg-slate-950 flex flex-col md:h-dvh md:items-center md:overflow-hidden md:py-8`}
+            className={`${themeClass} min-h-dvh bg-slate-50 dark:bg-slate-950 flex flex-col md:h-dvh md:items-center md:overflow-hidden md:py-8`}
             style={{ 
                 '--color-primary': primaryColor,
                 '--color-primary-foreground': getReadableForeground(primaryColor),
