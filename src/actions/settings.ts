@@ -86,7 +86,6 @@ export async function updateSystemSettings(formData: FormData) {
         const whatsappReservations = formData.get("whatsappReservations") === "on";
         const pwaEnabled = formData.get("pwaEnabled") === "on";
         const autoWhatsapp = formData.get("autoWhatsapp") === "on";
-        const bubbleActive = formData.get("bubbleActive") === "on";
         const requireDeposit = formData.get("requireDeposit") === "on";
         const notifyAdmin = formData.get("notifyAdmin") === "on";
         const tournamentsEnabled = formData.get("tournamentsEnabled") === "on";
