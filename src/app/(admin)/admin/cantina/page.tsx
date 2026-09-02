@@ -441,6 +441,7 @@ export default function CantinaPage() {
 
           {/* Formulario de Cobro */}
           {cart.length > 0 && (
+            <form onSubmit={handleCheckout} className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
               {/* Selector de Cliente / Consumidor Final / Socio */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
