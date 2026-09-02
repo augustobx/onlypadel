@@ -969,14 +969,27 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                 </div>
                                 <div className="flex items-center justify-between p-3.5 border rounded-2xl bg-slate-50 dark:bg-slate-850">
                                     <div>
-                                      <Label htmlFor="requireDeposit" className="text-xs font-bold">Exigir Seña Obligatoria</Label>
-                                      <p className="text-[10px] text-slate-400">Si está inactivo, el turno se reserva sin pago previo.</p>
+                                      <Label htmlFor="requireDeposit" className="text-xs font-bold">Exigir Seña Obligatoria (Global)</Label>
+                                      <p className="text-[10px] text-slate-400">Si está inactivo, todos los turnos se reservan sin pago previo.</p>
                                     </div>
                                     <input 
                                       type="checkbox" 
                                       id="requireDeposit" 
                                       name="requireDeposit" 
                                       defaultChecked={initialSettings.requireDeposit} 
+                                      className="w-5 h-5 rounded text-[var(--color-primary)]" 
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between p-3.5 border rounded-2xl bg-slate-50 dark:bg-slate-850">
+                                    <div>
+                                      <Label htmlFor="requireDepositForRegistered" className="text-xs font-bold">Cobrar Seña a Socios Registrados</Label>
+                                      <p className="text-[10px] text-slate-400">Si está activo, los socios logueados pagan seña online. Si se desactiva, reservan sin pago previo.</p>
+                                    </div>
+                                    <input 
+                                      type="checkbox" 
+                                      id="requireDepositForRegistered" 
+                                      name="requireDepositForRegistered" 
+                                      defaultChecked={initialSettings.requireDepositForRegistered ?? true} 
                                       className="w-5 h-5 rounded text-[var(--color-primary)]" 
                                     />
                                 </div>

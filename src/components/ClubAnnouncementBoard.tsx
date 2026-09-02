@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Megaphone, Trophy, Flame, AlertTriangle, Sparkles, Hand, ArrowRight, X, ExternalLink, Timer, RotateCcw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { 
+  Megaphone, Trophy, Flame, AlertTriangle, Sparkles, Hand, 
+  ArrowRight, X, ExternalLink, Timer, RotateCcw, CheckCircle2, ChevronRight
+} from 'lucide-react';
 
 export interface ClubAnnouncementProps {
   active?: boolean;
@@ -39,7 +42,7 @@ export default function ClubAnnouncementBoard({
   const [isPaused, setIsPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
-  // Storage key para no cansar al usuario en la misma sesión de reserva
+  // Storage key para recordar descarte en sesión
   const storageKey = `dismissed_announcement_${(title || text || 'default').slice(0, 30)}`;
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export default function ClubAnnouncementBoard({
     } catch {}
   }, [storageKey, isSimulator]);
 
-  // Contador regresivo para cierre automático (en modo flotante)
+  // Contador regresivo
   useEffect(() => {
     if (!isVisible || !active) return;
     if (mode !== 'floating' || !autoClose || isPaused) return;
@@ -96,14 +99,14 @@ export default function ClubAnnouncementBoard({
     if (isSimulator) {
       return (
         <div className="flex flex-col items-center justify-center p-6 border border-dashed border-slate-700 rounded-3xl bg-slate-900/50 text-center space-y-3">
-          <p className="text-xs text-slate-400 font-medium">El tablón flotante se cerró automáticamente.</p>
+          <p className="text-xs text-slate-400 font-medium">El tablón se cerró automáticamente.</p>
           <button
             type="button"
             onClick={handleResetSimulator}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-bold shadow-md hover:brightness-105 transition-all"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Reiniciar animación y contador ({initialSeconds}s)
+            Reiniciar simulación ({initialSeconds}s)
           </button>
         </div>
       );
@@ -113,175 +116,183 @@ export default function ClubAnnouncementBoard({
 
   if (!title && !text) return null;
 
-  // Icono según la categoría
+  // Icono y visuales según la categoría
   const normalizedBadge = (badge || 'COMUNICADO').toUpperCase();
-  const getBadgeIcon = () => {
+  const getCategoryDetails = () => {
     if (normalizedBadge.includes('TORNEO') || normalizedBadge.includes('CAMPEONATO')) {
-      return <Trophy className="w-3.5 h-3.5" />;
+      return {
+        icon: <Trophy className="w-4 h-4 text-amber-400" />,
+        headerBg: 'from-amber-500/20 via-orange-500/10 to-transparent',
+        accentBorder: 'border-amber-500/40',
+        badgeBg: 'bg-amber-500 text-slate-950 font-black',
+        glow: 'shadow-[0_0_40px_rgba(245,158,11,0.25)]'
+      };
     }
     if (normalizedBadge.includes('PROMO') || normalizedBadge.includes('OFERTA') || normalizedBadge.includes('DESCUENTO')) {
-      return <Flame className="w-3.5 h-3.5" />;
+      return {
+        icon: <Flame className="w-4 h-4 text-orange-400" />,
+        headerBg: 'from-orange-500/20 via-rose-500/10 to-transparent',
+        accentBorder: 'border-orange-500/40',
+        badgeBg: 'bg-gradient-to-r from-orange-500 to-rose-500 text-white font-black',
+        glow: 'shadow-[0_0_40px_rgba(249,115,22,0.25)]'
+      };
     }
     if (normalizedBadge.includes('AVISO') || normalizedBadge.includes('ATENCION') || normalizedBadge.includes('IMPORTANTE')) {
-      return <AlertTriangle className="w-3.5 h-3.5" />;
+      return {
+        icon: <AlertTriangle className="w-4 h-4 text-amber-400" />,
+        headerBg: 'from-amber-500/20 via-yellow-500/10 to-transparent',
+        accentBorder: 'border-amber-500/40',
+        badgeBg: 'bg-amber-400 text-slate-950 font-black',
+        glow: 'shadow-[0_0_40px_rgba(251,191,36,0.25)]'
+      };
     }
     if (normalizedBadge.includes('BIENVENID') || normalizedBadge.includes('HOLA')) {
-      return <Hand className="w-3.5 h-3.5" />;
+      return {
+        icon: <Hand className="w-4 h-4 text-emerald-400" />,
+        headerBg: 'from-emerald-500/20 via-cyan-500/10 to-transparent',
+        accentBorder: 'border-emerald-500/40',
+        badgeBg: 'bg-emerald-500 text-slate-950 font-black',
+        glow: 'shadow-[0_0_40px_rgba(16,185,129,0.25)]'
+      };
     }
     if (normalizedBadge.includes('NOVEDAD') || normalizedBadge.includes('NUEVO')) {
-      return <Sparkles className="w-3.5 h-3.5" />;
+      return {
+        icon: <Sparkles className="w-4 h-4 text-cyan-400" />,
+        headerBg: 'from-cyan-500/20 via-blue-500/10 to-transparent',
+        accentBorder: 'border-cyan-500/40',
+        badgeBg: 'bg-cyan-500 text-slate-950 font-black',
+        glow: 'shadow-[0_0_40px_rgba(6,182,212,0.25)]'
+      };
     }
-    return <Megaphone className="w-3.5 h-3.5" />;
+    return {
+      icon: <Megaphone className="w-4 h-4 text-[var(--color-primary)]" />,
+      headerBg: 'from-[var(--color-primary)]/20 via-[var(--color-primary)]/5 to-transparent',
+      accentBorder: 'border-[var(--color-primary)]/40',
+      badgeBg: 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-black',
+      glow: 'shadow-[0_0_40px_var(--color-primary,rgba(16,185,129,0.25))]'
+    };
   };
 
-  // Clases según la variante visual seleccionada
-  const getVariantStyles = () => {
-    switch (variant) {
-      case 'amber':
-        return {
-          wrapper: 'bg-slate-950/90 border-amber-500/40 text-amber-100 shadow-[0_0_50px_rgba(245,158,11,0.25)]',
-          badge: 'bg-amber-500 text-slate-950 font-black',
-          button: 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/25',
-          title: 'text-amber-300',
-          close: 'hover:bg-amber-500/20 text-amber-400',
-          progress: 'bg-amber-500',
-          timerBadge: 'bg-amber-500/20 border-amber-500/30 text-amber-300'
-        };
-      case 'emerald':
-        return {
-          wrapper: 'bg-slate-950/90 border-emerald-500/40 text-emerald-100 shadow-[0_0_50px_rgba(16,185,129,0.25)]',
-          badge: 'bg-emerald-500 text-slate-950 font-black',
-          button: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/25',
-          title: 'text-emerald-300',
-          close: 'hover:bg-emerald-500/20 text-emerald-400',
-          progress: 'bg-emerald-500',
-          timerBadge: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'
-        };
-      case 'blue':
-        return {
-          wrapper: 'bg-slate-950/90 border-sky-500/40 text-sky-100 shadow-[0_0_50px_rgba(14,165,233,0.25)]',
-          badge: 'bg-sky-500 text-slate-950 font-black',
-          button: 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-lg shadow-sky-500/25',
-          title: 'text-sky-300',
-          close: 'hover:bg-sky-500/20 text-sky-400',
-          progress: 'bg-sky-500',
-          timerBadge: 'bg-sky-500/20 border-sky-500/30 text-sky-300'
-        };
-      case 'purple':
-        return {
-          wrapper: 'bg-slate-950/90 border-purple-500/40 text-purple-100 shadow-[0_0_50px_rgba(168,85,247,0.25)]',
-          badge: 'bg-purple-500 text-white font-black',
-          button: 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/25',
-          title: 'text-purple-300',
-          close: 'hover:bg-purple-500/20 text-purple-400',
-          progress: 'bg-purple-500',
-          timerBadge: 'bg-purple-500/20 border-purple-500/30 text-purple-300'
-        };
-      case 'theme':
-      default:
-        return {
-          wrapper: 'bg-[var(--card,#0f172a)]/95 border-[var(--color-primary)]/40 text-[var(--foreground,#ffffff)] shadow-[0_0_50px_var(--color-primary,rgba(16,185,129,0.2))]',
-          badge: 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] font-black',
-          button: 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-lg shadow-[var(--color-primary)]/25 hover:brightness-105',
-          title: 'text-[var(--foreground,#ffffff)]',
-          close: 'hover:bg-[var(--color-primary)]/15 text-slate-400 hover:text-[var(--color-primary)]',
-          progress: 'bg-[var(--color-primary)]',
-          timerBadge: 'bg-[var(--color-primary)]/15 border-[var(--color-primary)]/25 text-[var(--color-primary)]'
-        };
-    }
-  };
-
-  const styles = getVariantStyles();
+  const cat = getCategoryDetails();
   const progressPercent = Math.max(0, Math.min(100, (timeLeft / initialSeconds) * 100));
 
-  // --- MODO FLOTANTE POST-SPLASH ---
+  // Formateador de texto enriquecido (divide viñetas o párrafos)
+  const lines = (text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  const isBulletList = lines.length > 1 && lines.some(l => l.startsWith('-') || l.startsWith('•') || l.startsWith('*'));
+
+  // --- MODO FLOTANTE POST-SPLASH (BILLBOARD SPORTS PRO) ---
   if (mode === 'floating') {
     return (
       <div 
-        className={`${isSimulator ? 'relative w-full' : 'fixed inset-0 z-[100]'} flex items-center justify-center p-4 ${!isSimulator ? 'bg-black/65 backdrop-blur-md animate-in fade-in duration-300' : ''}`}
+        className={`${isSimulator ? 'relative w-full' : 'fixed inset-0 z-[100]'} flex items-center justify-center p-3 sm:p-5 ${!isSimulator ? 'bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-300' : ''}`}
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
+        onTouchStart={() => setIsPaused(true)}
+        onTouchEnd={() => setIsPaused(false)}
       >
         <div 
           role="dialog"
           aria-modal="true"
           aria-label="Tablón de anuncios del club"
-          className={`relative w-full max-w-md rounded-[2.2rem] p-6 sm:p-7 border backdrop-blur-2xl transition-all duration-300 animate-in zoom-in-95 slide-in-from-bottom-6 ${styles.wrapper} ${className}`}
+          className={`relative w-full max-w-lg rounded-3xl overflow-hidden border bg-gradient-to-b from-slate-900/95 via-slate-950/95 to-[#06090e]/98 text-white backdrop-blur-2xl transition-all duration-300 animate-in zoom-in-95 slide-in-from-bottom-6 ${cat.accentBorder} ${cat.glow} ${className}`}
         >
-          {/* Header con Badge, Contador y Botón X */}
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] uppercase tracking-wider ${styles.badge}`}>
-              {getBadgeIcon()}
-              <span>{badge || 'COMUNICADO'}</span>
-            </span>
+          {/* Top Banner Marquee / Mesh Glow */}
+          <div className={`px-5 py-4 bg-gradient-to-r ${cat.headerBg} border-b border-white/10 flex items-center justify-between gap-3`}>
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-xl bg-white/10 border border-white/15 backdrop-blur-md shadow-inner flex items-center justify-center">
+                {cat.icon}
+              </div>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase tracking-widest ${cat.badgeBg} shadow-sm`}>
+                <span>{badge || 'COMUNICADO'}</span>
+              </span>
+            </div>
 
             <div className="flex items-center gap-2">
-              {/* Contador regresivo si está activado */}
+              {/* Temporizador deportivo */}
               {autoClose && (
-                <span 
-                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors ${styles.timerBadge}`}
-                  title={isPaused ? 'Pausado (cursor encima)' : `Cierra en ${timeLeft}s`}
+                <div 
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-white/10 border border-white/15 text-slate-200 shadow-sm"
+                  title={isPaused ? 'Lectura pausada' : `Cierra en ${timeLeft} segundos`}
                 >
-                  <Timer className="w-3 h-3 animate-pulse" />
+                  <Timer className="w-3.5 h-3.5 text-[var(--color-primary)] animate-pulse" />
                   <span>{isPaused ? 'Pausado' : `${timeLeft}s`}</span>
-                </span>
+                </div>
               )}
 
-              {/* Botón X de cerrar */}
+              {/* Botón X con anillo glassmorphism */}
               <button
                 type="button"
                 onClick={handleClose}
-                className={`p-1.5 rounded-full transition-colors ${styles.close}`}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-slate-300 hover:text-white transition-all active:scale-95"
                 aria-label="Cerrar anuncio"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Contenido del Anuncio */}
-          <div className="space-y-2 mb-6">
+          {/* Cuerpo Billboard */}
+          <div className="p-6 sm:p-7 space-y-4">
+            {/* Título Principal */}
             {title && (
-              <h2 className={`font-black text-lg sm:text-xl leading-snug tracking-tight ${styles.title}`}>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-snug drop-shadow">
                 {title}
               </h2>
             )}
+
+            {/* Contenido formateado en tarjeta de lectura */}
             {text && (
-              <p className="text-xs sm:text-sm leading-relaxed opacity-90 font-medium whitespace-pre-line">
-                {text}
-              </p>
+              <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-4 sm:p-5 text-slate-200 text-xs sm:text-sm leading-relaxed font-medium">
+                {isBulletList ? (
+                  <ul className="space-y-2">
+                    {lines.map((line, idx) => {
+                      const clean = line.replace(/^[-•*]\s*/, '');
+                      return (
+                        <li key={idx} className="flex items-start gap-2.5">
+                          <span className="text-[var(--color-primary)] font-black text-sm mt-0.5">✦</span>
+                          <span>{clean}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="whitespace-pre-line leading-relaxed">
+                    {text}
+                  </p>
+                )}
+              </div>
             )}
-          </div>
 
-          {/* Footer de Acciones */}
-          <div className="flex items-center gap-3 pt-2">
-            {link && (
-              <a
-                href={link}
-                target={link.startsWith('http') ? '_blank' : '_self'}
-                rel="noopener noreferrer"
+            {/* Acciones principales */}
+            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {link && (
+                <a
+                  href={link}
+                  target={link.startsWith('http') ? '_blank' : '_self'}
+                  rel="noopener noreferrer"
+                  onClick={handleClose}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-[var(--color-primary)] hover:brightness-110 text-[var(--color-primary-foreground)] font-black text-sm shadow-xl shadow-[var(--color-primary)]/25 transition-all active:scale-95"
+                >
+                  <span>{linkText || 'Ver más'}</span>
+                  {link.startsWith('http') ? <ExternalLink className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                </a>
+              )}
+
+              <button
+                type="button"
                 onClick={handleClose}
-                className={`flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all active:scale-95 ${styles.button}`}
+                className="inline-flex items-center justify-center px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 text-slate-200 border border-white/15 font-bold text-xs sm:text-sm transition-all active:scale-95"
               >
-                <span>{linkText || 'Ver más'}</span>
-                {link.startsWith('http') ? <ExternalLink className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
-              </a>
-            )}
-
-            <button
-              type="button"
-              onClick={handleClose}
-              className={`inline-flex items-center justify-center px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold border border-white/10 hover:bg-white/10 text-slate-300 transition-all active:scale-95 ${!link ? 'w-full' : ''}`}
-            >
-              Cerrar {autoClose && timeLeft > 0 && !isPaused ? `(${timeLeft}s)` : ''}
-            </button>
+                Continuar a turnos {autoClose && timeLeft > 0 && !isPaused ? `(${timeLeft}s)` : ''}
+              </button>
+            </div>
           </div>
 
-          {/* Barra de progreso de cierre automático en el borde inferior */}
+          {/* Barra de progreso de cierre */}
           {autoClose && (
-            <div className="absolute bottom-0 inset-x-0 h-1.5 bg-white/10 overflow-hidden rounded-b-[2.2rem]">
+            <div className="w-full h-1 bg-white/10 overflow-hidden">
               <div 
-                className={`h-full transition-all duration-1000 ease-linear ${styles.progress}`}
+                className="h-full bg-[var(--color-primary)] transition-all duration-1000 ease-linear shadow-[0_0_10px_var(--color-primary)]"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -295,13 +306,13 @@ export default function ClubAnnouncementBoard({
   return (
     <aside 
       aria-label="Tablón de anuncios del club" 
-      className={`relative rounded-2xl md:rounded-3xl border p-4 sm:p-5 transition-all duration-300 animate-in fade-in slide-in-from-top-3 ${styles.wrapper} ${className}`}
+      className={`relative rounded-3xl border p-5 bg-slate-900/95 text-white shadow-xl ${cat.accentBorder} ${className}`}
     >
       {!isSimulator && (
         <button
           type="button"
           onClick={handleClose}
-          className={`absolute top-3 right-3 p-1 rounded-full transition-colors ${styles.close}`}
+          className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:text-white"
           aria-label="Cerrar anuncio"
         >
           <X className="w-4 h-4" />
@@ -309,35 +320,32 @@ export default function ClubAnnouncementBoard({
       )}
 
       <div className="flex items-center gap-2 mb-2 pr-6">
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider ${styles.badge}`}>
-          {getBadgeIcon()}
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider ${cat.badgeBg}`}>
+          {cat.icon}
           <span>{badge || 'COMUNICADO'}</span>
         </span>
       </div>
 
-      <div className="space-y-1.5">
-        {title && (
-          <h3 className={`font-black text-sm sm:text-base leading-tight ${styles.title}`}>
-            {title}
-          </h3>
-        )}
-        {text && (
-          <p className="text-xs sm:text-sm opacity-90 leading-relaxed font-medium whitespace-pre-line">
-            {text}
-          </p>
-        )}
+      {title && (
+        <h3 className="font-black text-base leading-tight text-white mb-2">
+          {title}
+        </h3>
+      )}
+
+      <div className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
+        <p className="whitespace-pre-line">{text}</p>
       </div>
 
       {link && (
-        <div className="pt-3 flex items-center justify-start">
+        <div className="pt-3">
           <a
             href={link}
             target={link.startsWith('http') ? '_blank' : '_self'}
             rel="noopener noreferrer"
-            className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${styles.button}`}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-bold"
           >
             <span>{linkText || 'Ver más'}</span>
-            {link.startsWith('http') ? <ExternalLink className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
+            <ChevronRight className="w-3.5 h-3.5" />
           </a>
         </div>
       )}
