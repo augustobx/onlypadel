@@ -56,15 +56,46 @@ export async function getPosProducts(): Promise<{ success: boolean; data: PosPro
       where: { key: 'pos_products' }
     });
 
-    if (!setting || !setting.value) {
-      return { success: true, data: DEFAULT_PRODUCTS };
+    if (!setting || setting.value === undefined || setting.value === null) {
+      return { success: true, data: [] };
     }
 
-    const parsed = JSON.parse(setting.value) as PosProduct[];
-    return { success: true, data: Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_PRODUCTS };
+    try {
+      const parsed = JSON.parse(setting.value);
+      return { success: true, data: Array.isArray(parsed) ? parsed : [] };
+    } catch {
+      return { success: true, data: [] };
+    }
   } catch (err: any) {
     console.error('Error fetching POS products:', err);
-    return { success: false, data: DEFAULT_PRODUCTS };
+    return { success: false, data: [] };
+  }
+}
+
+/**
+ * Elimina todos los productos de la cantina
+ */
+export async function clearAllPosProducts(): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requireAdmin();
+    const existing = await prisma.setting.findFirst({ where: { key: 'pos_products' } });
+    if (existing) {
+      await prisma.setting.update({
+        where: { id: existing.id },
+        data: { value: '[]' }
+      });
+    } else {
+      await prisma.setting.create({
+        data: {
+          key: 'pos_products',
+          value: '[]'
+        }
+      });
+    }
+    revalidatePath('/admin/cantina');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }
 

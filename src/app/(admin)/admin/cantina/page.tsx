@@ -336,8 +336,26 @@ export default function CantinaPage() {
               <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
             </div>
           ) : filteredProducts.length === 0 ? (
-            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-              <p className="text-slate-500 font-bold text-sm">No encontramos productos en esta categoría.</p>
+            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 space-y-3">
+              <span className="text-3xl block">🏷️</span>
+              <p className="text-slate-700 dark:text-slate-200 font-bold text-sm">
+                {products.length === 0 ? 'La cantina no tiene productos cargados todavía.' : 'No encontramos productos en esta categoría.'}
+              </p>
+              <p className="text-xs text-slate-400">
+                {products.length === 0 ? 'Creá los productos reales del club para comenzar a registrar consumos y fiados.' : 'Probá buscando con otro término.'}
+              </p>
+              {products.length === 0 && (
+                <Button
+                  onClick={() => {
+                    setEditingProduct(null);
+                    setProductForm({ name: '', category: 'BEBIDAS', price: 0, icon: '🥤' });
+                    setProductModalOpen(true);
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" /> Cargar Primer Producto
+                </Button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
