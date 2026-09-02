@@ -156,6 +156,13 @@ export async function getAdminCalendarData(courtId: string, dateStr: string) {
             results.push({ court, businessHour, slots });
         }
 
+        return { success: true, data: results };
+    } catch (error) {
+        console.error("Error fetching admin calendar data:", error);
+        return { success: false, error: 'Error al cargar el calendario.' };
+    }
+}
+
 // Obtener datos de la semana completa (7 días) para vista semanal interactiva
 export async function getAdminCalendarWeekData(courtId: string, weekStartStr: string) {
     try {
