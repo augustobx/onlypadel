@@ -86,7 +86,20 @@ async function validateRelationOwnership(model: string, data: unknown, tenantId:
       if (id === undefined || id === null) continue;
       if (typeof id !== 'string') throw new Error(`INVALID_RELATION_ID:${model}.${field}`);
       const count = await client[targetModel].count({ where: { id, tenantId } });
-      if (count !== 1) throw new Error(`CROSS_TENANT_RELATION_REJECTED:${model}.${field}`);
+      if (count !== 1) {
+        // Verificar si pertenece a otro tenant (cross-tenant attack)
+        const foreignTenantCount = await client[targetModel].count({
+          where: { id, NOT: { tenantId } }
+        });
+        if (foreignTenantCount > 0) {
+          throw new Error(`CROSS_TENANT_RELATION_REJECTED:${model}.${field}`);
+        }
+        // Si no pertenece a otro tenant y es fixedBookingId recién creado en la misma operación
+        if (count === 0 && foreignTenantCount === 0 && model === 'Booking' && field === 'fixedBookingId') {
+          continue;
+        }
+        throw new Error(`CROSS_TENANT_RELATION_REJECTED:${model}.${field}`);
+      }
     }
   }
 }

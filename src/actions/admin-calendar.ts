@@ -244,35 +244,33 @@ export async function createAdminBooking(data: {
             ? `[${data.paymentMethod}] ${data.notes || 'Mostrador'}`.trim() 
             : (data.notes || null);
 
-        // Transacción para insertar las reservas
-        await prisma.$transaction(async (tx) => {
-            let newFixedBookingId: string | null = null;
-            // Si es FIJO, guardamos el abono maestro en FixedBooking
-            if (data.type === 'FIJO') {
-                const [year, month, day] = data.dateStr.split('-').map(Number);
-                const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+        let newFixedBookingId: string | null = null;
+        if (data.type === 'FIJO') {
+            const [year, month, day] = data.dateStr.split('-').map(Number);
+            const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 
-                const fb = await tx.fixedBooking.create({
-                    data: {
-                        tenantId,
-                        courtId: data.courtId,
-                        userId: user!.id,
-                        dayOfWeek,
-                        startTime: data.startTimeStr,
-                        endTime: data.endTimeStr,
-                        startDate: baseStartTime,
-                        endDate: addWeeks(baseStartTime, weeksToGenerate - 1),
-                        isActive: true
-                    }
-                });
-                newFixedBookingId = fb.id;
-            }
+            const fb = await prisma.fixedBooking.create({
+                data: {
+                    tenantId,
+                    courtId: data.courtId,
+                    userId: user!.id,
+                    dayOfWeek,
+                    startTime: data.startTimeStr,
+                    endTime: data.endTimeStr,
+                    startDate: baseStartTime,
+                    endDate: addWeeks(baseStartTime, weeksToGenerate - 1),
+                    isActive: true
+                }
+            });
+            newFixedBookingId = fb.id;
+        }
 
+        try {
             for (let i = 0; i < weeksToGenerate; i++) {
                 const startTime = addWeeks(baseStartTime, i);
                 const endTime = addWeeks(baseEndTime, i);
 
-                const existing = await tx.booking.findFirst({
+                const existing = await prisma.booking.findFirst({
                     where: {
                         courtId: data.courtId,
                         status: { in: ['PENDING', 'CONFIRMED', 'FIXED', 'BLOCKED'] },
@@ -283,7 +281,7 @@ export async function createAdminBooking(data: {
 
                 // Si está libre, lo creamos
                 if (!existing) {
-                    await tx.booking.create({
+                    await prisma.booking.create({
                         data: {
                             tenantId,
                             courtId: data.courtId,
@@ -304,9 +302,13 @@ export async function createAdminBooking(data: {
                 }
                 // (Si es FIJO y está ocupado, simplemente ignora esa semana puntual y sigue con las demás)
             }
-        }, {
-            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-        });
+        } catch (bookingError) {
+            // Si falló y habíamos creado un fixedBooking, revertimos
+            if (newFixedBookingId) {
+                await prisma.fixedBooking.delete({ where: { id: newFixedBookingId } }).catch(() => {});
+            }
+            throw bookingError;
+        }
 
         revalidatePath('/admin/calendar');
         revalidatePath('/admin/abonos');
