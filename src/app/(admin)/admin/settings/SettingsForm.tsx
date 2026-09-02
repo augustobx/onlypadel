@@ -29,6 +29,7 @@ export type ExtendedSettings = SystemSetting & {
   announcementVariant?: string;
   announcementDuration?: number;
   announcementAutoClose?: boolean;
+  currentAccountEnabled?: boolean;
 };
 
 const THEMES = [

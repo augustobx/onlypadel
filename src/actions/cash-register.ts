@@ -35,6 +35,7 @@ export interface CashRegisterReport {
     cashTotal: number;
     transferTotal: number;
     mercadoPagoTotal: number;
+    cuentaCorrienteTotal?: number;
     list: PosSale[];
   };
   expensesBreakdown: {
