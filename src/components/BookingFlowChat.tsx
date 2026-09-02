@@ -357,30 +357,7 @@ export default function BookingFlowChat({
         });
       } else {
         clearBookingRequestKey();
-        const clubContactPhone = sysSettings?.contactPhone || sysSettings?.courtPhone || sysSettings?.apiPhone || '';
-        const digitsOnly = clubContactPhone.replace(/\D/g, '');
-        const cleanClubPhone = digitsOnly.startsWith('54') ? digitsOnly : (digitsOnly ? `549${digitsOnly}` : '');
-        const courtName = courts.find((court) => court.id === selectedCourt)?.name || 'Cancha';
-        const waMsg = `¡Hola! Acabo de registrar mi turno en ${clubName} ${sportEmoji}:\n\n` +
-          `👤 *Jugador:* ${formData.name}\n` +
-          `📞 *Teléfono:* ${formData.phone}\n` +
-          `📍 *Cancha:* ${courtName}\n` +
-          `📅 *Fecha:* ${selectedDate}\n` +
-          `🕐 *Horario:* ${selectedSlot} hs\n` +
-          `✅ *Estado:* Confirmado\n\n` +
-          `¿Me confirman la recepción? ¡Muchas gracias!`;
-        const waUrl = cleanClubPhone ? `https://wa.me/${cleanClubPhone}?text=${encodeURIComponent(waMsg)}` : '';
-
-        addBotMessage({ 
-          text: `¡Listo! Tu turno quedó confirmado.${waUrl ? ' Te redirigimos al WhatsApp del club para enviar el comprobante.' : ''}`, 
-          kind: 'success' 
-        });
-
-        if (waUrl) {
-          setTimeout(() => {
-            window.location.href = waUrl;
-          }, 1500);
-        }
+        addBotMessage({ text: '¡Listo! Tu turno quedó confirmado.', kind: 'success' });
       }
       addBotMessage({ kind: 'menu' });
     } catch {

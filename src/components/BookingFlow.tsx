@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard, MessageSquare } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard } from 'lucide-react';
 import { getAvailableSlots } from '@/actions/public-bookings';
 import { createBooking } from '@/actions/bookings';
 import { createPaymentPreference } from '@/actions/payments';
@@ -108,10 +108,23 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     phone: session?.phone || '' 
   });
   const [paymentFeedback, setPaymentFeedback] = useState<'approved' | 'rejected' | 'pending' | null>(null);
+  const [confirmedDetails, setConfirmedDetails] = useState<{
+    courtName: string;
+    dateFormatted: string;
+    slotTime: string;
+    playerName: string;
+  } | null>(null);
 
   // Escuchar retornos de Mercado Pago (?status=success, etc.)
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    try {
+      const savedConfirmed = window.sessionStorage.getItem('last_confirmed_booking');
+      if (savedConfirmed) {
+        setConfirmedDetails(JSON.parse(savedConfirmed));
+      }
+    } catch {}
+
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status') || params.get('collection_status');
     if (status === 'success' || status === 'approved') {
@@ -215,7 +228,9 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
           if (!active) return;
           setSlots(res.success && res.data ? res.data as SlotData[] : []);
           if (!res.success) setError(res.error || 'No pudimos consultar los horarios.');
-          setSelectedSlot((current) => res.success && res.data?.some((slot) => slot.time === current && slot.status === 'AVAILABLE') ? current : '');
+          if (step !== 3) {
+            setSelectedSlot((current) => res.success && res.data?.some((slot) => slot.time === current && slot.status === 'AVAILABLE') ? current : '');
+          }
         })
         .catch(() => {
           if (active) {
@@ -226,26 +241,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
         .finally(() => { if (active) setSlotsLoading(false); });
       return () => { active = false; };
     }
-  }, [selectedCourt, selectedDate]);
-
-  // Generación de WhatsApp link directo al club
-  const clubContactPhone = sysSettings?.contactPhone || sysSettings?.courtPhone || sysSettings?.apiPhone || '';
-  const digitsOnly = clubContactPhone.replace(/\D/g, '');
-  const cleanClubPhone = digitsOnly.startsWith('54') ? digitsOnly : (digitsOnly ? `549${digitsOnly}` : '');
-  
-  const courtName = courts.find(c => c.id === selectedCourt)?.name || 'Cancha';
-  const dateFormatted = selectedDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-
-  const waMessage = `¡Hola! Acabo de registrar mi turno en ${clubName} ${sportEmoji}:\n\n` +
-    `👤 *Jugador:* ${formData.name || (session ? `${session.name || ''} ${session.lastName || ''}`.trim() : 'Cliente')}\n` +
-    `📞 *Teléfono:* ${formData.phone || session?.phone || ''}\n` +
-    `📍 *Cancha:* ${courtName}\n` +
-    `📅 *Fecha:* ${dateFormatted}\n` +
-    `🕐 *Horario:* ${selectedSlot || 'Confirmado'} hs\n` +
-    (clientRequireDeposit ? `💳 *Seña:* Abonada / En proceso\n\n` : `✅ *Estado:* Confirmado (Pago en club)\n\n`) +
-    `¿Me confirman la reserva? ¡Muchas gracias!`;
-
-  const waUrl = cleanClubPhone ? `https://wa.me/${cleanClubPhone}?text=${encodeURIComponent(waMessage)}` : '';
+  }, [selectedCourt, selectedDate, step]);
 
   const handleNextStep = () => {
     if (step === 1 && selectedCourt && selectedSlot) setStep(2);
@@ -260,6 +256,21 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
 
     try {
       const dateStr = formatLocalDateStr(selectedDate);
+      const chosenCourt = courts.find(c => c.id === selectedCourt)?.name || 'Cancha Principal';
+      const chosenDateFormatted = selectedDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+      const chosenSlot = selectedSlot;
+
+      // Guardar datos exactos para el resumen de éxito
+      const details = {
+        courtName: chosenCourt,
+        dateFormatted: chosenDateFormatted,
+        slotTime: chosenSlot,
+        playerName: formData.name.trim(),
+      };
+      setConfirmedDetails(details);
+      try {
+        window.sessionStorage.setItem('last_confirmed_booking', JSON.stringify(details));
+      } catch {}
 
       const bookingResult = await createBooking({
         courtId: selectedCourt,
@@ -296,13 +307,6 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
         clearBookingRequestKey();
         setStep(3);
         setSubmitting(false);
-
-        // Si hay teléfono de WhatsApp, redirigir automáticamente al chat con el comprobante armado
-        if (waUrl) {
-          setTimeout(() => {
-            window.location.href = waUrl;
-          }, 1200);
-        }
       }
     } catch (err) {
       console.error('Error en el flujo de reserva:', err);
@@ -590,8 +594,8 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
               {paymentFeedback === 'approved'
                 ? `Tu seña fue acreditada con éxito en Mercado Pago. Te esperamos en la cancha. ${sportEmoji}`
                 : clientRequireDeposit
-                ? `Tu turno queda confirmado una vez acreditada la seña. Te enviamos los detalles por WhatsApp. ${sportEmoji}`
-                : `¡Tu lugar está asegurado! Podés enviar tu comprobante directo al WhatsApp del club. ${sportEmoji}`}
+                ? `Tu turno queda confirmado una vez acreditada la seña. ${sportEmoji}`
+                : `¡Tu lugar está asegurado! Te esperamos en la cancha. ${sportEmoji}`}
             </p>
 
             {/* RESUMEN DEL TURNO EN PANTALLA DE ÉXITO */}
@@ -599,32 +603,34 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
               <p className="text-xs uppercase tracking-wider font-bold text-slate-400 mb-1">Detalles de tu turno</p>
               <div className="flex items-center text-slate-700 dark:text-slate-200">
                 <MapPin className="w-5 h-5 mr-3 text-[var(--color-primary)]" />
-                <span className="font-bold text-lg">{courtName}</span>
+                <span className="font-bold text-lg">
+                  {confirmedDetails?.courtName || courts.find(c => c.id === selectedCourt)?.name || 'Cancha Principal'}
+                </span>
               </div>
               <div className="flex items-center text-slate-700 dark:text-slate-200">
                 <CalendarIcon className="w-5 h-5 mr-3 text-[var(--color-primary)]" />
-                <span className="font-bold text-lg capitalize">{dateFormatted}</span>
+                <span className="font-bold text-lg capitalize">
+                  {confirmedDetails?.dateFormatted || selectedDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </span>
               </div>
               <div className="flex items-center text-slate-700 dark:text-slate-200">
                 <Clock className="w-5 h-5 mr-3 text-[var(--color-primary)]" />
-                <span className="font-bold text-lg">{selectedSlot} hs</span>
+                <span className="font-bold text-lg">
+                  {confirmedDetails?.slotTime || selectedSlot ? `${confirmedDetails?.slotTime || selectedSlot} hs` : 'Horario reservado'}
+                </span>
               </div>
             </div>
 
-            {/* BOTÓN DESTACADO DE WHATSAPP */}
-            {waUrl && (
-              <a 
-                href={waUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full max-w-sm flex items-center justify-center gap-2.5 bg-[#25D366] hover:bg-[#20ba59] text-white font-black text-base py-4 px-6 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all active:scale-95 mb-3"
-              >
-                <MessageSquare className="w-5 h-5 fill-current" />
-                <span>Abrir WhatsApp con mi Turno</span>
-              </a>
-            )}
-
-            <button onClick={() => window.location.reload()} className="font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 py-3.5 px-8 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors w-full max-w-sm text-sm">
+            <button 
+              onClick={() => {
+                try {
+                  window.sessionStorage.removeItem('last_confirmed_booking');
+                  window.sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+                } catch {}
+                window.location.href = '/';
+              }} 
+              className="font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 py-3.5 px-8 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors w-full max-w-sm text-sm"
+            >
               Volver al inicio
             </button>
           </div>
