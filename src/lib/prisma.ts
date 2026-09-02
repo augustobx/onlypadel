@@ -113,12 +113,58 @@ export const prisma = platformPrisma.$extends({
         const scopedTenantId = featureEnabled ? tenant.id : '__onlypadel_disabled_feature__';
         const mutableArgs = args as Record<string, unknown>;
 
+        const delegateName = model.charAt(0).toLowerCase() + model.slice(1);
+        const delegate = (platformPrisma as unknown as Record<string, any>)[delegateName];
+
+        if (operation === 'findUnique') {
+          return delegate.findFirst({
+            ...mutableArgs,
+            where: withTenantWhere(mutableArgs.where, scopedTenantId),
+          });
+        }
+        if (operation === 'findUniqueOrThrow') {
+          return delegate.findFirstOrThrow({
+            ...mutableArgs,
+            where: withTenantWhere(mutableArgs.where, scopedTenantId),
+          });
+        }
+
         if (readOperations.has(operation)) {
           mutableArgs.where = withTenantWhere(mutableArgs.where, scopedTenantId);
         } else if (operation === 'create' || operation === 'createMany') {
           await validateRelationOwnership(model, mutableArgs.data, tenant.id);
           mutableArgs.data = tenantData(mutableArgs.data, tenant.id);
-        } else if (filteredWriteOperations.has(operation)) {
+        } else if (operation === 'update') {
+          if ('data' in mutableArgs) {
+            validateNestedWrites(mutableArgs.data, tenant.id);
+            await validateRelationOwnership(model, mutableArgs.data, tenant.id);
+          }
+          const existing = await delegate.findFirst({
+            where: withTenantWhere(mutableArgs.where, tenant.id),
+            select: { id: true, tenantId: true },
+          });
+          if (!existing) {
+            throw new Error(`RECORD_NOT_FOUND_OR_ACCESS_DENIED:${model}`);
+          }
+          const whereKey = 'id' in existing && existing.id !== undefined ? { id: existing.id } : { tenantId: existing.tenantId };
+          return delegate.update({
+            ...mutableArgs,
+            where: whereKey,
+          });
+        } else if (operation === 'delete') {
+          const existing = await delegate.findFirst({
+            where: withTenantWhere(mutableArgs.where, tenant.id),
+            select: { id: true, tenantId: true },
+          });
+          if (!existing) {
+            throw new Error(`RECORD_NOT_FOUND_OR_ACCESS_DENIED:${model}`);
+          }
+          const whereKey = 'id' in existing && existing.id !== undefined ? { id: existing.id } : { tenantId: existing.tenantId };
+          return delegate.delete({
+            ...mutableArgs,
+            where: whereKey,
+          });
+        } else if (operation === 'updateMany' || operation === 'deleteMany') {
           mutableArgs.where = withTenantWhere(mutableArgs.where, tenant.id);
           if ('data' in mutableArgs) {
             validateNestedWrites(mutableArgs.data, tenant.id);

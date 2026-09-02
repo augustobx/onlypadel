@@ -134,16 +134,16 @@ export async function updateSystemSettings(formData: FormData) {
         ];
 
         for (const entry of customEntries) {
-            const existing = await prisma.setting.findFirst({ where: { key: entry.key } });
-            if (existing) {
-                await prisma.setting.update({ where: { id: existing.id }, data: { value: entry.value } });
-            } else {
+            const updated = await prisma.setting.updateMany({
+                where: { key: entry.key },
+                data: { value: entry.value },
+            });
+            if (updated.count === 0) {
                 await prisma.setting.create({
                     data: {
-                        id: `setting_${entry.key}_${Date.now()}`,
                         key: entry.key,
                         value: entry.value,
-                    }
+                    },
                 });
             }
         }
