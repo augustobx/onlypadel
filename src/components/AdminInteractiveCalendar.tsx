@@ -26,19 +26,20 @@ interface Court {
   id: string;
   name: string;
   isActive: boolean;
+  [key: string]: any;
 }
 
 interface SlotItem {
   time: string;
   endTime: string;
-  status: 'FREE' | 'CONFIRMED' | 'PENDING' | 'FIXED' | 'BLOCKED' | 'CANCELLED';
+  status: 'FREE' | 'CONFIRMED' | 'PENDING' | 'FIXED' | 'BLOCKED' | 'CANCELLED' | string;
   booking?: any;
 }
 
 interface CourtDayData {
-  court: Court;
+  court: Court | any;
   businessHour: any;
-  slots: SlotItem[];
+  slots: SlotItem[] | any[];
 }
 
 export default function AdminInteractiveCalendar({
