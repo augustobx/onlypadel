@@ -146,37 +146,44 @@
   
   /* Cyber Padel / Emerald Neon */
   .theme-cyber-padel, [data-theme="cyber-padel"] {
-    --background: #06090e;
+    --background: #050811;
     --foreground: #f1f5f9;
-    --card: #0b111a;
+    --card: #0b121e;
     --card-foreground: #f8fafc;
-    --border: rgba(16, 185, 129, 0.18);
-    --input: rgba(16, 185, 129, 0.15);
+    --border: rgba(16, 185, 129, 0.25);
+    --input: rgba(16, 185, 129, 0.2);
     --primary: #10b981;
     --primary-foreground: #022c22;
-    --secondary: #0ea5e9;
-    --secondary-foreground: #082f49;
-    --muted: #111b27;
+    --secondary: #00e5ff;
+    --secondary-foreground: #042f38;
+    --muted: #0e1726;
     --muted-foreground: #94a3b8;
     --color-primary: #10b981;
     --color-primary-foreground: #022c22;
     --color-secondary: #00e5ff;
-    --color-secondary-foreground: #082f49;
+    --color-secondary-foreground: #042f38;
+  }
+
+  .theme-cyber-padel .theme-hero-banner,
+  [data-theme="cyber-padel"] .theme-hero-banner {
+    background: linear-gradient(135deg, #071924 0%, #0a2920 50%, #040914 100%) !important;
+    box-shadow: 0 10px 30px -10px rgba(0, 229, 255, 0.25), 0 0 20px -5px rgba(16, 185, 129, 0.2) !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.3) !important;
   }
 
   /* Sunset Clay / Roland Padel */
   .theme-sunset-clay, [data-theme="sunset-clay"] {
-    --background: #140e0c;
+    --background: #120c0a;
     --foreground: #fff7ed;
-    --card: #1f1613;
+    --card: #1d1310;
     --card-foreground: #ffedd5;
-    --border: rgba(234, 88, 12, 0.2);
-    --input: rgba(234, 88, 12, 0.18);
+    --border: rgba(234, 88, 12, 0.28);
+    --input: rgba(234, 88, 12, 0.22);
     --primary: #ea580c;
-    --primary-foreground: #431407;
+    --primary-foreground: #ffffff;
     --secondary: #f59e0b;
     --secondary-foreground: #451a03;
-    --muted: #291d19;
+    --muted: #281a15;
     --muted-foreground: #fdba74;
     --color-primary: #ea580c;
     --color-primary-foreground: #ffffff;
@@ -184,24 +191,43 @@
     --color-secondary-foreground: #451a03;
   }
 
+  .theme-sunset-clay .theme-hero-banner,
+  [data-theme="sunset-clay"] .theme-hero-banner {
+    background: linear-gradient(135deg, #2e1208 0%, #431c0e 50%, #170d09 100%) !important;
+    box-shadow: 0 10px 30px -10px rgba(234, 88, 12, 0.3) !important;
+    border-bottom: 1px solid rgba(234, 88, 12, 0.35) !important;
+  }
+
   /* Ocean Frost / Nordic Midnight */
   .theme-ocean-frost, [data-theme="ocean-frost"] {
-    --background: #050d18;
+    --background: #030914;
     --foreground: #f0f9ff;
-    --card: #0b192b;
+    --card: #081426;
     --card-foreground: #e0f2fe;
-    --border: rgba(14, 165, 233, 0.2);
-    --input: rgba(14, 165, 233, 0.18);
+    --border: rgba(14, 165, 233, 0.28);
+    --input: rgba(14, 165, 233, 0.22);
     --primary: #0284c7;
-    --primary-foreground: #f0f9ff;
+    --primary-foreground: #ffffff;
     --secondary: #06b6d4;
     --secondary-foreground: #083344;
-    --muted: #10243d;
+    --muted: #0d213d;
     --muted-foreground: #7dd3fc;
     --color-primary: #0284c7;
     --color-primary-foreground: #ffffff;
     --color-secondary: #06b6d4;
     --color-secondary-foreground: #083344;
+  }
+
+  .theme-ocean-frost .theme-hero-banner,
+  [data-theme="ocean-frost"] .theme-hero-banner {
+    background: linear-gradient(135deg, #092647 0%, #0b345c 50%, #030914 100%) !important;
+    box-shadow: 0 10px 30px -10px rgba(14, 165, 233, 0.3) !important;
+    border-bottom: 1px solid rgba(14, 165, 233, 0.35) !important;
+  }
+
+  .theme-hero-banner {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   button, a, input, select, textarea {

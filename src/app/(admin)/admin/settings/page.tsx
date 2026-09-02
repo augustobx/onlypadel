@@ -23,9 +23,9 @@ export default async function SettingsPage() {
 
     const enrichedSettings = {
         ...settings,
-        clubLogo: customMap['club_logo'] || settings.splashLogo || '',
-        splashMode: (customMap['splash_mode'] as 'logo' | 'full_image') || (settings.heroImage ? 'full_image' : 'logo'),
-        splashFullImage: customMap['splash_full_image'] || settings.heroImage || '',
+        clubLogo: customMap['club_logo'] !== undefined ? customMap['club_logo'] : (settings.splashLogo || ''),
+        splashMode: (customMap['splash_mode'] === 'full_image' ? 'full_image' : 'logo') as 'logo' | 'full_image',
+        splashFullImage: customMap['splash_full_image'] !== undefined ? customMap['splash_full_image'] : (settings.heroImage || ''),
         mpAccessToken: '',
         whatsappPhoneId: '',
         whatsappToken: '',

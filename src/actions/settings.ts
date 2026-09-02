@@ -31,9 +31,9 @@ export async function getSettings() {
         });
         const customMap = Object.fromEntries(customSettings.map(s => [s.key, s.value]));
 
-        const clubLogo = customMap['club_logo'] || settings.splashLogo || '';
-        const splashMode = (customMap['splash_mode'] as 'logo' | 'full_image') || (settings.heroImage ? 'full_image' : 'logo');
-        const splashFullImage = customMap['splash_full_image'] || settings.heroImage || '';
+        const clubLogo = customMap['club_logo'] !== undefined ? customMap['club_logo'] : (settings.splashLogo || '');
+        const splashMode: 'logo' | 'full_image' = customMap['splash_mode'] === 'full_image' ? 'full_image' : 'logo';
+        const splashFullImage = customMap['splash_full_image'] !== undefined ? customMap['splash_full_image'] : (settings.heroImage || '');
 
         const [reservations, users, tournaments, rankings, playerCategories, whatsapp] = await Promise.all([
             hasTenantFeature('reservations'), hasTenantFeature('users'), hasTenantFeature('tournaments'),
@@ -99,16 +99,15 @@ export async function updateSystemSettings(formData: FormData) {
         const theme = ['light', 'dark', 'cyber-padel', 'sunset-clay', 'ocean-frost'].includes(rawTheme) ? rawTheme : 'light';
         
         const appLayout = formData.get("appLayout") === "chat" ? "chat" : "classic";
-        const heroImage = (formData.get("heroImage") as string) || "";
         const primaryColor = normalizeHexColor(formData.get("primaryColor") as string, "#10b981");
         const secondaryColor = normalizeHexColor(formData.get("secondaryColor") as string, "#0ea5e9");
 
-        const clubLogo = ((formData.get("clubLogo") as string) || (formData.get("splashLogo") as string) || "").trim();
+        const clubLogo = ((formData.get("clubLogo") as string) || "").trim();
         const splashLogo = clubLogo;
         const splashName = (formData.get("splashName") as string) || "";
-        const splashDuration = Number(formData.get("splashDuration")) || 3000;
+        const splashDuration = Number(formData.get("splashDuration")) || 1800;
         const splashMode = (formData.get("splashMode") as string) === 'full_image' ? 'full_image' : 'logo';
-        const splashFullImage = ((formData.get("splashFullImage") as string) || heroImage || "").trim();
+        const splashFullImage = splashMode === 'full_image' ? ((formData.get("splashFullImage") as string) || "").trim() : "";
 
         const bubbleText = (formData.get("bubbleText") as string) || "";
         const bubbleColor = normalizeHexColor(formData.get("bubbleColor") as string, "#10b981");
@@ -122,7 +121,7 @@ export async function updateSystemSettings(formData: FormData) {
                 usersModuleEnabled, requireDepositForRegistered, clientCancellations,
                 splashLogo, splashName, splashDuration,
                 bubbleActive, bubbleText, bubbleColor, bubbleDuration,
-                primaryColor, secondaryColor, heroImage: splashFullImage || heroImage || null
+                primaryColor, secondaryColor, heroImage: splashMode === 'full_image' ? (splashFullImage || null) : null
             },
         });
 

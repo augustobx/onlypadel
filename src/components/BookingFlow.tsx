@@ -259,6 +259,8 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     return () => window.removeEventListener('online', retry);
   }, []);
 
+  const clientRequireDeposit = sysSettings?.requireDeposit && !(session && sysSettings?.requireDepositForRegistered === false);
+
   // --- PANTALLA SPLASH DE INICIO ---
   if (showSplash) {
     if (hasSplashFullImage) {
@@ -293,12 +295,19 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     }
 
     return (
-      <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
+      <div className="fixed inset-0 z-[100] bg-[var(--background,#030712)] text-[var(--foreground,#f8fafc)] flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
         <div className="flex flex-col items-center animate-bounce">
           {hasSplashLogo ? (
-            <Image src={splashLogo} alt={splashName} width={128} height={128} unoptimized className="w-32 h-32 object-contain mb-6 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.3)] bg-slate-900/60 p-2 border border-slate-800" />
+            <Image 
+              src={splashLogo} 
+              alt={splashName} 
+              width={128} 
+              height={128} 
+              unoptimized 
+              className="w-28 h-28 md:w-32 md:h-32 object-contain mb-6 rounded-3xl shadow-[0_0_50px_var(--color-primary,rgba(16,185,129,0.3))] bg-white/5 p-2 border border-[var(--border,rgba(255,255,255,0.1))]" 
+            />
           ) : (
-            <div className="w-24 h-24 bg-[var(--color-primary)] rounded-3xl flex items-center justify-center font-black text-[var(--color-primary-foreground)] text-5xl mb-6 shadow-[0_0_50px_rgba(16,185,129,0.3)]">
+            <div className="w-24 h-24 bg-[var(--color-primary)] rounded-3xl flex items-center justify-center font-black text-[var(--color-primary-foreground)] text-5xl mb-6 shadow-[0_0_50px_var(--color-primary,rgba(16,185,129,0.4))]">
               {sportEmoji}
             </div>
           )}
@@ -315,12 +324,12 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
   return (
     <div className="w-full flex-1 flex flex-col relative bg-transparent">
 
-      {/* HEADER HERO RENOVADO */}
-      <div className="bg-slate-900 dark:bg-black px-6 py-10 text-center relative z-10 rounded-b-[2.5rem] shadow-md">
+      {/* HEADER HERO RENOVADO CON SOPORTE DE TEMAS ÉPICOS */}
+      <div className="theme-hero-banner px-6 py-10 text-center relative z-10 rounded-b-[2.5rem] shadow-md border-b border-[var(--border,rgba(255,255,255,0.1))]">
         <h2 className="text-3xl font-black tracking-tight text-white mb-2">
           Reservá tu Cancha {sportEmoji}
         </h2>
-        <p className="text-slate-400 text-sm font-medium">
+        <p className="text-slate-300 text-sm font-medium opacity-90">
           Elegí día, horario y preparate para jugar.
         </p>
       </div>
@@ -332,7 +341,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
             const number = index + 1;
             const active = step === number;
             const complete = step > number;
-            return <li key={label} className={`flex min-w-0 flex-col items-center gap-1 text-center text-[10px] font-black uppercase tracking-wide ${active ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}><span className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs ${active || complete ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-primary-foreground)]' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>{complete ? '✓' : number}</span><span className="truncate">{label}</span></li>;
+            return <li key={label} className={`flex min-w-0 flex-col items-center gap-1 text-center text-[10px] font-black uppercase tracking-wide ${active ? 'text-[var(--foreground,#0f172a)] font-extrabold' : 'text-slate-400'}`}><span className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs ${active || complete ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-sm' : 'border-[var(--border)] bg-[var(--card)] text-slate-400'}`}>{complete ? '✓' : number}</span><span className="truncate">{label}</span></li>;
           })}
         </ol>
 
@@ -342,7 +351,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
 
             {/* Fechas */}
             <div className="space-y-3">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center">
+              <label className="text-sm font-bold text-[var(--foreground)] flex items-center">
                 <CalendarIcon className="w-4 h-4 mr-2 text-[var(--color-primary)]" /> ¿Qué día jugás?
               </label>
               <div className="flex space-x-3 overflow-x-auto pb-2 snap-x hide-scrollbar">
@@ -357,8 +366,8 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                         if (selectedCourt) setSlotsLoading(true);
                       }}
                       className={`flex-shrink-0 w-16 p-3 rounded-2xl flex flex-col items-center justify-center transition-all snap-start shadow-sm border ${isSelected
-                        ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)] ring-4 ring-[var(--color-primary)]/20'
-                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                        ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)] ring-4 ring-[var(--color-primary)]/20 font-black scale-105 z-10'
+                        : 'bg-[var(--card)] text-[var(--foreground)] border-[var(--border)] hover:border-[var(--color-primary)]/60'
                         }`}
                     >
                       <span className="text-[10px] uppercase font-bold opacity-80 mb-1">
@@ -375,7 +384,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
 
             {/* Canchas */}
             <div className="space-y-3">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center">
+              <label className="text-sm font-bold text-[var(--foreground)] flex items-center">
                 <MapPin className="w-4 h-4 mr-2 text-[var(--color-primary)]" /> Elegí tu cancha
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -390,7 +399,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                     }}
                     className={`p-4 rounded-2xl text-left transition-all border shadow-sm flex flex-col active:scale-[0.98] ${selectedCourt === court.id
                       ? 'bg-[var(--color-primary)] border-[var(--color-primary)] ring-2 ring-[var(--color-primary)] text-[var(--color-primary-foreground)] transform scale-[1.02]'
-                      : 'bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700 hover:border-[var(--color-primary)]'
+                      : 'bg-[var(--card)] text-[var(--card-foreground)] border-[var(--border)] hover:border-[var(--color-primary)]/60'
                       }`}
                   >
                     <span className="font-bold text-base">{court.name}</span>
@@ -399,10 +408,10 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                 ))}
               </div>
               {courts.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)]/50 p-6 text-center">
                   <MapPin className="mx-auto h-8 w-8 text-slate-400" />
-                  <p className="mt-2 text-sm font-black text-slate-700 dark:text-slate-200">No hay canchas disponibles</p>
-                  <p className="mt-1 text-xs font-medium text-slate-500">Comunicate con el club para consultar horarios.</p>
+                  <p className="mt-2 text-sm font-black text-[var(--foreground)]">No hay canchas disponibles</p>
+                  <p className="mt-1 text-xs font-medium text-slate-400">Comunicate con el club para consultar horarios.</p>
                 </div>
               )}
             </div>
@@ -410,11 +419,11 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
             {/* Horarios FOMO (Grilla Visual de Ocupación) */}
             {selectedCourt && (
               <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500" ref={slotsRef}>
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <label className="text-sm font-bold text-[var(--foreground)] flex items-center justify-between">
                   <div className="flex items-center"><Clock className="w-4 h-4 mr-2 text-[var(--color-primary)]" /> Horarios</div>
                   <div className="flex items-center space-x-2 text-[10px] font-bold text-slate-400 uppercase">
                     <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-[var(--color-primary)] mr-1"></span>Libre</span>
-                    <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-slate-300 mr-1"></span>Ocupado</span>
+                    <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-slate-400 mr-1"></span>Ocupado</span>
                   </div>
                 </label>
 
@@ -434,9 +443,9 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                           className={`relative p-3.5 rounded-2xl text-center font-bold text-sm transition-all border overflow-hidden flex flex-col items-center justify-center active:scale-[0.98]
                             ${isAvailable
                               ? isSelected
-                                ? 'bg-slate-900 text-white border-slate-900 ring-4 ring-slate-900/20 shadow-md transform scale-[1.02]'
-                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 shadow-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'
-                              : 'bg-slate-50 dark:bg-slate-800/40 text-slate-400 border-slate-100 dark:border-slate-800 cursor-not-allowed'
+                                ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)] ring-4 ring-[var(--color-primary)]/20 shadow-lg shadow-[var(--color-primary)]/30 transform scale-[1.02]'
+                                : 'bg-[var(--card)] text-[var(--card-foreground)] border-[var(--border)] shadow-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'
+                              : 'bg-[var(--card)]/40 text-slate-500 border-[var(--border)]/40 cursor-not-allowed opacity-50'
                             }
                           `}
                         >
@@ -447,7 +456,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                                 slot.status === 'BLOCKED' ? 'Cancha Cerrada' : 'Ocupado'}
                           </span>
                           {!isAvailable && (
-                            <Lock className="absolute -right-2 -bottom-2 w-10 h-10 text-slate-200 dark:text-slate-700 opacity-50" />
+                            <Lock className="absolute -right-2 -bottom-2 w-10 h-10 text-slate-400/30 opacity-50" />
                           )}
                         </button>
                       );

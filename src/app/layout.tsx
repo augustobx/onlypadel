@@ -21,18 +21,35 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
 };
 
-export default function RootLayout({
+import { prisma } from '@/lib/prisma';
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  let themeClass = '';
+  let themeName = 'light';
+  try {
+    const settings = await prisma.systemSetting.findFirst({ where: { id: 1 }, select: { theme: true } });
+    if (settings?.theme) {
+      themeName = settings.theme;
+      if (['cyber-padel', 'sunset-clay', 'ocean-frost'].includes(settings.theme)) {
+        themeClass = `dark theme-${settings.theme}`;
+      } else if (settings.theme === 'dark') {
+        themeClass = 'dark';
+      }
+    }
+  } catch {}
+
   return (
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      data-theme={themeName}
+      className={`${geistSans.variable} ${geistMono.variable} ${themeClass} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-[var(--background,#f8fafc)] text-[var(--foreground,#0f172a)]">
         <ConnectivityStatus />
         {children}
       </body>

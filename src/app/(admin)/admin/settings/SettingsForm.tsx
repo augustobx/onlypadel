@@ -401,7 +401,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                 <Label htmlFor="clubLogo" className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                   Logo Oficial del Club (URL o ruta de imagen)
                                 </Label>
-                                <div className="flex gap-3">
+                                <div className="flex gap-2">
                                   <Input 
                                     id="clubLogo" 
                                     name="clubLogo" 
@@ -411,13 +411,22 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                     className="rounded-xl flex-1"
                                   />
                                   {logoPreview && (
-                                    <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border flex items-center justify-center shrink-0">
-                                      <Image src={logoPreview} alt="Preview" width={32} height={32} unoptimized className="max-w-full max-h-full object-contain" />
-                                    </div>
+                                    <>
+                                      <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border flex items-center justify-center shrink-0">
+                                        <Image src={logoPreview} alt="Preview" width={32} height={32} unoptimized className="max-w-full max-h-full object-contain" />
+                                      </div>
+                                      <button 
+                                        type="button" 
+                                        onClick={() => setLogoPreview('')}
+                                        className="px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-500/10 rounded-xl border border-rose-500/20"
+                                      >
+                                        Quitar
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                                 <p className="text-[11px] text-slate-400">
-                                  Se mostrará en la barra superior pública, en el sidebar admin y en la pantalla splash.
+                                  Se mostrará en la barra superior pública, en el sidebar admin y en la pantalla splash (si está vacío, se usará el emoji {sportEmojiPreview}).
                                 </p>
                             </div>
 
@@ -427,6 +436,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                   Modo de Pantalla Splash
                                 </Label>
                                 <input type="hidden" name="splashMode" value={selectedSplashMode} />
+                                <input type="hidden" name="splashFullImage" value={selectedSplashMode === 'full_image' ? splashImagePreview : ''} />
                                 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   {/* Opción 1: Logo Centrado */}
@@ -443,7 +453,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                       {selectedSplashMode === 'logo' && <CheckCircle2 className="w-4 h-4 text-[var(--color-primary)]" />}
                                     </div>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                      Muestra el logo centrado, nombre de la plataforma y saludo del club sobre fondo oscuro elegante.
+                                      Muestra el logo centrado (o ícono del deporte), nombre del club y saludo sobre fondo oscuro estilizado según el tema.
                                     </p>
                                   </div>
 
@@ -461,33 +471,72 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                       {selectedSplashMode === 'full_image' && <CheckCircle2 className="w-4 h-4 text-[var(--color-primary)]" />}
                                     </div>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                      Foto en pantalla completa (flyer, foto de las canchas) como splash screen de impacto.
+                                      Foto en pantalla completa (flyer, foto de las canchas) con degradado oscuro inferior de impacto.
                                     </p>
                                   </div>
                                 </div>
                             </div>
 
-                            {/* Campo de Imagen Completa */}
+                            {/* Campo de Imagen Completa (Solo en Modo Full Image) */}
                             {selectedSplashMode === 'full_image' && (
                               <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 animate-in fade-in">
-                                  <Label htmlFor="splashFullImage" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                  <Label htmlFor="splashFullImageInput" className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                     URL de la Imagen Completa de Splash (Full Cover)
                                   </Label>
-                                  <Input 
-                                    id="splashFullImage" 
-                                    name="splashFullImage" 
-                                    value={splashImagePreview} 
-                                    onChange={(e) => setSplashImagePreview(e.target.value)}
-                                    placeholder="https://ejemplo.com/flyer-padel.jpg" 
-                                    className="rounded-xl"
-                                  />
+                                  <div className="flex gap-2">
+                                    <Input 
+                                      id="splashFullImageInput" 
+                                      value={splashImagePreview} 
+                                      onChange={(e) => setSplashImagePreview(e.target.value)}
+                                      placeholder="https://ejemplo.com/flyer-padel.jpg" 
+                                      className="rounded-xl flex-1"
+                                    />
+                                    {splashImagePreview && (
+                                      <button 
+                                        type="button" 
+                                        onClick={() => setSplashImagePreview('')}
+                                        className="px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-500/10 rounded-xl border border-rose-500/20"
+                                      >
+                                        Quitar
+                                      </button>
+                                    )}
+                                  </div>
                                   {splashImagePreview && (
-                                    <div className="h-32 w-full rounded-xl overflow-hidden relative border mt-2">
+                                    <div className="h-36 w-full rounded-xl overflow-hidden relative border mt-2">
                                       <Image src={splashImagePreview} alt="Splash Preview" fill unoptimized className="object-cover" />
                                     </div>
                                   )}
                               </div>
                             )}
+
+                            {/* Simulador Visual de Splash */}
+                            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 text-white flex flex-col items-center justify-center min-h-[160px] relative overflow-hidden">
+                              <span className="absolute top-2 left-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Vista Previa del Splash: {selectedSplashMode === 'full_image' ? 'Portada Completa' : 'Logo / Ícono Animado'}
+                              </span>
+                              {selectedSplashMode === 'full_image' && splashImagePreview ? (
+                                <div className="absolute inset-0">
+                                  <Image src={splashImagePreview} alt="Preview" fill unoptimized className="object-cover opacity-60" />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-black/20" />
+                                  <div className="absolute bottom-3 inset-x-0 text-center">
+                                    <p className="text-xs font-black text-white">{clubNamePreview}</p>
+                                    <p className="text-[10px] text-emerald-400 font-bold">Cargando OnlyPadel...</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center justify-center pt-4">
+                                  {logoPreview ? (
+                                    <Image src={logoPreview} alt="Logo" width={48} height={48} unoptimized className="w-12 h-12 object-contain mb-2 rounded-xl bg-white/10 p-1" />
+                                  ) : (
+                                    <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-2xl mb-2 font-bold text-slate-950">
+                                      {sportEmojiPreview}
+                                    </div>
+                                  )}
+                                  <p className="text-sm font-black text-white">{clubNamePreview}</p>
+                                  <p className="text-[10px] text-slate-400 tracking-wider uppercase font-semibold">¡Bienvenidos al Club!</p>
+                                </div>
+                              )}
+                            </div>
 
                             {/* Parámetros del Splash */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">

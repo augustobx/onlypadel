@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { getPublicCourts } from "@/actions/public-bookings";
 import { getSettings } from "@/actions/settings";
 import { getPublicTournaments } from "@/actions/public-tournaments";
@@ -60,8 +62,20 @@ export default async function HomePage() {
         timeZone: 'America/Argentina/Buenos_Aires',
         year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date());
-    const primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');
-    const secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
+
+    let primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');
+    let secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
+
+    if (theme === 'cyber-padel') {
+        primaryColor = '#10b981';
+        secondaryColor = '#00e5ff';
+    } else if (theme === 'sunset-clay') {
+        primaryColor = '#ea580c';
+        secondaryColor = '#f59e0b';
+    } else if (theme === 'ocean-frost') {
+        primaryColor = '#0284c7';
+        secondaryColor = '#06b6d4';
+    }
 
     if (usersModuleEnabled) {
         const cookieStore = await cookies();
@@ -69,7 +83,11 @@ export default async function HomePage() {
         const hasSkipped = cookieStore.get("onlypadel_skip_registration");
 
         if (!hasSession && !hasSkipped) {
-            return <UserWelcomeSplash />;
+            return (
+                <div data-theme={theme} className={themeClass}>
+                    <UserWelcomeSplash />
+                </div>
+            );
         }
     }
 
@@ -103,7 +121,8 @@ export default async function HomePage() {
 
     return (
         <div 
-            className={`${themeClass} min-h-dvh bg-slate-50 dark:bg-slate-950 flex flex-col md:h-dvh md:items-center md:overflow-hidden md:py-8`}
+            data-theme={theme}
+            className={`${themeClass} min-h-dvh bg-[var(--background,#f8fafc)] text-[var(--foreground,#0f172a)] flex flex-col md:h-dvh md:items-center md:overflow-hidden md:py-8 transition-colors duration-300`}
             style={{ 
                 '--color-primary': primaryColor,
                 '--color-primary-foreground': getReadableForeground(primaryColor),
@@ -111,7 +130,7 @@ export default async function HomePage() {
                 '--color-secondary-foreground': getReadableForeground(secondaryColor),
             } as React.CSSProperties}
         >
-            <div className="relative flex min-h-dvh w-full max-w-md flex-col overflow-hidden bg-white dark:bg-slate-900 md:h-[calc(100dvh-4rem)] md:max-h-[820px] md:min-h-0 md:rounded-[2.5rem] md:border md:border-slate-200 md:shadow-2xl dark:border-slate-800">
+            <div className="relative flex min-h-dvh w-full max-w-md flex-col overflow-hidden bg-[var(--card,#ffffff)] text-[var(--card-foreground,#0f172a)] md:h-[calc(100dvh-4rem)] md:max-h-[820px] md:min-h-0 md:rounded-[2.5rem] md:border md:border-[var(--border,#e2e8f0)] md:shadow-2xl transition-colors duration-300">
                 <PublicNavbar sysSettings={settings} />
                 {settings?.tournamentsEnabled && activeTournament && (
                   <div className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-4 py-2 text-white shadow-sm z-30 shrink-0 border-b border-amber-600/30">
