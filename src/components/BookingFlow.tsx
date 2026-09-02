@@ -20,6 +20,8 @@ interface CourtOption {
   surface?: string | null;
 }
 
+import ClubAnnouncementBoard from '@/components/ClubAnnouncementBoard';
+
 interface PublicSettings {
   splashDuration?: number;
   bubbleDuration?: number;
@@ -31,6 +33,13 @@ interface PublicSettings {
   bubbleActive?: boolean;
   bubbleText?: string | null;
   bubbleColor?: string | null;
+  announcementActive?: boolean;
+  announcementBadge?: string | null;
+  announcementTitle?: string | null;
+  announcementText?: string | null;
+  announcementLink?: string | null;
+  announcementLinkText?: string | null;
+  announcementVariant?: string | null;
   requireDeposit?: boolean;
   usersModuleEnabled?: boolean;
   requireDepositForRegistered?: boolean;
@@ -334,6 +343,19 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
 
       <div className="hide-scrollbar flex-1 space-y-7 overflow-y-auto p-5 pb-8 -mt-2">
 
+        {/* TABLÓN DE ANUNCIOS & NOVEDADES DEL CLUB */}
+        {(sysSettings?.announcementActive || (sysSettings?.bubbleActive && sysSettings?.bubbleText)) && (
+          <ClubAnnouncementBoard
+            active={sysSettings?.announcementActive ?? sysSettings?.bubbleActive ?? false}
+            badge={sysSettings?.announcementBadge || 'COMUNICADO'}
+            title={sysSettings?.announcementTitle || ''}
+            text={sysSettings?.announcementText || sysSettings?.bubbleText || ''}
+            link={sysSettings?.announcementLink || ''}
+            linkText={sysSettings?.announcementLinkText || 'Ver más'}
+            variant={sysSettings?.announcementVariant || 'theme'}
+          />
+        )}
+
         <ol className="grid grid-cols-3 gap-2 pt-3" aria-label="Progreso de la reserva">
           {['Disponibilidad', 'Tus datos', 'Confirmación'].map((label, index) => {
             const number = index + 1;
@@ -582,21 +604,6 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
               )}
             </button>
           )}
-        </div>
-      )}
-
-      {/* BURBUJA CENTRADA TEMPORIZADA */}
-      {showBubble && sysSettings?.bubbleText && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none">
-          <div
-            className="p-8 rounded-[2rem] shadow-2xl max-w-sm w-full animate-in zoom-in-90 fade-in slide-in-from-bottom-8 duration-500 pointer-events-auto"
-            style={{ backgroundColor: normalizeHexColor(sysSettings.bubbleColor, '#10b981'), color: getReadableForeground(normalizeHexColor(sysSettings.bubbleColor, '#10b981')) }}
-          >
-            <div className="flex flex-col items-center gap-4 text-center">
-              <span className="text-6xl drop-shadow-md">{sportEmoji}</span>
-              <p className="font-bold text-xl leading-snug">{sysSettings.bubbleText}</p>
-            </div>
-          </div>
         </div>
       )}
 

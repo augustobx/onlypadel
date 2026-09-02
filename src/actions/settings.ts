@@ -23,10 +23,15 @@ export async function getSettings() {
         });
         if (!settings) return null;
 
-        // Custom key-values from Setting table (club_logo, splash_mode, splash_full_image)
+        // Custom key-values from Setting table
         const customSettings = await prisma.setting.findMany({
             where: {
-                key: { in: ['club_logo', 'splash_mode', 'splash_full_image'] }
+                key: { in: [
+                    'club_logo', 'splash_mode', 'splash_full_image',
+                    'announcement_active', 'announcement_badge', 'announcement_title',
+                    'announcement_text', 'announcement_link', 'announcement_link_text',
+                    'announcement_variant'
+                ] }
             }
         });
         const customMap = Object.fromEntries(customSettings.map(s => [s.key, s.value]));
@@ -34,6 +39,16 @@ export async function getSettings() {
         const clubLogo = customMap['club_logo'] !== undefined ? customMap['club_logo'] : (settings.splashLogo || '');
         const splashMode: 'logo' | 'full_image' = customMap['splash_mode'] === 'full_image' ? 'full_image' : 'logo';
         const splashFullImage = customMap['splash_full_image'] !== undefined ? customMap['splash_full_image'] : (settings.heroImage || '');
+
+        const announcementActive = customMap['announcement_active'] !== undefined 
+            ? customMap['announcement_active'] === 'true' 
+            : (settings.bubbleActive ?? false);
+        const announcementBadge = customMap['announcement_badge'] || 'COMUNICADO';
+        const announcementTitle = customMap['announcement_title'] || '';
+        const announcementText = customMap['announcement_text'] || settings.bubbleText || '';
+        const announcementLink = customMap['announcement_link'] || '';
+        const announcementLinkText = customMap['announcement_link_text'] || 'Ver más';
+        const announcementVariant = customMap['announcement_variant'] || 'theme';
 
         const [reservations, users, tournaments, rankings, playerCategories, whatsapp] = await Promise.all([
             hasTenantFeature('reservations'), hasTenantFeature('users'), hasTenantFeature('tournaments'),
@@ -44,6 +59,13 @@ export async function getSettings() {
             clubLogo,
             splashMode,
             splashFullImage,
+            announcementActive,
+            announcementBadge,
+            announcementTitle,
+            announcementText,
+            announcementLink,
+            announcementLinkText,
+            announcementVariant,
             reservationsEnabled: settings.reservationsEnabled && reservations,
             usersModuleEnabled: settings.usersModuleEnabled && users,
             tournamentsEnabled: settings.tournamentsEnabled && tournaments,
@@ -109,7 +131,16 @@ export async function updateSystemSettings(formData: FormData) {
         const splashMode = (formData.get("splashMode") as string) === 'full_image' ? 'full_image' : 'logo';
         const splashFullImage = splashMode === 'full_image' ? ((formData.get("splashFullImage") as string) || "").trim() : "";
 
-        const bubbleText = (formData.get("bubbleText") as string) || "";
+        const announcementActive = formData.get("announcementActive") === "on" || formData.get("bubbleActive") === "on";
+        const announcementBadge = ((formData.get("announcementBadge") as string) || "COMUNICADO").trim();
+        const announcementTitle = ((formData.get("announcementTitle") as string) || "").trim();
+        const announcementText = ((formData.get("announcementText") as string) || (formData.get("bubbleText") as string) || "").trim();
+        const announcementLink = ((formData.get("announcementLink") as string) || "").trim();
+        const announcementLinkText = ((formData.get("announcementLinkText") as string) || "Ver más").trim();
+        const announcementVariant = ((formData.get("announcementVariant") as string) || "theme").trim();
+
+        const bubbleActive = announcementActive;
+        const bubbleText = announcementText;
         const bubbleColor = normalizeHexColor(formData.get("bubbleColor") as string, "#10b981");
         const bubbleDuration = Number(formData.get("bubbleDuration")) || 3000;
 
@@ -130,6 +161,13 @@ export async function updateSystemSettings(formData: FormData) {
             { key: 'club_logo', value: clubLogo },
             { key: 'splash_mode', value: splashMode },
             { key: 'splash_full_image', value: splashFullImage },
+            { key: 'announcement_active', value: String(announcementActive) },
+            { key: 'announcement_badge', value: announcementBadge },
+            { key: 'announcement_title', value: announcementTitle },
+            { key: 'announcement_text', value: announcementText },
+            { key: 'announcement_link', value: announcementLink },
+            { key: 'announcement_link_text', value: announcementLinkText },
+            { key: 'announcement_variant', value: announcementVariant },
         ];
 
         for (const entry of customEntries) {

@@ -11,14 +11,22 @@ import { updateSystemSettings } from "@/actions/settings";
 import { 
   Building2, Palette, Zap, CreditCard, Smartphone, MessageSquare, 
   Sparkles, CheckCircle2, Shield, Eye, Image as ImageIcon, Check,
-  Flame, Moon, Sun, Snowflake, Laptop
+  Flame, Moon, Sun, Snowflake, Laptop, Megaphone
 } from 'lucide-react';
 import type { SystemSetting } from '@prisma/client';
+import ClubAnnouncementBoard from '@/components/ClubAnnouncementBoard';
 
 export type ExtendedSettings = SystemSetting & {
   clubLogo?: string;
   splashMode?: 'logo' | 'full_image';
   splashFullImage?: string;
+  announcementActive?: boolean;
+  announcementBadge?: string;
+  announcementTitle?: string;
+  announcementText?: string;
+  announcementLink?: string;
+  announcementLinkText?: string;
+  announcementVariant?: string;
 };
 
 const THEMES = [
@@ -87,6 +95,29 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
     const [primaryColorVal, setPrimaryColorVal] = useState(initialSettings.primaryColor || '#10b981');
     const [secondaryColorVal, setSecondaryColorVal] = useState(initialSettings.secondaryColor || '#0ea5e9');
 
+    // Announcement Board states
+    const [announcementActive, setAnnouncementActive] = useState<boolean>(
+      initialSettings.announcementActive ?? initialSettings.bubbleActive ?? false
+    );
+    const [announcementBadge, setAnnouncementBadge] = useState<string>(
+      initialSettings.announcementBadge || 'COMUNICADO'
+    );
+    const [announcementTitle, setAnnouncementTitle] = useState<string>(
+      initialSettings.announcementTitle || ''
+    );
+    const [announcementText, setAnnouncementText] = useState<string>(
+      initialSettings.announcementText || initialSettings.bubbleText || ''
+    );
+    const [announcementLink, setAnnouncementLink] = useState<string>(
+      initialSettings.announcementLink || ''
+    );
+    const [announcementLinkText, setAnnouncementLinkText] = useState<string>(
+      initialSettings.announcementLinkText || 'Ver más'
+    );
+    const [announcementVariant, setAnnouncementVariant] = useState<string>(
+      initialSettings.announcementVariant || 'theme'
+    );
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsSaving(true);
@@ -114,6 +145,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
         { id: 'identity', label: 'Identidad del Club', icon: <Building2 className="w-4 h-4" /> },
         { id: 'appearance', label: 'Temas & Apariencia', icon: <Palette className="w-4 h-4" /> },
         { id: 'splash', label: 'Logo & Splash Screen', icon: <Smartphone className="w-4 h-4" /> },
+        { id: 'announcement', label: 'Tablón de Anuncios', icon: <Megaphone className="w-4 h-4" /> },
         { id: 'modules', label: 'Módulos & Permisos', icon: <Zap className="w-4 h-4" /> },
         { id: 'payments', label: 'Pagos & Señas', icon: <CreditCard className="w-4 h-4" /> },
         { id: 'whatsapp', label: 'WhatsApp & Mensajes', icon: <MessageSquare className="w-4 h-4" /> },
@@ -582,7 +614,188 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                     </Card>
                 </div>
 
-                {/* 4. MODULOS & PERMISOS */}
+                {/* TABLÓN DE ANUNCIOS & NOVEDADES DEL CLUB */}
+                <div className={activeTab === 'announcement' ? 'block space-y-6' : 'hidden'}>
+                    <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-sm">
+                        <CardHeader>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div>
+                                    <CardTitle className="text-lg font-black flex items-center gap-2 text-slate-900 dark:text-white">
+                                      <Megaphone className="w-5 h-5 text-[var(--color-primary)]" /> Tablón de Anuncios & Novedades
+                                    </CardTitle>
+                                    <CardDescription>
+                                      Publica comunicados, promociones, torneos o avisos importantes para todos los jugadores en la PWA.
+                                    </CardDescription>
+                                </div>
+                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-850 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0">
+                                    <input 
+                                      type="checkbox" 
+                                      id="announcementActive" 
+                                      name="announcementActive" 
+                                      checked={announcementActive} 
+                                      onChange={(e) => setAnnouncementActive(e.target.checked)} 
+                                      className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                                    />
+                                    <Label htmlFor="announcementActive" className="text-xs font-bold cursor-pointer text-slate-800 dark:text-slate-200">
+                                      Activar Tablón en la App
+                                    </Label>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-6 pt-2">
+                            {!announcementActive && (
+                              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-medium flex items-center gap-2">
+                                <span>💡 El tablón se encuentra desactivado. Marca la casilla &quot;Activar Tablón en la App&quot; para mostrar anuncios a los socios en la pantalla de turnos.</span>
+                              </div>
+                            )}
+
+                            {/* Categoría / Badge */}
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                  Categoría o Etiqueta
+                                </Label>
+                                <input type="hidden" name="announcementBadge" value={announcementBadge} />
+                                <div className="flex flex-wrap gap-2">
+                                  {[
+                                    { id: 'COMUNICADO', label: '📢 Comunicado' },
+                                    { id: 'TORNEO', label: '🎾 Torneo' },
+                                    { id: 'PROMOCIÓN', label: '🔥 Promoción' },
+                                    { id: 'AVISO IMPORTANTE', label: '⚠️ Aviso Importante' },
+                                    { id: 'BIENVENIDA', label: '👋 Bienvenida' },
+                                    { id: 'NOVEDAD', label: '⭐ Novedad' },
+                                  ].map(cat => (
+                                    <button
+                                      key={cat.id}
+                                      type="button"
+                                      onClick={() => setAnnouncementBadge(cat.id)}
+                                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                                        announcementBadge === cat.id
+                                          ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-md shadow-[var(--color-primary)]/20'
+                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                      }`}
+                                    >
+                                      {cat.label}
+                                    </button>
+                                  ))}
+                                </div>
+                            </div>
+
+                            {/* Título del Anuncio */}
+                            <div className="space-y-1.5">
+                                <Label htmlFor="announcementTitle" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                  Título Destacado
+                                </Label>
+                                <Input 
+                                  id="announcementTitle" 
+                                  name="announcementTitle" 
+                                  value={announcementTitle} 
+                                  onChange={(e) => setAnnouncementTitle(e.target.value)} 
+                                  placeholder="Ej: ¡Inscripciones abiertas Torneo de Primavera!" 
+                                  className="rounded-xl font-bold" 
+                                />
+                            </div>
+
+                            {/* Cuerpo / Mensaje */}
+                            <div className="space-y-1.5">
+                                <Label htmlFor="announcementText" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                  Mensaje / Descripción del Anuncio
+                                </Label>
+                                <textarea 
+                                  id="announcementText" 
+                                  name="announcementText" 
+                                  rows={3}
+                                  value={announcementText} 
+                                  onChange={(e) => setAnnouncementText(e.target.value)} 
+                                  placeholder="Escribe aquí las novedades, detalles del torneo, promociones u horarios especiales..." 
+                                  className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs md:text-sm font-medium outline-none focus:ring-2 focus:ring-[var(--color-primary)]" 
+                                />
+                            </div>
+
+                            {/* Estilo Visual / Variante */}
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                  Estilo Visual del Anuncio
+                                </Label>
+                                <input type="hidden" name="announcementVariant" value={announcementVariant} />
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                                  {[
+                                    { id: 'theme', label: '🎨 Tema Activo', desc: 'Combina con el tema de la PWA' },
+                                    { id: 'amber', label: '🔥 Ámbar Cálido', desc: 'Alerta o atención' },
+                                    { id: 'emerald', label: '✨ Verde Neón', desc: 'Fresco e impactante' },
+                                    { id: 'blue', label: '🌊 Azul Glaciar', desc: 'Institucional' },
+                                    { id: 'purple', label: '💜 Violeta Neón', desc: 'Especial y nocturno' },
+                                  ].map(variantItem => (
+                                    <button
+                                      key={variantItem.id}
+                                      type="button"
+                                      onClick={() => setAnnouncementVariant(variantItem.id)}
+                                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                                        announcementVariant === variantItem.id
+                                          ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 ring-2 ring-[var(--color-primary)] shadow-sm'
+                                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                                      }`}
+                                    >
+                                      <span className="text-xs font-bold text-slate-900 dark:text-white">{variantItem.label}</span>
+                                      <span className="text-[10px] text-slate-400 mt-1">{variantItem.desc}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                            </div>
+
+                            {/* Enlace y Botón de Acción Opcional */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="announcementLink" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                      Enlace de Acción (opcional)
+                                    </Label>
+                                    <Input 
+                                      id="announcementLink" 
+                                      name="announcementLink" 
+                                      value={announcementLink} 
+                                      onChange={(e) => setAnnouncementLink(e.target.value)} 
+                                      placeholder="https://wa.me/... o /torneos" 
+                                      className="rounded-xl" 
+                                    />
+                                    <p className="text-[10px] text-slate-400">Puede ser un link a un torneo, enlace de WhatsApp o web externa.</p>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="announcementLinkText" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                      Texto del Botón
+                                    </Label>
+                                    <Input 
+                                      id="announcementLinkText" 
+                                      name="announcementLinkText" 
+                                      value={announcementLinkText} 
+                                      onChange={(e) => setAnnouncementLinkText(e.target.value)} 
+                                      placeholder="Ej: Ver Torneo, Inscribirme, Más info" 
+                                      className="rounded-xl" 
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Simulador Interactivo en Vivo */}
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                                  Vista Previa en Vivo del Tablón (como se ve en la app)
+                                </Label>
+                                <div className="p-4 rounded-3xl bg-slate-950 border border-slate-800">
+                                  <ClubAnnouncementBoard
+                                    active={true}
+                                    badge={announcementBadge}
+                                    title={announcementTitle || '¡Bienvenidos al Club!'}
+                                    text={announcementText || 'Escribe un mensaje para previsualizarlo aquí.'}
+                                    link={announcementLink}
+                                    linkText={announcementLinkText}
+                                    variant={announcementVariant}
+                                    isSimulator={true}
+                                  />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* 5. MODULOS & PERMISOS */}
                 <div className={activeTab === 'modules' ? 'block space-y-6' : 'hidden'}>
                     <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-sm">
                         <CardHeader>

@@ -17,7 +17,12 @@ export default async function SettingsPage() {
     }
 
     const customSettings = await prisma.setting.findMany({
-        where: { key: { in: ['club_logo', 'splash_mode', 'splash_full_image'] } }
+        where: { key: { in: [
+            'club_logo', 'splash_mode', 'splash_full_image',
+            'announcement_active', 'announcement_badge', 'announcement_title',
+            'announcement_text', 'announcement_link', 'announcement_link_text',
+            'announcement_variant'
+        ] } }
     });
     const customMap = Object.fromEntries(customSettings.map(s => [s.key, s.value]));
 
@@ -26,6 +31,13 @@ export default async function SettingsPage() {
         clubLogo: customMap['club_logo'] !== undefined ? customMap['club_logo'] : (settings.splashLogo || ''),
         splashMode: (customMap['splash_mode'] === 'full_image' ? 'full_image' : 'logo') as 'logo' | 'full_image',
         splashFullImage: customMap['splash_full_image'] !== undefined ? customMap['splash_full_image'] : (settings.heroImage || ''),
+        announcementActive: customMap['announcement_active'] !== undefined ? customMap['announcement_active'] === 'true' : (settings.bubbleActive ?? false),
+        announcementBadge: customMap['announcement_badge'] || 'COMUNICADO',
+        announcementTitle: customMap['announcement_title'] || '',
+        announcementText: customMap['announcement_text'] || settings.bubbleText || '',
+        announcementLink: customMap['announcement_link'] || '',
+        announcementLinkText: customMap['announcement_link_text'] || 'Ver más',
+        announcementVariant: customMap['announcement_variant'] || 'theme',
         mpAccessToken: '',
         whatsappPhoneId: '',
         whatsappToken: '',

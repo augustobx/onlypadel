@@ -37,6 +37,8 @@ interface BookingSummary {
   isPast: boolean;
 }
 
+import ClubAnnouncementBoard from '@/components/ClubAnnouncementBoard';
+
 interface PublicSettings {
   clubName?: string;
   sportEmoji?: string;
@@ -45,6 +47,13 @@ interface PublicSettings {
   requireDepositForRegistered?: boolean;
   usersModuleEnabled?: boolean;
   clientCancellations?: boolean;
+  announcementActive?: boolean;
+  announcementBadge?: string | null;
+  announcementTitle?: string | null;
+  announcementText?: string | null;
+  announcementLink?: string | null;
+  announcementLinkText?: string | null;
+  announcementVariant?: string | null;
 }
 
 interface UserSession {
@@ -396,6 +405,17 @@ export default function BookingFlowChat({
         }}
       >
         <div className="relative z-10 mx-auto flex w-full max-w-md flex-col gap-3">
+          {sysSettings?.announcementActive && (
+            <ClubAnnouncementBoard
+              active={sysSettings.announcementActive}
+              badge={sysSettings.announcementBadge}
+              title={sysSettings.announcementTitle}
+              text={sysSettings.announcementText}
+              link={sysSettings.announcementLink}
+              linkText={sysSettings.announcementLinkText}
+              variant={sysSettings.announcementVariant}
+            />
+          )}
           <div className="my-1 flex justify-center"><span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">Hoy</span></div>
 
           {messages.map((message) => {
