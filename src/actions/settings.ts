@@ -30,7 +30,7 @@ export async function getSettings() {
                     'club_logo', 'splash_mode', 'splash_full_image',
                     'announcement_active', 'announcement_badge', 'announcement_title',
                     'announcement_text', 'announcement_link', 'announcement_link_text',
-                    'announcement_variant'
+                    'announcement_variant', 'announcement_duration', 'announcement_auto_close'
                 ] }
             }
         });
@@ -49,6 +49,12 @@ export async function getSettings() {
         const announcementLink = customMap['announcement_link'] || '';
         const announcementLinkText = customMap['announcement_link_text'] || 'Ver más';
         const announcementVariant = customMap['announcement_variant'] || 'theme';
+        const announcementDuration = customMap['announcement_duration'] !== undefined
+            ? Number(customMap['announcement_duration']) || 5
+            : (settings.bubbleDuration ? Math.round(settings.bubbleDuration / 1000) : 5);
+        const announcementAutoClose = customMap['announcement_auto_close'] !== undefined
+            ? customMap['announcement_auto_close'] === 'true'
+            : true;
 
         const [reservations, users, tournaments, rankings, playerCategories, whatsapp] = await Promise.all([
             hasTenantFeature('reservations'), hasTenantFeature('users'), hasTenantFeature('tournaments'),
@@ -66,6 +72,8 @@ export async function getSettings() {
             announcementLink,
             announcementLinkText,
             announcementVariant,
+            announcementDuration,
+            announcementAutoClose,
             reservationsEnabled: settings.reservationsEnabled && reservations,
             usersModuleEnabled: settings.usersModuleEnabled && users,
             tournamentsEnabled: settings.tournamentsEnabled && tournaments,
@@ -137,11 +145,13 @@ export async function updateSystemSettings(formData: FormData) {
         const announcementLink = ((formData.get("announcementLink") as string) || "").trim();
         const announcementLinkText = ((formData.get("announcementLinkText") as string) || "Ver más").trim();
         const announcementVariant = ((formData.get("announcementVariant") as string) || "theme").trim();
+        const announcementDuration = Math.max(1, Number(formData.get("announcementDuration")) || 5);
+        const announcementAutoClose = formData.get("announcementAutoClose") === "on";
 
         const bubbleActive = announcementActive;
         const bubbleText = announcementText;
         const bubbleColor = normalizeHexColor(formData.get("bubbleColor") as string, "#10b981");
-        const bubbleDuration = Number(formData.get("bubbleDuration")) || 3000;
+        const bubbleDuration = announcementDuration * 1000;
 
         await prisma.systemSetting.updateMany({
             where: { id: 1 },
@@ -167,6 +177,8 @@ export async function updateSystemSettings(formData: FormData) {
             { key: 'announcement_link', value: announcementLink },
             { key: 'announcement_link_text', value: announcementLinkText },
             { key: 'announcement_variant', value: announcementVariant },
+            { key: 'announcement_duration', value: String(announcementDuration) },
+            { key: 'announcement_auto_close', value: String(announcementAutoClose) },
         ];
 
         for (const entry of customEntries) {

@@ -40,6 +40,8 @@ interface PublicSettings {
   announcementLink?: string | null;
   announcementLinkText?: string | null;
   announcementVariant?: string | null;
+  announcementDuration?: number;
+  announcementAutoClose?: boolean;
   requireDeposit?: boolean;
   usersModuleEnabled?: boolean;
   requireDepositForRegistered?: boolean;
@@ -84,6 +86,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
   const completedRef = useRef(false);
   const [showSplash, setShowSplash] = useState(sysSettings?.pwaEnabled !== false && splashDuration > 0);
   const [showBubble, setShowBubble] = useState(sysSettings?.bubbleActive || false);
+  const [showFloatingAnnouncement, setShowFloatingAnnouncement] = useState(true);
 
   const [step, setStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date(`${today}T12:00:00`));
@@ -343,19 +346,6 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
 
       <div className="hide-scrollbar flex-1 space-y-7 overflow-y-auto p-5 pb-8 -mt-2">
 
-        {/* TABLÓN DE ANUNCIOS & NOVEDADES DEL CLUB */}
-        {(sysSettings?.announcementActive || (sysSettings?.bubbleActive && sysSettings?.bubbleText)) && (
-          <ClubAnnouncementBoard
-            active={sysSettings?.announcementActive ?? sysSettings?.bubbleActive ?? false}
-            badge={sysSettings?.announcementBadge || 'COMUNICADO'}
-            title={sysSettings?.announcementTitle || ''}
-            text={sysSettings?.announcementText || sysSettings?.bubbleText || ''}
-            link={sysSettings?.announcementLink || ''}
-            linkText={sysSettings?.announcementLinkText || 'Ver más'}
-            variant={sysSettings?.announcementVariant || 'theme'}
-          />
-        )}
-
         <ol className="grid grid-cols-3 gap-2 pt-3" aria-label="Progreso de la reserva">
           {['Disponibilidad', 'Tus datos', 'Confirmación'].map((label, index) => {
             const number = index + 1;
@@ -605,6 +595,23 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
             </button>
           )}
         </div>
+      )}
+
+      {/* TABLÓN DE ANUNCIOS FLOTANTE POST-SPLASH CON CONTADOR CONFIGURABLE Y BOTÓN DE CIERRE */}
+      {showFloatingAnnouncement && (sysSettings?.announcementActive || (sysSettings?.bubbleActive && sysSettings?.bubbleText)) && (
+        <ClubAnnouncementBoard
+          active={true}
+          mode="floating"
+          badge={sysSettings?.announcementBadge || 'COMUNICADO'}
+          title={sysSettings?.announcementTitle || ''}
+          text={sysSettings?.announcementText || sysSettings?.bubbleText || ''}
+          link={sysSettings?.announcementLink || ''}
+          linkText={sysSettings?.announcementLinkText || 'Ver más'}
+          variant={sysSettings?.announcementVariant || 'theme'}
+          duration={sysSettings?.announcementDuration || 5}
+          autoClose={sysSettings?.announcementAutoClose ?? true}
+          onClose={() => setShowFloatingAnnouncement(false)}
+        />
       )}
 
       {/* CSS Ocultar Scrollbar */}

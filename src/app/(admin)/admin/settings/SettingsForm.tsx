@@ -27,6 +27,8 @@ export type ExtendedSettings = SystemSetting & {
   announcementLink?: string;
   announcementLinkText?: string;
   announcementVariant?: string;
+  announcementDuration?: number;
+  announcementAutoClose?: boolean;
 };
 
 const THEMES = [
@@ -116,6 +118,12 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
     );
     const [announcementVariant, setAnnouncementVariant] = useState<string>(
       initialSettings.announcementVariant || 'theme'
+    );
+    const [announcementDuration, setAnnouncementDuration] = useState<number>(
+      initialSettings.announcementDuration || 5
+    );
+    const [announcementAutoClose, setAnnouncementAutoClose] = useState<boolean>(
+      initialSettings.announcementAutoClose ?? true
     );
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -773,10 +781,68 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                 </div>
                             </div>
 
+                            {/* Configuración del Contador y Autocierre */}
+                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <Label htmlFor="announcementAutoClose" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                                          Cerrar automáticamente con contador regresivo
+                                        </Label>
+                                        <p className="text-[11px] text-slate-400">
+                                          Muestra una barra de progreso y temporizador. Si se desactiva, queda fijo hasta que el usuario pulse &quot;Cerrar&quot; o la cruz.
+                                        </p>
+                                    </div>
+                                    <input 
+                                      type="checkbox" 
+                                      id="announcementAutoClose" 
+                                      name="announcementAutoClose" 
+                                      checked={announcementAutoClose} 
+                                      onChange={(e) => setAnnouncementAutoClose(e.target.checked)} 
+                                      className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                                    />
+                                </div>
+
+                                {announcementAutoClose && (
+                                  <div className="space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                                      <div className="flex items-center justify-between">
+                                          <Label htmlFor="announcementDuration" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                            Tiempo de visualización (segundos): <span className="text-[var(--color-primary)] font-black">{announcementDuration}s</span>
+                                          </Label>
+                                          <div className="flex items-center gap-1.5">
+                                            {[3, 5, 8, 10, 15].map(sec => (
+                                              <button
+                                                key={sec}
+                                                type="button"
+                                                onClick={() => setAnnouncementDuration(sec)}
+                                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                                  announcementDuration === sec 
+                                                    ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)]' 
+                                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300'
+                                                }`}
+                                              >
+                                                {sec}s
+                                              </button>
+                                            ))}
+                                          </div>
+                                      </div>
+                                      <Input 
+                                        id="announcementDuration" 
+                                        name="announcementDuration" 
+                                        type="number" 
+                                        min={1} 
+                                        max={60} 
+                                        value={announcementDuration} 
+                                        onChange={(e) => setAnnouncementDuration(Number(e.target.value) || 5)} 
+                                        className="rounded-xl w-32" 
+                                      />
+                                  </div>
+                                )}
+                            </div>
+
                             {/* Simulador Interactivo en Vivo */}
                             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
                                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                  Vista Previa en Vivo del Tablón (como se ve en la app)
+                                  Vista Previa en Vivo del Tablón (como se ve en la app post-splash)
                                 </Label>
                                 <div className="p-4 rounded-3xl bg-slate-950 border border-slate-800">
                                   <ClubAnnouncementBoard
@@ -787,6 +853,9 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                     link={announcementLink}
                                     linkText={announcementLinkText}
                                     variant={announcementVariant}
+                                    duration={announcementDuration}
+                                    autoClose={announcementAutoClose}
+                                    mode="floating"
                                     isSimulator={true}
                                   />
                                 </div>
