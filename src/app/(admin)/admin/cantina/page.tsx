@@ -1,14 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   Coffee, ShoppingCart, Plus, Minus, Trash2, Search, 
-  DollarSign, CheckCircle2, Clock, User, Sparkles, X, Edit2, Loader2, ArrowRight
+  DollarSign, CheckCircle2, Clock, User, Sparkles, X, Edit2, Loader2, ArrowRight,
+  FileText
 } from 'lucide-react';
 import { 
   getPosProducts, savePosProduct, deletePosProduct, 
   recordPosSale, getPosSales, PosProduct, PosCartItem, PosSale 
 } from '@/actions/pos';
+import { searchUsersForPos } from '@/actions/current-account';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +27,19 @@ export default function CantinaPage() {
   
   // Datos del cobro en mostrador
   const [customerName, setCustomerName] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'MERCADOPAGO'>('CASH');
+  const [selectedUser, setSelectedUser] = useState<{
+    id: string;
+    name: string;
+    phone?: string | null;
+    dni?: string | null;
+    balance: number;
+  } | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [userSearchOpen, setUserSearchOpen] = useState(false);
+
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'MERCADOPAGO' | 'CUENTA_CORRIENTE'>('CASH');
   const [saleSuccessMessage, setSaleSuccessMessage] = useState('');
 
   // Modal para agregar o editar producto
@@ -88,9 +103,40 @@ export default function CantinaPage() {
     setCart(prev => prev.filter(item => item.product.id !== productId));
   };
 
+  // Búsqueda de socios registrados
+  const handleUserSearch = async (query: string) => {
+    setUserSearchQuery(query);
+    if (!query.trim()) {
+      setUserSearchResults([]);
+      return;
+    }
+    setIsSearchingUsers(true);
+    const res = await searchUsersForPos(query);
+    if (res.success) {
+      setUserSearchResults(res.data);
+    }
+    setIsSearchingUsers(false);
+  };
+
+  const handleSelectUser = (user: any) => {
+    setSelectedUser(user);
+    setCustomerName(user.name);
+    setUserSearchOpen(false);
+    setUserSearchQuery('');
+    setUserSearchResults([]);
+  };
+
+  const clearSelectedUser = () => {
+    setSelectedUser(null);
+    setCustomerName('');
+    if (paymentMethod === 'CUENTA_CORRIENTE') {
+      setPaymentMethod('CASH');
+    }
+  };
+
   const clearCart = () => {
     setCart([]);
-    setCustomerName('');
+    clearSelectedUser();
   };
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
@@ -99,6 +145,13 @@ export default function CantinaPage() {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
+
+    if (paymentMethod === 'CUENTA_CORRIENTE' && !selectedUser) {
+      alert('Para fiar a Cuenta Corriente debés seleccionar un socio registrado.');
+      setUserSearchOpen(true);
+      return;
+    }
+
     setSubmitting(true);
 
     const items = cart.map(i => ({
@@ -112,12 +165,17 @@ export default function CantinaPage() {
       items,
       totalAmount: cartTotal,
       paymentMethod,
-      customerName: customerName.trim() || 'Cliente Mostrador',
+      customerName: selectedUser ? selectedUser.name : (customerName.trim() || 'Consumidor Final'),
+      userId: selectedUser?.id,
     });
 
     if (res.success && res.data) {
       setSales(prev => [res.data!, ...prev]);
-      setSaleSuccessMessage(`¡Venta cobrada con éxito por $${cartTotal.toLocaleString('es-AR')}!`);
+      setSaleSuccessMessage(
+        paymentMethod === 'CUENTA_CORRIENTE'
+          ? `¡Cargado a la Cuenta Corriente de ${selectedUser?.name} por $${cartTotal.toLocaleString('es-AR')}!`
+          : `¡Venta cobrada con éxito por $${cartTotal.toLocaleString('es-AR')}!`
+      );
       clearCart();
       setTimeout(() => setSaleSuccessMessage(''), 4000);
     } else {
@@ -180,7 +238,16 @@ export default function CantinaPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <Link href="/admin/cuentas-corrientes">
+            <Button
+              variant="outline"
+              className="rounded-2xl border-slate-300 dark:border-slate-700 font-bold text-xs md:text-sm h-11 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5"
+            >
+              <FileText className="w-4 h-4 text-amber-500" /> Cuentas Corrientes
+            </Button>
+          </Link>
+
           <Button
             onClick={() => {
               setEditingProduct(null);
@@ -374,36 +441,148 @@ export default function CantinaPage() {
 
           {/* Formulario de Cobro */}
           {cart.length > 0 && (
-            <form onSubmit={handleCheckout} className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+              {/* Selector de Cliente / Consumidor Final / Socio */}
               <div>
-                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                  Cliente / Cancha
-                </Label>
-                <Input
-                  placeholder="Ej: Jugador Turno Cancha 1"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="rounded-xl text-xs h-9 font-bold"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Venta A
+                  </Label>
+                  {!selectedUser && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSearchOpen(!userSearchOpen)}
+                      className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                    >
+                      <Search className="w-3 h-3" />
+                      <span>{userSearchOpen ? 'Consumidor Final' : 'Buscar Socio'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {selectedUser ? (
+                  <div className="p-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-center justify-between">
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-black text-xs text-slate-900 dark:text-white truncate">
+                          👤 {selectedUser.name}
+                        </span>
+                        {selectedUser.dni && (
+                          <span className="text-[10px] text-slate-500 font-bold">
+                            (DNI: {selectedUser.dni})
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          selectedUser.balance < 0
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300'
+                            : selectedUser.balance === 0
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300'
+                        }`}>
+                          {selectedUser.balance < 0
+                            ? `Debe: $${Math.abs(selectedUser.balance).toLocaleString('es-AR')}`
+                            : selectedUser.balance === 0
+                            ? 'Cuenta al día ($0)'
+                            : `Saldo a favor: +$${selectedUser.balance.toLocaleString('es-AR')}`}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearSelectedUser}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-amber-100 dark:hover:bg-amber-900/60"
+                      title="Quitar socio y pasar a Consumidor Final"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : userSearchOpen ? (
+                  <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                      <Input
+                        autoFocus
+                        placeholder="Buscar por nombre, DNI o teléfono..."
+                        value={userSearchQuery}
+                        onChange={(e) => handleUserSearch(e.target.value)}
+                        className="pl-9 h-9 text-xs font-bold rounded-xl"
+                      />
+                    </div>
+                    {isSearchingUsers ? (
+                      <div className="py-3 text-center text-xs text-slate-400">
+                        <Loader2 className="w-4 h-4 animate-spin mx-auto inline-block mr-1.5" />
+                        Buscando socios...
+                      </div>
+                    ) : userSearchResults.length > 0 ? (
+                      <div className="max-h-40 overflow-y-auto space-y-1 pr-1 hide-scrollbar">
+                        {userSearchResults.map(u => (
+                          <div
+                            key={u.id}
+                            onClick={() => handleSelectUser(u)}
+                            className="p-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 border border-slate-200 dark:border-slate-700 cursor-pointer flex items-center justify-between transition-all"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                                {u.name}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                {u.phone || (u.dni ? `DNI: ${u.dni}` : 'Socio')}
+                              </p>
+                            </div>
+                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-lg ${
+                              u.balance < 0 ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/50' : 'text-emerald-600'
+                            }`}>
+                              {u.balance < 0 ? `Debe $${Math.abs(u.balance)}` : '$0'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : userSearchQuery.trim().length > 1 ? (
+                      <p className="text-[11px] text-slate-400 text-center py-2">
+                        No se encontró ningún socio.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 text-center py-1">
+                        Escribí al menos 2 letras para buscar...
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <Input
+                    placeholder="Consumidor Final (o Cancha / Mesa)"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="rounded-xl text-xs h-9 font-bold"
+                  />
+                )}
               </div>
 
               <div>
                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                   Método de Pago
                 </Label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {[
                     { id: 'CASH', label: '💵 Efectivo' },
                     { id: 'TRANSFER', label: '📲 Transf.' },
                     { id: 'MERCADOPAGO', label: '💳 MP' },
+                    { id: 'CUENTA_CORRIENTE', label: '📒 Cta. Cte.' },
                   ].map(m => (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => setPaymentMethod(m.id as any)}
-                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all ${
+                      onClick={() => {
+                        if (m.id === 'CUENTA_CORRIENTE' && !selectedUser) {
+                          setUserSearchOpen(true);
+                        }
+                        setPaymentMethod(m.id as any);
+                      }}
+                      className={`py-2 px-1 rounded-xl text-[11px] font-bold transition-all ${
                         paymentMethod === m.id
-                          ? 'bg-amber-500 text-white shadow-sm'
+                          ? m.id === 'CUENTA_CORRIENTE'
+                            ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-500/40'
+                            : 'bg-amber-500 text-white shadow-sm'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                       }`}
                     >
@@ -411,6 +590,11 @@ export default function CantinaPage() {
                     </button>
                   ))}
                 </div>
+                {paymentMethod === 'CUENTA_CORRIENTE' && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/40 p-2 rounded-xl mt-1.5 border border-amber-200 dark:border-amber-800/50">
+                    ℹ️ Se sumará al saldo deudor de {selectedUser ? selectedUser.name : 'el socio seleccionado'}.
+                  </p>
+                )}
               </div>
 
               {/* Total y Botón Cobrar */}
@@ -479,9 +663,17 @@ export default function CantinaPage() {
                           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
                           : sale.paymentMethod === 'TRANSFER'
                           ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300'
-                          : 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300'
+                          : sale.paymentMethod === 'MERCADOPAGO'
+                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300'
                       }`}>
-                        {sale.paymentMethod === 'CASH' ? 'Efectivo' : sale.paymentMethod === 'TRANSFER' ? 'Transferencia' : 'Mercado Pago'}
+                        {sale.paymentMethod === 'CASH' 
+                          ? 'Efectivo' 
+                          : sale.paymentMethod === 'TRANSFER' 
+                          ? 'Transferencia' 
+                          : sale.paymentMethod === 'MERCADOPAGO' 
+                          ? 'Mercado Pago' 
+                          : '📒 Cta. Cte.'}
                       </span>
                     </td>
                     <td className="py-3 text-right font-black text-slate-900 dark:text-white">

@@ -939,6 +939,17 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                     <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:transition-all peer-checked:bg-[var(--color-primary)]"></div>
                                 </label>
                             </div>
+
+                            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+                                <div>
+                                    <Label htmlFor="currentAccountEnabled" className="text-sm font-bold text-slate-900 dark:text-white">Módulo de Cuentas Corrientes & Fiados</Label>
+                                    <p className="text-xs text-slate-500">Permite registrar fiados de cantina y turnos a socios, con visualización de saldo y movimientos en su perfil.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="currentAccountEnabled" name="currentAccountEnabled" defaultChecked={initialSettings.currentAccountEnabled !== false} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:transition-all peer-checked:bg-[var(--color-primary)]"></div>
+                                </label>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

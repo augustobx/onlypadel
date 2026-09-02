@@ -124,12 +124,14 @@ export async function getCashRegisterReport(dateStr: string): Promise<{ success:
     let cantinaCash = 0;
     let cantinaTransfer = 0;
     let cantinaMp = 0;
+    let cantinaCuentaCorriente = 0;
 
     cantinaSales.forEach(s => {
       const amt = Number(s.totalAmount) || 0;
       if (s.paymentMethod === 'CASH') cantinaCash += amt;
       else if (s.paymentMethod === 'TRANSFER') cantinaTransfer += amt;
       else if (s.paymentMethod === 'MERCADOPAGO') cantinaMp += amt;
+      else if ((s.paymentMethod as any) === 'CUENTA_CORRIENTE') cantinaCuentaCorriente += amt;
     });
 
     // Procesar Gastos
@@ -146,7 +148,7 @@ export async function getCashRegisterReport(dateStr: string): Promise<{ success:
     const totalCashIn = bookingsCash + cantinaCash;
     const totalTransferIn = bookingsTransfer + cantinaTransfer;
     const totalMercadoPagoIn = bookingsMp + cantinaMp;
-    const totalRevenue = totalCashIn + totalTransferIn + totalMercadoPagoIn;
+    const totalRevenue = totalCashIn + totalTransferIn + totalMercadoPagoIn + cantinaCuentaCorriente;
     const netCashInDrawer = Math.max(0, totalCashIn - totalExpenses);
 
     return {
@@ -174,6 +176,7 @@ export async function getCashRegisterReport(dateStr: string): Promise<{ success:
           cashTotal: cantinaCash,
           transferTotal: cantinaTransfer,
           mercadoPagoTotal: cantinaMp,
+          cuentaCorrienteTotal: cantinaCuentaCorriente,
           list: cantinaSales,
         },
         expensesBreakdown: {

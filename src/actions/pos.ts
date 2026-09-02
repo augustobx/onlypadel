@@ -29,8 +29,9 @@ export interface PosSale {
     quantity: number;
   }[];
   totalAmount: number;
-  paymentMethod: 'CASH' | 'TRANSFER' | 'MERCADOPAGO';
+  paymentMethod: 'CASH' | 'TRANSFER' | 'MERCADOPAGO' | 'CUENTA_CORRIENTE';
   customerName?: string;
+  userId?: string;
   notes?: string;
 }
 
@@ -136,20 +137,44 @@ export async function deletePosProduct(productId: string): Promise<{ success: bo
   }
 }
 
+import { addAccountMovement } from '@/actions/current-account';
+
 /**
  * Registra una venta de cantina
  */
 export async function recordPosSale(params: {
   items: { productId: string; name: string; price: number; quantity: number }[];
   totalAmount: number;
-  paymentMethod: 'CASH' | 'TRANSFER' | 'MERCADOPAGO';
+  paymentMethod: 'CASH' | 'TRANSFER' | 'MERCADOPAGO' | 'CUENTA_CORRIENTE';
   customerName?: string;
+  userId?: string;
   notes?: string;
 }): Promise<{ success: boolean; data?: PosSale; error?: string }> {
   try {
     await requireAdmin();
     const now = new Date();
     const dateStr = now.toISOString().split('T')[0];
+
+    // Si es cuenta corriente, el socio debe estar seleccionado
+    if (params.paymentMethod === 'CUENTA_CORRIENTE') {
+      if (!params.userId) {
+        return { success: false, error: 'Para fiar a Cuenta Corriente debe seleccionar un socio registrado.' };
+      }
+
+      const itemsDesc = params.items.map(i => `${i.quantity}x ${i.name}`).join(', ');
+      const chargeRes = await addAccountMovement({
+        userId: params.userId,
+        type: 'CHARGE',
+        amount: params.totalAmount,
+        concept: `Cantina: ${itemsDesc}`,
+        method: 'SYSTEM',
+        notes: params.notes || 'Consumo en cantina'
+      });
+
+      if (!chargeRes.success) {
+        return { success: false, error: chargeRes.error || 'No se pudo cargar a la cuenta corriente.' };
+      }
+    }
 
     const sale: PosSale = {
       id: `sale-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -158,7 +183,8 @@ export async function recordPosSale(params: {
       items: params.items,
       totalAmount: params.totalAmount,
       paymentMethod: params.paymentMethod,
-      customerName: params.customerName?.trim() || 'Cliente Mostrador',
+      customerName: params.customerName?.trim() || 'Consumidor Final',
+      userId: params.userId,
       notes: params.notes?.trim() || '',
     };
 
@@ -192,6 +218,7 @@ export async function recordPosSale(params: {
 
     revalidatePath('/admin/cantina');
     revalidatePath('/admin/caja');
+    revalidatePath('/admin/cuentas-corrientes');
     return { success: true, data: sale };
   } catch (err: any) {
     console.error('Error recording POS sale:', err);

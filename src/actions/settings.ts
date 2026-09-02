@@ -30,7 +30,8 @@ export async function getSettings() {
                     'club_logo', 'splash_mode', 'splash_full_image',
                     'announcement_active', 'announcement_badge', 'announcement_title',
                     'announcement_text', 'announcement_link', 'announcement_link_text',
-                    'announcement_variant', 'announcement_duration', 'announcement_auto_close'
+                    'announcement_variant', 'announcement_duration', 'announcement_auto_close',
+                    'current_account_enabled'
                 ] }
             }
         });
@@ -74,6 +75,7 @@ export async function getSettings() {
             announcementVariant,
             announcementDuration,
             announcementAutoClose,
+            currentAccountEnabled: customMap['current_account_enabled'] !== 'false',
             reservationsEnabled: settings.reservationsEnabled && reservations,
             usersModuleEnabled: settings.usersModuleEnabled && users,
             tournamentsEnabled: settings.tournamentsEnabled && tournaments,
@@ -101,6 +103,7 @@ export async function updateSystemSettings(formData: FormData) {
         const usersModuleEnabled = formData.get("usersModuleEnabled") === "on";
         const requireDepositForRegistered = formData.get("requireDepositForRegistered") === "on";
         const clientCancellations = formData.get("clientCancellations") === "on";
+        const currentAccountEnabled = formData.get("currentAccountEnabled") === "on";
 
         const clubName = (formData.get("clubName") as string) || "";
         const topbarName = (formData.get("topbarName") as string) || "";
@@ -179,6 +182,7 @@ export async function updateSystemSettings(formData: FormData) {
             { key: 'announcement_variant', value: announcementVariant },
             { key: 'announcement_duration', value: String(announcementDuration) },
             { key: 'announcement_auto_close', value: String(announcementAutoClose) },
+            { key: 'current_account_enabled', value: String(currentAccountEnabled) },
         ];
 
         for (const entry of customEntries) {

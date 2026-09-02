@@ -8,7 +8,7 @@ import { logoutAdmin } from '@/actions/auth';
 import { 
   LayoutDashboard, Calendar, MapPin, CreditCard, Settings, Menu, X, LogOut, 
   Trophy, ClipboardList, CalendarDays, Users, BarChart3, BadgeCheck, ExternalLink,
-  Sparkles, Coffee, DollarSign
+  Sparkles, Coffee, DollarSign, FileText
 } from 'lucide-react';
 
 interface NavSection {
@@ -39,6 +39,7 @@ const navSections: NavSection[] = [
     items: [
       { name: 'Canchas & Horarios', icon: MapPin, href: '/admin/courts', feature: 'reservations' },
       { name: 'Socios & Usuarios', icon: Users, href: '/admin/usuarios', feature: 'users' },
+      { name: 'Cuentas Corrientes', icon: FileText, href: '/admin/cuentas-corrientes', feature: 'reservations' },
       { name: 'Gastos Operativos', icon: CreditCard, href: '/admin/expenses', feature: 'expenses' },
     ]
   },

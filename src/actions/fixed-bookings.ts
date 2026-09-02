@@ -136,6 +136,7 @@ export async function updateFixedBooking(id: string, data: {
                 if (!existing) {
                     await tx.booking.create({
                         data: {
+                            tenantId: fb.tenantId,
                             courtId: data.courtId,
                             userId: fb.userId,
                             startTime,

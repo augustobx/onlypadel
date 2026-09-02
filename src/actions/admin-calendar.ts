@@ -212,11 +212,19 @@ export async function createAdminBooking(data: {
         }
         const status = data.type === 'BLOQUEO' ? 'BLOCKED' : data.type === 'FIJO' ? 'FIXED' : 'CONFIRMED';
 
-        // Creamos un usuario dummy local para asociar la reserva
-        let user = await prisma.user.findFirst({ where: { phone: data.clientPhone || 'ADMIN_LOCAL' } });
+        // Obtenemos la cancha para asegurar el tenantId
+        const court = await prisma.court.findUnique({ where: { id: data.courtId } });
+        if (!court) {
+            return { success: false, error: 'Cancha no encontrada.' };
+        }
+        const tenantId = court.tenantId;
+
+        // Creamos o buscamos el usuario local para asociar la reserva
+        let user = await prisma.user.findFirst({ where: { tenantId, phone: data.clientPhone || 'ADMIN_LOCAL' } });
         if (!user) {
             user = await prisma.user.create({
                 data: {
+                    tenantId,
                     name: data.clientName || (data.type === 'BLOQUEO' ? 'Cancha Bloqueada' : 'Turno Local'),
                     phone: data.clientPhone || 'ADMIN_LOCAL',
                     email: `${Date.now()}@local.onlypadel`,
@@ -246,6 +254,7 @@ export async function createAdminBooking(data: {
 
                 const fb = await tx.fixedBooking.create({
                     data: {
+                        tenantId,
                         courtId: data.courtId,
                         userId: user!.id,
                         dayOfWeek,
@@ -276,6 +285,7 @@ export async function createAdminBooking(data: {
                 if (!existing) {
                     await tx.booking.create({
                         data: {
+                            tenantId,
                             courtId: data.courtId,
                             userId: user!.id,
                             startTime,
@@ -299,9 +309,11 @@ export async function createAdminBooking(data: {
         });
 
         revalidatePath('/admin/calendar');
+        revalidatePath('/admin/abonos');
         return { success: true };
     } catch (error: any) {
-        return { success: false, error: error.message === 'SLOT_TAKEN' ? 'Horario superpuesto.' : 'Error al guardar.' };
+        console.error("Error in createAdminBooking:", error);
+        return { success: false, error: error.message === 'SLOT_TAKEN' ? 'Horario superpuesto.' : (error.message || 'Error al guardar.') };
     }
 }
 

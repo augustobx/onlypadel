@@ -1,9 +1,13 @@
 import { getUserSession, logoutUser } from "@/actions/user-auth";
 import { getSettings } from "@/actions/settings";
+import { getUserCurrentAccount } from "@/actions/current-account";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import PublicNavbar from "@/components/PublicNavbar";
-import { Trophy, CalendarDays, LogOut, Medal, CalendarClock, Phone, IdCard, ChevronRight, Swords, Clock, BadgeCheck, Sparkles } from "lucide-react";
+import { 
+  Trophy, CalendarDays, LogOut, Medal, CalendarClock, Phone, IdCard, 
+  ChevronRight, Swords, Clock, BadgeCheck, Sparkles, FileText, ArrowDownLeft, ArrowUpRight 
+} from "lucide-react";
 import Link from "next/link";
 import { getReadableForeground, normalizeHexColor } from "@/lib/color";
 
@@ -52,6 +56,12 @@ export default async function PerfilPage() {
     const categoryColor = categoryAssignment?.level?.color || userCategoryLevel?.color || primaryColor;
     const categoryDescription = categoryAssignment?.level?.description || userCategoryLevel?.description || null;
     const categoryNote = categoryAssignment?.publicNote || null;
+
+    // Cargar Cuenta Corriente si está habilitada
+    const currentAccountRes = (settings as any)?.currentAccountEnabled !== false
+        ? await getUserCurrentAccount(session.id)
+        : null;
+    const accountData = currentAccountRes?.success ? currentAccountRes.data : null;
 
     const teamIds = teams.map(t => t.id);
     const tournamentMatches = await prisma.tournamentMatch.findMany({
@@ -198,6 +208,94 @@ export default async function PerfilPage() {
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Jugados</span>
                         </div>
                     </div>
+
+                    {/* SECCIÓN CUENTA CORRIENTE & FIADOS */}
+                    {accountData && (
+                        <div id="cuenta-corriente" className="bg-slate-50 dark:bg-slate-800/90 p-5 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-sm space-y-3 relative overflow-hidden">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-amber-500" />
+                                    <h3 className="font-black text-slate-900 dark:text-white text-base">
+                                        Mi Cuenta Corriente
+                                    </h3>
+                                </div>
+                                <span className={`text-xs font-black px-2.5 py-1 rounded-xl shadow-sm ${
+                                    accountData.balance < 0
+                                        ? 'bg-rose-500 text-white'
+                                        : accountData.balance === 0
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-blue-500 text-white'
+                                }`}>
+                                    {accountData.balance < 0
+                                        ? `Debe $${Math.abs(accountData.balance).toLocaleString('es-AR')}`
+                                        : accountData.balance === 0
+                                        ? 'Al Día ($0)'
+                                        : `A favor +$${accountData.balance.toLocaleString('es-AR')}`}
+                                </span>
+                            </div>
+
+                            {/* BANNER DE ESTADO */}
+                            {accountData.balance < 0 ? (
+                                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-2xl text-xs font-semibold text-rose-700 dark:text-rose-300 flex items-start gap-2">
+                                    <span className="text-base leading-none">⚠️</span>
+                                    <div>
+                                        <p className="font-bold">Posees un saldo pendiente de pago.</p>
+                                        <p className="text-[11px] opacity-90 mt-0.5">
+                                            Podés cancelarlo en recepción de OnlyPadel en efectivo o transferencia.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Tus consumos de cantina o turnos a cuenta se reflejan aquí automáticamente.
+                                </p>
+                            )}
+
+                            {/* HISTORIAL RECIENTE */}
+                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 space-y-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                    Últimos Movimientos
+                                </span>
+                                {accountData.movements.length === 0 ? (
+                                    <p className="text-center py-4 text-xs text-slate-400 font-medium">
+                                        No registrás movimientos en tu cuenta corriente.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 hide-scrollbar">
+                                        {accountData.movements.slice(0, 8).map(m => (
+                                            <div
+                                                key={m.id}
+                                                className="p-2.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-700/50 flex items-center justify-between text-xs"
+                                            >
+                                                <div className="min-w-0 pr-2">
+                                                    <div className="flex items-center gap-1.5">
+                                                        {m.type === 'CHARGE' ? (
+                                                            <ArrowDownLeft className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+                                                        ) : (
+                                                            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                                                        )}
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200 truncate text-[11px]">
+                                                            {m.concept}
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-[9px] text-slate-400 mt-0.5 block">
+                                                        {new Date(m.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} hs
+                                                    </span>
+                                                </div>
+                                                <div className="text-right flex-shrink-0">
+                                                    <span className={`font-black text-xs block ${
+                                                        m.type === 'CHARGE' ? 'text-rose-600' : 'text-emerald-600'
+                                                    }`}>
+                                                        {m.type === 'CHARGE' ? '-' : '+'}${m.amount.toLocaleString('es-AR')}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* SECCIÓN 1: PRÓXIMOS PARTIDOS DE TORNEO */}
                     <div className="space-y-3">
