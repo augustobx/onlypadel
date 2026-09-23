@@ -13,9 +13,9 @@ if (!email || password.length < 12) {
 const connectionString = (process.env.DATABASE_URL || '').replace('mysql://', 'mariadb://');
 const prisma = new PrismaClient({ adapter: new PrismaMariaDb(connectionString) });
 const featureSets = {
-  STARTER: ['reservations', 'users', 'whatsapp', 'push'],
-  PRO: ['reservations', 'users', 'tournaments', 'rankings', 'player_categories', 'expenses', 'whatsapp', 'push', 'payments'],
-  ENTERPRISE: ['reservations', 'users', 'tournaments', 'rankings', 'player_categories', 'expenses', 'whatsapp', 'push', 'payments'],
+  STARTER: ['reservations', 'users', 'whatsapp', 'push', 'community'],
+  PRO: ['reservations', 'users', 'tournaments', 'rankings', 'player_categories', 'expenses', 'whatsapp', 'push', 'payments', 'community'],
+  ENTERPRISE: ['reservations', 'users', 'tournaments', 'rankings', 'player_categories', 'expenses', 'whatsapp', 'push', 'payments', 'community'],
 };
 
 try {

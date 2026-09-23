@@ -25,7 +25,7 @@ export default async function PerfilPage() {
     const secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
 
     // Cargar asignación de categoría oficial del jugador
-    const [categoryAssignment, userCategoryLevel, bookings, teams] = await Promise.all([
+    const [categoryAssignment, userCategoryLevel, bookings, teams, userProfile] = await Promise.all([
         prisma.playerCategoryAssignment.findFirst({
             where: { userId: session.id },
             include: { level: true }
@@ -58,7 +58,7 @@ export default async function PerfilPage() {
         })
     ]);
 
-    const isCommunityEnabled = (settings as any)?.communityEnabled !== false;
+    const isCommunityEnabled = Boolean((settings as any)?.communityEnabled);
 
     const officialCategoryName = categoryAssignment?.level?.name || session.category || null;
     const categoryColor = categoryAssignment?.level?.color || userCategoryLevel?.color || primaryColor;

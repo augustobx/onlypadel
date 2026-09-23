@@ -12,6 +12,9 @@ const tenantModels = new Set([
   'TournamentTeam', 'TournamentGroup', 'TournamentGroupTeam', 'TournamentMatch',
   'RankingCategory', 'RankingEntry', 'PlayerCategoryLevel',
   'PlayerCategoryAssignment', 'SystemSetting',
+  'Post', 'PostLike', 'PostComment',
+  'ChatConversation', 'ChatParticipant', 'ChatMessage',
+  'CommunityNotification', 'OpenMatch', 'OpenMatchPlayer',
 ]);
 
 const modelFeatures: Record<string, FeatureKey> = {
@@ -22,6 +25,9 @@ const modelFeatures: Record<string, FeatureKey> = {
   TournamentGroup: 'tournaments', TournamentGroupTeam: 'tournaments', TournamentMatch: 'tournaments',
   RankingCategory: 'rankings', RankingEntry: 'rankings',
   PlayerCategoryLevel: 'player_categories', PlayerCategoryAssignment: 'player_categories',
+  Post: 'community', PostLike: 'community', PostComment: 'community',
+  ChatConversation: 'community', ChatParticipant: 'community', ChatMessage: 'community',
+  CommunityNotification: 'community', OpenMatch: 'community', OpenMatchPlayer: 'community',
 };
 
 const relationOwnership: Record<string, Record<string, string>> = {
@@ -40,6 +46,14 @@ const relationOwnership: Record<string, Record<string, string>> = {
   },
   RankingEntry: { categoryId: 'rankingCategory', userId: 'user' },
   PlayerCategoryAssignment: { levelId: 'playerCategoryLevel', userId: 'user' },
+  Post: { authorId: 'user' },
+  PostLike: { postId: 'post', userId: 'user' },
+  PostComment: { postId: 'post', authorId: 'user' },
+  ChatParticipant: { conversationId: 'chatConversation', userId: 'user' },
+  ChatMessage: { conversationId: 'chatConversation', senderId: 'user' },
+  CommunityNotification: { userId: 'user' },
+  OpenMatch: { creatorId: 'user', bookingId: 'booking', courtId: 'court' },
+  OpenMatchPlayer: { matchId: 'openMatch', userId: 'user' },
 };
 
 const readOperations = new Set([

@@ -37,7 +37,7 @@ export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavb
               </span>
             </Link>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1">
             {sysSettings?.playerCategoriesEnabled !== false && <Link
               href="/categorias-jugadores"
               className="flex items-center gap-1.5 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800/60 px-3 py-1.5 text-xs sm:text-sm font-bold text-sky-800 dark:text-sky-300 transition-all hover:bg-sky-100 dark:hover:bg-sky-900/60 active:scale-95"

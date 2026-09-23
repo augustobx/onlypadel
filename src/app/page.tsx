@@ -7,7 +7,7 @@ import BookingFlow from "@/components/BookingFlow";
 import BookingFlowChat from "@/components/BookingFlowChat";
 import PublicNavbar from "@/components/PublicNavbar";
 import Link from "next/link";
-import { Trophy, ChevronRight } from "lucide-react";
+import { Trophy, ChevronRight, Users2 } from "lucide-react";
 import { cookies } from "next/headers";
 import UserWelcomeSplash from "@/components/UserWelcomeSplash";
 import { getUserSession } from "@/actions/user-auth";
@@ -143,6 +143,21 @@ export default async function HomePage() {
                       </div>
                       <span className="bg-black/20 hover:bg-black/30 text-white px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0 flex items-center gap-1 transition-colors">
                         Ver <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </Link>
+                  </div>
+                )}
+                {settings?.communityEnabled && (
+                  <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 py-2 text-white shadow-sm z-30 shrink-0 border-b border-violet-700/30">
+                    <Link href="/comunidad" className="flex items-center justify-between gap-2 hover:opacity-95 transition-opacity">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Users2 className="w-4 h-4 text-violet-200 shrink-0" />
+                        <span className="text-xs font-black tracking-wide truncate">
+                          Comunidad: Buscá compañeros, partidos y novedades
+                        </span>
+                      </div>
+                      <span className="bg-white/20 hover:bg-white/30 text-white px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0 flex items-center gap-1 transition-colors">
+                        Entrar <ChevronRight className="w-3 h-3" />
                       </span>
                     </Link>
                   </div>

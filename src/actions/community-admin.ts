@@ -158,12 +158,15 @@ export async function createClubAnnouncement(data: {
       return { success: false, error: 'El contenido del comunicado no puede estar vacío.' };
     }
 
+    const rawImage = typeof data.imageUrl === 'string' ? data.imageUrl.trim() : '';
+    const cleanImageUrl = rawImage && !rawImage.startsWith('$') && rawImage !== 'undefined' && rawImage !== 'null' ? rawImage : null;
+
     const post = await prisma.post.create({
       data: {
         authorId: admin.userId,
         type: 'CLUB_ANNOUNCEMENT',
         content: data.content.trim(),
-        imageUrl: data.imageUrl || null,
+        imageUrl: cleanImageUrl,
         isPinned: data.isPinned ?? true,
         isActive: true,
       },
@@ -175,7 +178,7 @@ export async function createClubAnnouncement(data: {
     return { success: true, postId: post.id };
   } catch (error) {
     console.error('Error creating club announcement:', error);
-    return { success: false, error: 'No se pudo crear el comunicado del club.' };
+    return { success: false, error: error instanceof Error ? error.message : 'No se pudo crear el comunicado del club.' };
   }
 }
 

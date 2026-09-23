@@ -31,8 +31,8 @@ class CloudflareR2Provider implements StorageProvider {
     const endpoint = process.env.R2_ENDPOINT;
     const accessKeyId = process.env.R2_ACCESS_KEY_ID;
     const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-    this.bucket = process.env.R2_BUCKET || 'onlyfood-media';
-    this.publicUrl = (process.env.R2_PUBLIC_URL || 'https://pub-00b405d209ad48ec8925d1cff26a1139.r2.dev').replace(/\/$/, '');
+    this.bucket = process.env.R2_BUCKET || 'onlypadel-media';
+    this.publicUrl = (process.env.R2_PUBLIC_URL || '/api/media').replace(/\/$/, '');
 
     if (!endpoint || !accessKeyId || !secretAccessKey) {
       console.warn('[R2 Storage] Incomplete R2 credentials in environment variables.');

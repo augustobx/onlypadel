@@ -10,13 +10,9 @@ export default async function CommunityLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const communityEnabled = await hasTenantFeature("community");
-  const settings = await prisma.systemSetting.findFirst({
-    where: { id: 1 },
-    select: { communityEnabled: true, usersModuleEnabled: true },
-  });
+  const sysSettings = await getSettings();
 
-  if (!communityEnabled || !settings?.communityEnabled) {
+  if (!sysSettings?.communityEnabled) {
     redirect("/");
   }
 
@@ -25,8 +21,6 @@ export default async function CommunityLayout({
   if (!session) {
     redirect("/login-usuario?redirect=/comunidad");
   }
-
-  const sysSettings = await getSettings();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 flex flex-col">
