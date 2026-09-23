@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,21 +18,23 @@ import {
   HelpCircle,
   ShieldAlert,
 } from "lucide-react";
-import type { OpenMatchCardData } from "@/actions/community-matches";
+import type { OpenMatchCardData, UserUpcomingBookingOption } from "@/actions/community-matches";
 import {
   joinOpenMatch,
   leaveOpenMatch,
   cancelOpenMatch,
-  createManualOpenMatch,
+  createOpenMatchFromBooking,
 } from "@/actions/community-matches";
 import type { PreferredPosition } from "@prisma/client";
 
 export default function OpenMatchesClient({
   initialMatches,
   currentUserId,
+  userBookings = [],
 }: {
   initialMatches: OpenMatchCardData[];
   currentUserId: string | null;
+  userBookings?: UserUpcomingBookingOption[];
 }) {
   const [matches, setMatches] = useState<OpenMatchCardData[]>(initialMatches);
   const [filterLevel, setFilterLevel] = useState<string>("ALL");
@@ -40,19 +42,24 @@ export default function OpenMatchesClient({
   const [isPending, startTransition] = useTransition();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const router = useRouter();
 
-  // Estado para el modal de creación manual
-  const [formCourt, setFormCourt] = useState("");
-  const [formDate, setFormDate] = useState(
-    new Date().toISOString().split("T")[0]
+  // Estado para el modal de convocatoria ligada a una reserva real
+  const [selectedBookingId, setSelectedBookingId] = useState<string>(
+    userBookings?.[0]?.id || ""
   );
-  const [formStartTime, setFormStartTime] = useState("19:00");
-  const [formEndTime, setFormEndTime] = useState("20:30");
   const [formSlots, setFormSlots] = useState<number>(1);
   const [formLevel, setFormLevel] = useState("");
   const [formPosition, setFormPosition] = useState<PreferredPosition | "">("");
   const [formDescription, setFormDescription] = useState("");
+
+  // Mantener preseleccionado el primer turno si cambia userBookings
+  useEffect(() => {
+    if (userBookings.length > 0 && !selectedBookingId) {
+      setSelectedBookingId(userBookings[0].id);
+    }
+  }, [userBookings, selectedBookingId]);
 
   const handleJoin = (matchId: string) => {
     if (!currentUserId) {
@@ -123,16 +130,19 @@ export default function OpenMatchesClient({
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUserId) {
-      router.push("/login-usuario");
+      router.push("/login-usuario?redirect=/comunidad/turnos");
       return;
     }
 
+    if (!selectedBookingId) {
+      setActionError("Seleccioná uno de tus turnos reservados para convocar jugadores.");
+      return;
+    }
+
+    setActionError(null);
     startTransition(async () => {
-      const res = await createManualOpenMatch({
-        courtName: formCourt.trim() || "Cancha del Club",
-        dateStr: formDate,
-        startTime: formStartTime,
-        endTime: formEndTime,
+      const res = await createOpenMatchFromBooking({
+        bookingId: selectedBookingId,
         slotsNeeded: formSlots,
         level: formLevel.trim() || undefined,
         positionNeeded: (formPosition as PreferredPosition) || undefined,
@@ -141,6 +151,12 @@ export default function OpenMatchesClient({
 
       if (res.success) {
         setShowCreateModal(false);
+        setActionSuccess(
+          res.updated
+            ? "¡Convocatoria actualizada con éxito!"
+            : "¡Convocatoria publicada! Tu turno ya está disponible en Turnos Armados y en el Muro."
+        );
+        setTimeout(() => setActionSuccess(null), 5000);
         router.refresh();
       } else {
         setActionError(res.error || "Error al crear la convocatoria.");
@@ -204,6 +220,19 @@ export default function OpenMatchesClient({
           </div>
         </div>
       </div>
+
+      {/* Alerta de Éxito si ocurre */}
+      {actionSuccess && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>{actionSuccess}</span>
+          </div>
+          <button onClick={() => setActionSuccess(null)} className="font-bold ml-2">
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Alerta de Error si ocurre */}
       {actionError && (
@@ -477,21 +506,21 @@ export default function OpenMatchesClient({
         </div>
       )}
 
-      {/* Modal de Creación Manual */}
+      {/* Modal de Convocatoria - Exclusivo para turnos ya sacados */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-violet-100 dark:bg-violet-950/50 text-violet-600">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
                   <CalendarDays className="w-5 h-5" />
                 </span>
                 <div>
                   <h3 className="text-base font-black text-slate-900 dark:text-white">
-                    Convocar Jugadores
+                    Buscar Personas para Jugar
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Buscá compañeros para un turno ya armado
+                    Convocatoria oficial para turnos reservados
                   </p>
                 </div>
               </div>
@@ -503,148 +532,195 @@ export default function OpenMatchesClient({
               </button>
             </div>
 
-            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between gap-2">
-              <span className="font-medium">¿Todavía no tenés cancha reservada en el club?</span>
-              <Link
-                href="/"
-                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shrink-0 transition-colors"
-              >
-                Sacar Turno →
-              </Link>
-            </div>
-
-            <form onSubmit={handleCreateSubmit} className="space-y-3.5 text-xs">
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300">
-                  Nombre de la Cancha / Club
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formCourt}
-                  onChange={(e) => setFormCourt(e.target.value)}
-                  placeholder="Ej: Cancha Panorámica 1"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Fecha del Partido
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
-                  />
+            {/* Caso 1: No está logueado */}
+            {!currentUserId ? (
+              <div className="text-center py-6 px-2 space-y-4">
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/15 text-amber-500 flex items-center justify-center text-3xl shadow-inner">
+                  🔒
                 </div>
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
-                    ¿Cuántos faltan?
-                  </label>
-                  <select
-                    value={formSlots}
-                    onChange={(e) => setFormSlots(Number(e.target.value))}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Iniciá sesión para convocar
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                    Para buscar personas o convocar compañeros, ingresá con tu cuenta para acceder a tus turnos reservados.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <Link
+                    href="/login-usuario?redirect=/comunidad/turnos"
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-[var(--color-primary)] text-white text-xs font-black shadow-md hover:brightness-110 active:scale-95 transition-all"
                   >
-                    <option value={1}>Falta 1 jugador</option>
-                    <option value={2}>Faltan 2 jugadores</option>
-                    <option value={3}>Faltan 3 jugadores</option>
-                  </select>
+                    Iniciar Sesión
+                  </Link>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Hora Inicio
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={formStartTime}
-                    onChange={(e) => setFormStartTime(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
-                  />
+            ) : userBookings.length === 0 ? (
+              /* Caso 2: Logueado pero SIN turnos reservados */
+              <div className="text-center py-6 px-2 space-y-4">
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/15 text-amber-500 flex items-center justify-center text-3xl shadow-inner">
+                  📅
                 </div>
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Hora Fin
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={formEndTime}
-                    onChange={(e) => setFormEndTime(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
-                  />
+                <div className="space-y-1.5">
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    No tenés turnos reservados
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    Para buscar personas o convocar compañeros, primero necesitás tener una cancha reservada en el club. Reservá tu turno para buscar personas.
+                  </p>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Nivel o Categoría
-                  </label>
-                  <input
-                    type="text"
-                    value={formLevel}
-                    onChange={(e) => setFormLevel(e.target.value)}
-                    placeholder="Ej: 6ta pareja"
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Posición Buscada
-                  </label>
-                  <select
-                    value={formPosition}
-                    onChange={(e) => setFormPosition(e.target.value as any)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
+                <div className="pt-2">
+                  <Link
+                    href="/"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[var(--color-primary)] text-white text-xs font-black shadow-lg shadow-[var(--color-primary)]/25 hover:brightness-110 active:scale-95 transition-all"
                   >
-                    <option value="">Cualquiera</option>
-                    <option value="DRIVE">Drive</option>
-                    <option value="REVES">Revés</option>
-                    <option value="AMBOS">Indistinto</option>
-                  </select>
+                    <CalendarDays className="w-4 h-4" />
+                    <span>Reservá para buscar personas 🎾</span>
+                  </Link>
                 </div>
               </div>
+            ) : (
+              /* Caso 3: Tiene turnos reservados */
+              <form onSubmit={handleCreateSubmit} className="space-y-3.5 text-xs">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    Elegí tu turno reservado:
+                  </label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {userBookings.map((b) => {
+                      const isSelected = selectedBookingId === b.id;
+                      return (
+                        <button
+                          type="button"
+                          key={b.id}
+                          onClick={() => setSelectedBookingId(b.id)}
+                          className={`w-full text-left p-3 rounded-2xl border transition-all flex items-center justify-between ${
+                            isSelected
+                              ? "bg-[var(--color-primary)]/10 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/20 shadow-sm"
+                              : "bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5 font-black text-slate-900 dark:text-white">
+                              <CalendarDays className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                              <span>{b.courtName}</span>
+                              <span className="text-slate-400">•</span>
+                              <span className="capitalize">{b.dateFormatted}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span>{b.timeFormatted}</span>
+                            </div>
+                          </div>
 
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300">
-                  Nota / Comentario
-                </label>
-                <textarea
-                  rows={2}
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Ej: Nos bajamos uno a último momento, picadito parejo y con buena onda..."
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 resize-none"
-                />
-              </div>
+                          <div className="flex items-center gap-2">
+                            {b.alreadyPublished && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                Publicado
+                              </span>
+                            )}
+                            <span
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                isSelected
+                                  ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
+                                  : "border-slate-300 dark:border-slate-600"
+                              }`}
+                            >
+                              {isSelected && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                              )}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-100"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="px-5 py-2 rounded-xl bg-[var(--color-primary)] hover:brightness-110 text-white font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5"
-                >
-                  {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Publicar Convocatoria
-                </button>
-              </div>
-            </form>
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    ¿Cuántos jugadores faltan?
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[1, 2, 3].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setFormSlots(num)}
+                        className={`py-2 rounded-xl font-bold border transition-all ${
+                          formSlots === num
+                            ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-sm"
+                            : "bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        Falta {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">
+                      Nivel / Categoría
+                    </label>
+                    <input
+                      type="text"
+                      value={formLevel}
+                      onChange={(e) => setFormLevel(e.target.value)}
+                      placeholder="Ej: 6ta pareja, 5ta..."
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">
+                      Posición Buscada
+                    </label>
+                    <select
+                      value={formPosition}
+                      onChange={(e) => setFormPosition(e.target.value as any)}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
+                    >
+                      <option value="">Cualquiera</option>
+                      <option value="DRIVE">Drive</option>
+                      <option value="REVES">Revés</option>
+                      <option value="AMBOS">Indistinto</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300">
+                    Nota o Mensaje para el Muro
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    placeholder="Ej: Picadito parejo y con buena onda, nos falta uno a último momento..."
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 resize-none focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-4 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPending || !selectedBookingId}
+                    className="px-5 py-2.5 rounded-xl bg-[var(--color-primary)] hover:brightness-110 text-white font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Publicar en la Comunidad 🚀
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { getOpenMatches } from "@/actions/community-matches";
+import { getOpenMatches, getUserUpcomingBookings } from "@/actions/community-matches";
 import { getUserSession } from "@/actions/user-auth";
 import OpenMatchesClient from "@/components/community/OpenMatchesClient";
 
@@ -8,15 +8,18 @@ export const metadata = {
 };
 
 export default async function TurnosArmadosPage() {
-  const [session, { matches }] = await Promise.all([
+  const [session, openMatchesRes, userBookingsRes] = await Promise.all([
     getUserSession(),
     getOpenMatches(),
+    getUserUpcomingBookings(),
   ]);
 
   return (
     <OpenMatchesClient
-      initialMatches={matches}
+      initialMatches={openMatchesRes?.matches || []}
       currentUserId={session?.id || null}
+      userBookings={userBookingsRes?.bookings || []}
     />
   );
 }
+

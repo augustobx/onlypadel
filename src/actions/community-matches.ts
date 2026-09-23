@@ -134,6 +134,101 @@ export async function getOpenMatches(filters?: {
   }
 }
 
+export interface UserUpcomingBookingOption {
+  id: string;
+  courtName: string;
+  date: Date;
+  dateFormatted: string;
+  timeFormatted: string;
+  startTime: string;
+  endTime: string;
+  alreadyPublished: boolean;
+  publishedMatchId?: string;
+  publishedSlotsNeeded?: number;
+}
+
+export async function getUserUpcomingBookings(): Promise<{
+  success: boolean;
+  notLoggedIn: boolean;
+  bookings: UserUpcomingBookingOption[];
+}> {
+  try {
+    const userId = await readUserSessionId();
+    if (!userId) {
+      return { success: false, notLoggedIn: true, bookings: [] };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, dni: true, phone: true },
+    });
+
+    const now = new Date();
+    const orConditions: any[] = [{ userId }];
+    if (user?.dni) orConditions.push({ user: { dni: user.dni } });
+    if (user?.phone) {
+      orConditions.push({ user: { phone: user.phone } });
+      const digits = user.phone.replace(/\D/g, '');
+      if (digits.length >= 8) {
+        orConditions.push({ user: { phone: { contains: digits.slice(-8) } } });
+      }
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        OR: orConditions,
+        startTime: { gte: now },
+        status: { in: ['CONFIRMED', 'PENDING'] },
+      },
+      include: {
+        court: true,
+        openMatches: {
+          where: { status: { not: 'CANCELLED' } },
+        },
+      },
+      orderBy: { startTime: 'asc' },
+    });
+
+    const data: UserUpcomingBookingOption[] = bookings.map((b) => {
+      const startTimeStr = new Date(b.startTime).toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Argentina/Buenos_Aires',
+      });
+      const endTimeStr = new Date(b.endTime).toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Argentina/Buenos_Aires',
+      });
+
+      const publishedMatch = b.openMatches[0];
+
+      return {
+        id: b.id,
+        courtName: b.court.name,
+        date: b.startTime,
+        dateFormatted: new Date(b.startTime).toLocaleDateString('es-AR', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          timeZone: 'America/Argentina/Buenos_Aires',
+        }),
+        timeFormatted: `${startTimeStr} - ${endTimeStr} hs`,
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        alreadyPublished: b.openMatches.length > 0,
+        publishedMatchId: publishedMatch?.id,
+        publishedSlotsNeeded: publishedMatch?.slotsNeeded,
+      };
+    });
+
+    return { success: true, notLoggedIn: false, bookings: data };
+  } catch (error) {
+    console.error('Error fetching user upcoming bookings:', error);
+    return { success: false, notLoggedIn: false, bookings: [] };
+  }
+}
+
 export async function createOpenMatchFromBooking(data: {
   bookingId: string;
   slotsNeeded: number;
@@ -143,20 +238,61 @@ export async function createOpenMatchFromBooking(data: {
 }) {
   try {
     await requireTenantFeature('community');
-    const userId = await readUserSessionId();
-    if (!userId) return { success: false, error: 'Inicia sesión para convocar jugadores.' };
+    let userId = await readUserSessionId();
 
     const booking = await prisma.booking.findUnique({
       where: { id: data.bookingId },
-      include: { court: true, user: true },
+      include: {
+        court: true,
+        user: true,
+        openMatches: {
+          where: { status: { not: 'CANCELLED' } },
+        },
+      },
     });
 
     if (!booking) {
       return { success: false, error: 'No se encontró la reserva vinculada.' };
     }
 
-    if (booking.userId !== userId) {
-      return { success: false, error: 'Solo el titular de la reserva puede publicar este turno.' };
+    if (!userId) {
+      if (booking.userId) {
+        userId = booking.userId;
+      } else {
+        return { success: false, error: 'Inicia sesión para convocar jugadores.' };
+      }
+    } else if (booking.userId && booking.userId !== userId) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { dni: true, phone: true },
+      });
+      const isSamePerson =
+        (currentUser?.dni && booking.user?.dni && currentUser.dni === booking.user.dni) ||
+        (currentUser?.phone && booking.user?.phone && currentUser.phone === booking.user.phone);
+      if (!isSamePerson) {
+        return { success: false, error: 'Solo el titular de la reserva puede publicar este turno.' };
+      }
+    }
+
+    // Si ya existe una convocatoria abierta para esta misma reserva, actualizarla o avisar
+    if (booking.openMatches.length > 0) {
+      const existing = booking.openMatches[0];
+      await prisma.openMatch.update({
+        where: { id: existing.id },
+        data: {
+          slotsNeeded: Math.max(1, Math.min(3, data.slotsNeeded)),
+          level: data.level || existing.level,
+          positionNeeded: data.positionNeeded || null,
+          description: data.description || existing.description,
+          status: 'OPEN',
+        },
+      });
+
+      revalidatePath('/comunidad');
+      revalidatePath('/comunidad/turnos');
+      revalidatePath('/perfil');
+
+      return { success: true, matchId: existing.id, updated: true };
     }
 
     // Formatear horas

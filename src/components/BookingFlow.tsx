@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard, Share2, Download, ExternalLink, Sparkles, Check } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard, Share2, Download, ExternalLink, Sparkles, Check, Users, MessageCircle } from 'lucide-react';
 import { getAvailableSlots } from '@/actions/public-bookings';
 import { createBooking } from '@/actions/bookings';
 import { createPaymentPreference } from '@/actions/payments';
+import { createOpenMatchFromBooking } from '@/actions/community-matches';
 import { clearBookingRequestKey, getOrCreateBookingRequestKey } from '@/lib/booking-request';
 import { getReadableForeground, normalizeHexColor } from '@/lib/color';
 import { getGoogleCalendarUrl, downloadIcsFile } from '@/lib/calendar-export';
@@ -117,7 +118,18 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     dateFormatted: string;
     slotTime: string;
     playerName: string;
+    bookingId?: string;
   } | null>(null);
+
+  // Estados para compartir con la Comunidad
+  const [showCommunityModal, setShowCommunityModal] = useState(false);
+  const [communitySlotsNeeded, setCommunitySlotsNeeded] = useState(1);
+  const [communityLevel, setCommunityLevel] = useState('');
+  const [communityPosition, setCommunityPosition] = useState<string>('');
+  const [communityDescription, setCommunityDescription] = useState('');
+  const [communitySubmitting, setCommunitySubmitting] = useState(false);
+  const [communitySuccess, setCommunitySuccess] = useState(false);
+  const [communityError, setCommunityError] = useState('');
 
   // Escuchar retornos de Mercado Pago (?status=success, etc.)
   useEffect(() => {
@@ -264,18 +276,6 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
       const chosenDateFormatted = selectedDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
       const chosenSlot = selectedSlot;
 
-      // Guardar datos exactos para el resumen de éxito
-      const details = {
-        courtName: chosenCourt,
-        dateFormatted: chosenDateFormatted,
-        slotTime: chosenSlot,
-        playerName: formData.name.trim(),
-      };
-      setConfirmedDetails(details);
-      try {
-        window.sessionStorage.setItem('last_confirmed_booking', JSON.stringify(details));
-      } catch {}
-
       const bookingResult = await createBooking({
         courtId: selectedCourt,
         date: dateStr,
@@ -295,6 +295,19 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
       retryWhenOnlineRef.current = false;
       completedRef.current = true;
       window.sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+
+      // Guardar datos exactos para el resumen de éxito con bookingId
+      const details = {
+        courtName: chosenCourt,
+        dateFormatted: chosenDateFormatted,
+        slotTime: chosenSlot,
+        playerName: formData.name.trim(),
+        bookingId,
+      };
+      setConfirmedDetails(details);
+      try {
+        window.sessionStorage.setItem('last_confirmed_booking', JSON.stringify(details));
+      } catch {}
 
       if (requireDeposit && fee > 0) {
         const paymentResult = await createPaymentPreference(bookingId);
@@ -317,6 +330,38 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
       retryWhenOnlineRef.current = true;
       setError('La conexión se interrumpió. Estamos verificando la misma reserva para no duplicarla.');
       setSubmitting(false);
+    }
+  };
+
+  const handleCommunityShareSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmedDetails?.bookingId) {
+      setCommunityError('No se encontró el turno reservado para compartir.');
+      return;
+    }
+
+    setCommunitySubmitting(true);
+    setCommunityError('');
+
+    try {
+      const res = await createOpenMatchFromBooking({
+        bookingId: confirmedDetails.bookingId,
+        slotsNeeded: communitySlotsNeeded,
+        level: communityLevel.trim() || undefined,
+        positionNeeded: (communityPosition as any) || undefined,
+        description: communityDescription.trim() || undefined,
+      });
+
+      if (res.success) {
+        setCommunitySuccess(true);
+      } else {
+        setCommunityError(res.error || 'No se pudo compartir el turno en la comunidad.');
+      }
+    } catch (err: any) {
+      console.error('Error sharing booking to community:', err);
+      setCommunityError('Error al conectar con la comunidad.');
+    } finally {
+      setCommunitySubmitting(false);
     }
   };
 
@@ -779,14 +824,38 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
 
               {/* BOTONES DE ACCIÓN PROFESIONALES */}
               <div className="w-full space-y-2.5 mb-4">
-                {/* 1. Compartir con el grupo de 4 */}
+                {/* 1. Compartir turno con la Comunidad OnlyPadel */}
                 <button
                   type="button"
-                  onClick={handleShareGroup}
+                  onClick={() => {
+                    setCommunitySuccess(false);
+                    setCommunityError('');
+                    setShowCommunityModal(true);
+                  }}
                   className="w-full flex items-center justify-center gap-2.5 bg-[var(--color-primary)] hover:opacity-90 text-[var(--color-primary-foreground)] font-black text-sm py-3.5 px-5 rounded-2xl shadow-md transition-all active:scale-[0.98]"
                 >
-                  <Share2 className="w-4 h-4" />
-                  <span>🎾 Compartir Convocatoria con el Grupo</span>
+                  <Users className="w-4 h-4" />
+                  <span>🎾 Compartir turno con la Comunidad</span>
+                </button>
+
+                {/* 2. Enviar directamente al grupo de WhatsApp (sin selector de apps del SO) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `🎾 *¡Turno confirmado en ${clubName}!* 🎾\n\n` +
+                      `🏟 *Cancha:* ${displayCourtName}\n` +
+                      `📅 *Fecha:* ${displayDateFormatted}\n` +
+                      `⏰ *Horario:* ${displaySlotTime} hs\n` +
+                      `👤 *Organiza:* ${confirmedDetails?.playerName || formData.name}\n` +
+                      `🔖 *Código:* ${bookingCode}\n\n` +
+                      `¡Nos vemos en la cancha! 🏆`;
+                    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                    window.open(waUrl, '_blank');
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs py-3 px-4 rounded-2xl shadow-sm transition-all active:scale-[0.98]"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>📲 Enviar datos al grupo de WhatsApp</span>
                 </button>
 
                 {/* 2. Fila Calendarios: Google Calendar & Apple/Outlook (.ics) */}
@@ -881,6 +950,177 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
           autoClose={sysSettings?.announcementAutoClose ?? true}
           onClose={() => setShowFloatingAnnouncement(false)}
         />
+      )}
+
+      {/* MODAL PARA COMPARTIR TURNO CON LA COMUNIDAD */}
+      {showCommunityModal && (
+        <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
+                  <Sparkles className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Compartir con la Comunidad
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Publicá tu turno en Turnos Armados y en el Muro
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCommunityModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {communitySuccess ? (
+              <div className="py-6 px-2 text-center space-y-4">
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center text-3xl shadow-inner">
+                  🎾
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-lg font-black text-slate-900 dark:text-white">
+                    ¡Turno publicado en la Comunidad!
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                    Tu convocatoria ya está visible en Turnos Armados y en el Muro del club para que otros jugadores puedan sumarse.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 pt-2">
+                  <a
+                    href="/comunidad/turnos"
+                    className="w-full py-3 rounded-2xl bg-[var(--color-primary)] text-white text-xs font-black shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span>Ver en Turnos Armados →</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShowCommunityModal(false)}
+                    className="w-full py-2.5 rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleCommunityShareSubmit} className="space-y-3.5 text-xs">
+                {/* Resumen del Turno */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                  <div className="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200">
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                      {confirmedDetails?.courtName}
+                    </span>
+                    <span className="text-[var(--color-primary)] font-black">
+                      {confirmedDetails?.slotTime} hs
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">
+                    {confirmedDetails?.dateFormatted}
+                  </p>
+                </div>
+
+                {communityError && (
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-medium">
+                    {communityError}
+                  </div>
+                )}
+
+                {/* ¿Cuántos faltan? */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    ¿Cuántos jugadores te faltan?
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[1, 2, 3].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setCommunitySlotsNeeded(num)}
+                        className={`py-2 rounded-xl font-bold border transition-all ${
+                          communitySlotsNeeded === num
+                            ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-sm'
+                            : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        Falta {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Nivel y Posición */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">
+                      Nivel / Categoría
+                    </label>
+                    <input
+                      type="text"
+                      value={communityLevel}
+                      onChange={(e) => setCommunityLevel(e.target.value)}
+                      placeholder="Ej: 6ta pareja, 5ta..."
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">
+                      Posición Buscada
+                    </label>
+                    <select
+                      value={communityPosition}
+                      onChange={(e) => setCommunityPosition(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
+                    >
+                      <option value="">Cualquiera</option>
+                      <option value="DRIVE">Drive</option>
+                      <option value="REVES">Revés</option>
+                      <option value="AMBOS">Indistinto</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Nota para la comunidad */}
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300">
+                    Mensaje / Nota para el Muro
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={communityDescription}
+                    onChange={(e) => setCommunityDescription(e.target.value)}
+                    placeholder="Ej: Picadito parejo y con buena onda, nos falta uno para armar el partido..."
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 resize-none focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowCommunityModal(false)}
+                    className="px-4 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={communitySubmitting}
+                    className="px-5 py-2.5 rounded-xl bg-[var(--color-primary)] hover:brightness-110 text-white font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                  >
+                    {communitySubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Publicar en la Comunidad 🚀
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
       )}
 
       {/* CSS Ocultar Scrollbar */}
