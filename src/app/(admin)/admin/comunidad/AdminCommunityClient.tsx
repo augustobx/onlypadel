@@ -66,12 +66,22 @@ interface AdminConversation {
   } | null;
 }
 
+interface AdminCommunityStats {
+  totalPosts: number;
+  totalAnnouncements: number;
+  activeMatches: number;
+  totalMessages: number;
+  playersWithAvatar: number;
+}
+
 export default function AdminCommunityClient({
   initialPosts,
   initialConversations,
+  stats,
 }: {
   initialPosts: AdminPost[];
   initialConversations: AdminConversation[];
+  stats?: AdminCommunityStats;
 }) {
   const [activeTab, setActiveTab] = useState<"announcements" | "posts" | "chats">(
     "announcements"
@@ -277,6 +287,47 @@ export default function AdminCommunityClient({
           </button>
         </div>
       </div>
+
+      {/* Tira de Métricas de Comunidad */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+              📢 Comunicados
+            </span>
+            <span className="text-2xl font-black text-violet-600 dark:text-violet-400">
+              {stats.totalAnnouncements}
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+              📝 Publicaciones Muro
+            </span>
+            <span className="text-2xl font-black text-slate-900 dark:text-white">
+              {stats.totalPosts}
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+              🎾 Turnos Convocados
+            </span>
+            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+              {stats.activeMatches}
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+              💬 Mensajes Chat
+            </span>
+            <span className="text-2xl font-black text-amber-500">
+              {stats.totalMessages}
+            </span>
+          </div>
+        </div>
+      )}
 
       {actionMessage && (
         <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center gap-2 animate-in fade-in">

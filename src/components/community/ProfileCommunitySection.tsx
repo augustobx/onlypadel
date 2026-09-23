@@ -26,6 +26,8 @@ interface ProfileCommunityProps {
   initialBio: string | null;
   initialPosition: PreferredPosition | null;
   initialLookingForPartner: boolean;
+  initialTimeSlot?: string | null;
+  initialDays?: string[] | null;
   upcomingBookings: {
     id: string;
     courtName: string;
@@ -35,18 +37,32 @@ interface ProfileCommunityProps {
   }[];
 }
 
+const ALL_DAYS = [
+  { id: "lunes", label: "Lun" },
+  { id: "martes", label: "Mar" },
+  { id: "miercoles", label: "Mié" },
+  { id: "jueves", label: "Jue" },
+  { id: "viernes", label: "Vie" },
+  { id: "sabado", label: "Sáb" },
+  { id: "domingo", label: "Dom" },
+];
+
 export default function ProfileCommunitySection({
   userId,
   initialAvatarUrl,
   initialBio,
   initialPosition,
   initialLookingForPartner,
+  initialTimeSlot,
+  initialDays,
   upcomingBookings,
 }: ProfileCommunityProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(initialAvatarUrl);
   const [bio, setBio] = useState(initialBio || "");
   const [position, setPosition] = useState<PreferredPosition | "">(initialPosition || "");
   const [lookingForPartner, setLookingForPartner] = useState(initialLookingForPartner);
+  const [timeSlot, setTimeSlot] = useState(initialTimeSlot || "");
+  const [selectedDays, setSelectedDays] = useState<string[]>(initialDays || []);
 
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -118,6 +134,10 @@ export default function ProfileCommunitySection({
       if (position) formData.set("preferredPosition", position);
       formData.set("lookingForPartner", String(lookingForPartner));
       if (avatarUrl) formData.set("avatarUrl", avatarUrl);
+      if (timeSlot) formData.set("availableTimeSlot", timeSlot);
+      for (const d of selectedDays) {
+        formData.set(`day_${d}`, "on");
+      }
 
       const res = await updateCommunityProfile(formData);
       if (res.success) {
@@ -235,11 +255,31 @@ export default function ProfileCommunitySection({
           </div>
         )}
 
-        {/* Biografía en modo vista */}
-        {!isEditing && bio && (
-          <p className="text-xs text-slate-600 dark:text-slate-300 italic bg-white/70 dark:bg-slate-900/60 p-3 rounded-2xl border border-violet-100 dark:border-violet-900/30">
-            &quot;{bio}&quot;
-          </p>
+        {/* Biografía y disponibilidad en modo vista */}
+        {!isEditing && (
+          <div className="space-y-2">
+            {bio && (
+              <p className="text-xs text-slate-600 dark:text-slate-300 italic bg-white/70 dark:bg-slate-900/60 p-3 rounded-2xl border border-violet-100 dark:border-violet-900/30">
+                &quot;{bio}&quot;
+              </p>
+            )}
+
+            {(selectedDays.length > 0 || timeSlot) && (
+              <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                {timeSlot && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-white/60 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/30 font-semibold">
+                    <Clock className="w-3 h-3 text-violet-500" /> {timeSlot}
+                  </span>
+                )}
+                {selectedDays.length > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-white/60 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/30 font-semibold">
+                    <CalendarDays className="w-3 h-3 text-violet-500" />
+                    {selectedDays.map((d) => ALL_DAYS.find((item) => item.id === d)?.label || d).join(", ")}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Formulario de Edición */}
@@ -276,17 +316,64 @@ export default function ProfileCommunitySection({
                 </select>
               </div>
 
-              <div className="space-y-1 flex flex-col justify-end">
-                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 dark:text-slate-300 pb-2">
-                  <input
-                    type="checkbox"
-                    checked={lookingForPartner}
-                    onChange={(e) => setLookingForPartner(e.target.checked)}
-                    className="w-4 h-4 rounded text-violet-600 focus:ring-violet-500"
-                  />
-                  <span>Activar &quot;Busco compañeros&quot;</span>
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300">
+                  Horario Preferido
                 </label>
+                <select
+                  value={timeSlot}
+                  onChange={(e) => setTimeSlot(e.target.value)}
+                  className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium focus:ring-1 focus:ring-violet-500 outline-none"
+                >
+                  <option value="">Cualquier horario</option>
+                  <option value="Mañanas (8:00 a 12:00)">Mañanas (8:00 a 12:00)</option>
+                  <option value="Mediodía (12:00 a 16:00)">Mediodía (12:00 a 16:00)</option>
+                  <option value="Tardes (16:00 a 20:00)">Tardes (16:00 a 20:00)</option>
+                  <option value="Noches (20:00 a 00:00)">Noches (20:00 a 00:00)</option>
+                </select>
               </div>
+            </div>
+
+            {/* Días habituales */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                Días habituales para jugar
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_DAYS.map((day) => {
+                  const isSelected = selectedDays.includes(day.id);
+                  return (
+                    <button
+                      type="button"
+                      key={day.id}
+                      onClick={() =>
+                        setSelectedDays((prev) =>
+                          isSelected ? prev.filter((d) => d !== day.id) : [...prev, day.id]
+                        )
+                      }
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                        isSelected
+                          ? "bg-violet-600 text-white shadow-sm"
+                          : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      {day.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-1">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={lookingForPartner}
+                  onChange={(e) => setLookingForPartner(e.target.checked)}
+                  className="w-4 h-4 rounded text-violet-600 focus:ring-violet-500"
+                />
+                <span>Activar &quot;Busco compañeros de juego&quot; en la comunidad</span>
+              </label>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

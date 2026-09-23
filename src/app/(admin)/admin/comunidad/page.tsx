@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import { getAdminPosts, getAdminConversations } from "@/actions/community-admin";
+import { getAdminPosts, getAdminConversations, getAdminCommunityStats } from "@/actions/community-admin";
 import AdminCommunityClient from "./AdminCommunityClient";
 
 export const metadata = {
@@ -10,9 +10,10 @@ export const metadata = {
 export default async function AdminComunidadPage() {
   await requireAdmin();
 
-  const [postsRes, chatsRes] = await Promise.all([
+  const [postsRes, chatsRes, statsRes] = await Promise.all([
     getAdminPosts({ page: 1 }),
     getAdminConversations(),
+    getAdminCommunityStats(),
   ]);
 
   return (
@@ -20,6 +21,7 @@ export default async function AdminComunidadPage() {
       <AdminCommunityClient
         initialPosts={postsRes.posts}
         initialConversations={chatsRes.conversations}
+        stats={statsRes.stats}
       />
     </div>
   );

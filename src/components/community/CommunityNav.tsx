@@ -18,7 +18,11 @@ const navItems = [
   { href: "/comunidad/notificaciones", label: "Alertas", icon: Bell },
 ];
 
-export default function CommunityNav() {
+export default function CommunityNav({
+  unreadNotifications = 0,
+}: {
+  unreadNotifications?: number;
+}) {
   const pathname = usePathname();
 
   return (
@@ -30,12 +34,14 @@ export default function CommunityNav() {
               ? pathname === "/comunidad"
               : pathname.startsWith(item.href);
 
+          const hasAlert = item.href === "/comunidad/notificaciones" && unreadNotifications > 0;
+
           return (
             <Link
               key={item.href}
               href={item.href}
               className={`
-                flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition-all duration-200 min-w-[64px]
+                relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition-all duration-200 min-w-[64px]
                 ${
                   isActive
                     ? "bg-gradient-to-t from-violet-100 to-fuchsia-50 dark:from-violet-950/60 dark:to-fuchsia-950/40 text-violet-700 dark:text-violet-300 scale-105"
@@ -43,13 +49,18 @@ export default function CommunityNav() {
                 }
               `}
             >
-              <item.icon
-                className={`w-5 h-5 transition-all ${
-                  isActive
-                    ? "text-violet-600 dark:text-violet-400 drop-shadow-sm"
-                    : ""
-                }`}
-              />
+              <div className="relative">
+                <item.icon
+                  className={`w-5 h-5 transition-all ${
+                    isActive
+                      ? "text-violet-600 dark:text-violet-400 drop-shadow-sm"
+                      : ""
+                  }`}
+                />
+                {hasAlert && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-white dark:border-slate-900 animate-pulse" />
+                )}
+              </div>
               <span
                 className={`text-[10px] font-semibold leading-tight ${
                   isActive ? "text-violet-700 dark:text-violet-300" : ""

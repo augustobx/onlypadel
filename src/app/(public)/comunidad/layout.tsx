@@ -22,6 +22,15 @@ export default async function CommunityLayout({
     redirect("/login-usuario?redirect=/comunidad");
   }
 
+  let unreadNotificationsCount = 0;
+  try {
+    unreadNotificationsCount = await prisma.communityNotification.count({
+      where: { userId: session.id, isRead: false },
+    });
+  } catch (e) {
+    // Non-critical count
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 flex flex-col">
       {/* Top header */}
@@ -50,7 +59,7 @@ export default async function CommunityLayout({
       </main>
 
       {/* Bottom navigation */}
-      <CommunityNav />
+      <CommunityNav unreadNotifications={unreadNotificationsCount} />
     </div>
   );
 }

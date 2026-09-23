@@ -410,13 +410,22 @@ export default function OpenMatchesClient({
                       Cancelar mi convocatoria
                     </button>
                   ) : match.hasJoined ? (
-                    <button
-                      onClick={() => handleLeave(match.id)}
-                      disabled={isPending}
-                      className="text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors"
-                    >
-                      Darme de baja del turno
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/comunidad/chat?to=${match.creator.id}`}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        Chat con Host
+                      </Link>
+                      <button
+                        onClick={() => handleLeave(match.id)}
+                        disabled={isPending}
+                        className="text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors"
+                      >
+                        Darme de baja
+                      </button>
+                    </div>
                   ) : (
                     <Link
                       href={`/comunidad/chat?to=${match.creator.id}`}

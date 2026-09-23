@@ -108,6 +108,32 @@ export async function toggleLike(postId: string) {
       await prisma.postLike.create({
         data: { postId, userId },
       });
+
+      // Notificar al autor de la publicación si no es el mismo usuario
+      try {
+        const post = await prisma.post.findUnique({
+          where: { id: postId },
+          select: { authorId: true },
+        });
+        if (post && post.authorId !== userId) {
+          const actor = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true, lastName: true },
+          });
+          const actorName = actor ? `${actor.name} ${actor.lastName || ''}`.trim() : 'Un jugador';
+          await prisma.communityNotification.create({
+            data: {
+              userId: post.authorId,
+              type: 'POST_LIKE',
+              title: '¡Le gustó tu publicación! ❤️',
+              body: `A ${actorName} le gustó tu publicación en el muro.`,
+              linkUrl: '/comunidad',
+            },
+          });
+        }
+      } catch (e) {
+        console.error('Error creating like notification:', e);
+      }
     }
     revalidatePath("/comunidad");
     return { success: true, liked: !existing };
@@ -139,6 +165,33 @@ export async function addComment(postId: string, formData: FormData) {
         content,
       },
     });
+
+    // Notificar al autor de la publicación si no es el mismo usuario
+    try {
+      const post = await prisma.post.findUnique({
+        where: { id: postId },
+        select: { authorId: true },
+      });
+      if (post && post.authorId !== userId) {
+        const actor = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, lastName: true },
+        });
+        const actorName = actor ? `${actor.name} ${actor.lastName || ''}`.trim() : 'Un jugador';
+        await prisma.communityNotification.create({
+          data: {
+            userId: post.authorId,
+            type: 'POST_COMMENT',
+            title: 'Nuevo comentario en tu publicación 💬',
+            body: `${actorName} comentó: "${content.slice(0, 60)}${content.length > 60 ? '...' : ''}"`,
+            linkUrl: '/comunidad',
+          },
+        });
+      }
+    } catch (e) {
+      console.error('Error creating comment notification:', e);
+    }
+
     revalidatePath("/comunidad");
     return { success: true };
   } catch (error) {

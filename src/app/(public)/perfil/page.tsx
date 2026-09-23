@@ -54,7 +54,7 @@ export default async function PerfilPage() {
         }),
         prisma.user.findUnique({
             where: { id: session.id },
-            select: { avatarUrl: true, bio: true, preferredPosition: true, lookingForPartner: true }
+            select: { avatarUrl: true, bio: true, preferredPosition: true, lookingForPartner: true, availableDays: true, availableTimeSlot: true }
         })
     ]);
 
@@ -183,6 +183,8 @@ export default async function PerfilPage() {
                             initialBio={userProfile?.bio || null}
                             initialPosition={userProfile?.preferredPosition || null}
                             initialLookingForPartner={userProfile?.lookingForPartner || false}
+                            initialTimeSlot={userProfile?.availableTimeSlot || null}
+                            initialDays={(userProfile?.availableDays as string[]) || []}
                             upcomingBookings={upcomingPlayerBookings}
                         />
                     )}

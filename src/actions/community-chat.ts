@@ -49,13 +49,14 @@ export async function getOrCreateDirectChat(otherUserId: string) {
   const conversation = await prisma.chatConversation.create({
     data: {
       type: "DIRECT",
-      participants: {
-        create: [
-          { userId, tenantId: "" },
-          { userId: otherUserId, tenantId: "" },
-        ],
-      },
     },
+  });
+
+  await prisma.chatParticipant.create({
+    data: { conversationId: conversation.id, userId, role: "MEMBER" },
+  });
+  await prisma.chatParticipant.create({
+    data: { conversationId: conversation.id, userId: otherUserId, role: "MEMBER" },
   });
 
   return { success: true, conversationId: conversation.id };
@@ -85,15 +86,18 @@ export async function createGroupChat(
     data: {
       type: "GROUP",
       name: name.trim(),
-      participants: {
-        create: allMembers.map((memberId) => ({
-          userId: memberId,
-          tenantId: "",
-          role: memberId === userId ? "ADMIN" : "MEMBER",
-        })),
-      },
     },
   });
+
+  for (const memberId of allMembers) {
+    await prisma.chatParticipant.create({
+      data: {
+        conversationId: conversation.id,
+        userId: memberId,
+        role: memberId === userId ? "ADMIN" : "MEMBER",
+      },
+    });
+  }
 
   return { success: true, conversationId: conversation.id };
 }

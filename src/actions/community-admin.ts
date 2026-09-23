@@ -172,6 +172,28 @@ export async function createClubAnnouncement(data: {
       },
     });
 
+    // Notificar a los jugadores activos del club sobre el nuevo comunicado
+    try {
+      const players = await prisma.user.findMany({
+        where: { role: 'PLAYER', isActive: true },
+        select: { id: true },
+        take: 100,
+      });
+      for (const p of players) {
+        await prisma.communityNotification.create({
+          data: {
+            userId: p.id,
+            type: 'CLUB_ANNOUNCEMENT',
+            title: '📢 Nuevo Comunicado Oficial del Club',
+            body: data.content.trim().slice(0, 90) + (data.content.trim().length > 90 ? '...' : ''),
+            linkUrl: '/comunidad',
+          },
+        });
+      }
+    } catch (e) {
+      console.error('Error sending announcement notifications:', e);
+    }
+
     revalidatePath('/comunidad');
     revalidatePath('/admin/comunidad');
 
@@ -298,5 +320,42 @@ export async function moderateChatMessage(messageId: string) {
   } catch (error) {
     console.error('Error moderating message:', error);
     return { success: false, error: 'No se pudo moderar el mensaje.' };
+  }
+}
+
+export async function getAdminCommunityStats() {
+  try {
+    await requireAdmin();
+
+    const [totalPosts, totalAnnouncements, activeMatches, totalMessages, playersWithAvatar] = await Promise.all([
+      prisma.post.count({ where: { isActive: true } }),
+      prisma.post.count({ where: { type: 'CLUB_ANNOUNCEMENT', isActive: true } }),
+      prisma.openMatch.count({ where: { status: 'OPEN' } }),
+      prisma.chatMessage.count({ where: { isDeleted: false } }),
+      prisma.user.count({ where: { role: 'PLAYER', isActive: true, avatarUrl: { not: null } } }),
+    ]);
+
+    return {
+      success: true,
+      stats: {
+        totalPosts,
+        totalAnnouncements,
+        activeMatches,
+        totalMessages,
+        playersWithAvatar,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching admin community stats:', error);
+    return {
+      success: false,
+      stats: {
+        totalPosts: 0,
+        totalAnnouncements: 0,
+        activeMatches: 0,
+        totalMessages: 0,
+        playersWithAvatar: 0,
+      },
+    };
   }
 }
