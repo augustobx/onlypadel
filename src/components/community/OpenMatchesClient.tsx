@@ -184,13 +184,24 @@ export default function OpenMatchesClient({
             </p>
           </div>
 
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-violet-900 text-xs font-black shadow-md hover:bg-white/95 active:scale-95 transition-all shrink-0"
-          >
-            <PlusCircle className="w-4 h-4 text-violet-600" />
-            Convocar Jugadores
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/"
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 text-white text-xs font-black backdrop-blur-md border border-white/25 active:scale-95 transition-all shadow-sm"
+              title="Ir al calendario para reservar una cancha"
+            >
+              <CalendarDays className="w-4 h-4 text-emerald-300" />
+              <span>Sacar Turno</span>
+            </Link>
+
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-violet-900 text-xs font-black shadow-md hover:bg-white/95 active:scale-95 transition-all"
+            >
+              <PlusCircle className="w-4 h-4 text-violet-600" />
+              Convocar Jugadores
+            </button>
+          </div>
         </div>
       </div>
 
@@ -258,15 +269,24 @@ export default function OpenMatchesClient({
             No hay convocatorias activas
           </h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
-            ¿Tenés un turno reservado y te falta gente para jugar? Publicalo en segundos.
+            ¿Tenés un turno reservado y te falta gente para jugar? Publicalo en segundos, o reservá una cancha en el club.
           </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold shadow-md hover:bg-violet-700 active:scale-95 transition-all"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Crear la primera convocatoria
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+            >
+              <CalendarDays className="w-4 h-4" />
+              Sacar Turno en el Club
+            </Link>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold shadow-md hover:bg-violet-700 active:scale-95 transition-all"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Crear convocatoria
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -481,6 +501,16 @@ export default function OpenMatchesClient({
               >
                 ✕
               </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between gap-2">
+              <span className="font-medium">¿Todavía no tenés cancha reservada en el club?</span>
+              <Link
+                href="/"
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shrink-0 transition-colors"
+              >
+                Sacar Turno →
+              </Link>
             </div>
 
             <form onSubmit={handleCreateSubmit} className="space-y-3.5 text-xs">

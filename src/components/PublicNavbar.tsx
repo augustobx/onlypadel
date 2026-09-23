@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { BadgeCheck, BarChart3, CalendarSearch, Trophy, User, Users2 } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { BadgeCheck, BarChart3, CalendarDays, CalendarSearch, Trophy, User, Users2 } from 'lucide-react';
 
 type PublicNavbarSettings = {
   topbarName?: string | null;
@@ -17,6 +18,7 @@ type PublicNavbarSettings = {
 };
 
 export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavbarSettings | null }) {
+  const pathname = usePathname();
   const topbarTitle = sysSettings?.topbarName || "OnlyPadel";
   const logo = sysSettings?.clubLogo || sysSettings?.splashLogo || "";
   const hasLogoImage = /^(https?:\/\/|\/|data:image\/)/i.test(logo);
@@ -38,6 +40,15 @@ export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavb
             </Link>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1">
+            {pathname !== '/' && (
+              <Link
+                href="/"
+                className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 px-3 py-1.5 text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-400 transition-all active:scale-95 shadow-xs shrink-0"
+              >
+                <CalendarDays className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Sacar Turno</span>
+              </Link>
+            )}
             {sysSettings?.playerCategoriesEnabled !== false && <Link
               href="/categorias-jugadores"
               className="flex items-center gap-1.5 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800/60 px-3 py-1.5 text-xs sm:text-sm font-bold text-sky-800 dark:text-sky-300 transition-all hover:bg-sky-100 dark:hover:bg-sky-900/60 active:scale-95"

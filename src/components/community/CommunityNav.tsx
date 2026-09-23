@@ -12,7 +12,7 @@ import {
 
 const navItems = [
   { href: "/comunidad", label: "Feed", icon: Newspaper },
-  { href: "/comunidad/turnos", label: "Turnos", icon: CalendarDays },
+  { href: "/comunidad/turnos", label: "Partidos", icon: CalendarDays },
   { href: "/comunidad/jugadores", label: "Jugadores", icon: Search },
   { href: "/comunidad/chat", label: "Chat", icon: MessageCircle },
   { href: "/comunidad/notificaciones", label: "Alertas", icon: Bell },
