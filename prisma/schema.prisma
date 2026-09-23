@@ -1002,8 +1002,8 @@ model OpenMatch {
   courtId         String?
   courtName       String            @db.VarChar(120)
   date            DateTime
-  startTime       String            @db.VarChar(10)
-  endTime         String            @db.VarChar(10)
+  startTime       String            @db.VarChar(30)
+  endTime         String            @db.VarChar(30)
   level           String?           @db.VarChar(60)
   slotsNeeded     Int               @default(1)
   positionNeeded  PreferredPosition?

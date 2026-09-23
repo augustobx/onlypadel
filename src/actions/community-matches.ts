@@ -295,17 +295,26 @@ export async function createOpenMatchFromBooking(data: {
       return { success: true, matchId: existing.id, updated: true };
     }
 
-    // Formatear horas
-    const startTimeStr = new Date(booking.startTime).toLocaleTimeString('es-AR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'America/Argentina/Buenos_Aires',
-    });
-    const endTimeStr = new Date(booking.endTime).toLocaleTimeString('es-AR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'America/Argentina/Buenos_Aires',
-    });
+    // Formatear horas en formato estricto 24hs "HH:mm"
+    const formatHHmm = (dateInput: Date | string) => {
+      try {
+        const d = new Date(dateInput);
+        const parts = new Intl.DateTimeFormat('es-AR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'America/Argentina/Buenos_Aires',
+        }).formatToParts(d);
+        const hour = parts.find((p) => p.type === 'hour')?.value || '00';
+        const minute = parts.find((p) => p.type === 'minute')?.value || '00';
+        return `${hour}:${minute}`;
+      } catch {
+        return '00:00';
+      }
+    };
+
+    const startTimeStr = formatHHmm(booking.startTime);
+    const endTimeStr = formatHHmm(booking.endTime);
 
     const openMatch = await prisma.openMatch.create({
       data: {
@@ -350,9 +359,9 @@ export async function createOpenMatchFromBooking(data: {
     revalidatePath('/perfil');
 
     return { success: true, matchId: openMatch.id };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating open match from booking:', error);
-    return { success: false, error: 'No se pudo crear la convocatoria.' };
+    return { success: false, error: error?.message || 'No se pudo crear la convocatoria.' };
   }
 }
 
@@ -378,8 +387,8 @@ export async function createManualOpenMatch(data: {
         creatorId: userId,
         courtName: data.courtName || 'Cancha del Club',
         date: matchDate,
-        startTime: data.startTime,
-        endTime: data.endTime,
+        startTime: (data.startTime || '00:00').trim().slice(0, 30),
+        endTime: (data.endTime || '00:00').trim().slice(0, 30),
         slotsNeeded: Math.max(1, Math.min(3, data.slotsNeeded)),
         level: data.level || null,
         positionNeeded: data.positionNeeded || null,
