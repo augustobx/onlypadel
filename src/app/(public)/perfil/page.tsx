@@ -9,7 +9,9 @@ import {
   ChevronRight, Swords, Clock, BadgeCheck, Sparkles, FileText, ArrowDownLeft, ArrowUpRight 
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { getReadableForeground, normalizeHexColor } from "@/lib/color";
+import ProfileCommunitySection from "@/components/community/ProfileCommunitySection";
 
 export default async function PerfilPage() {
     const session = await getUserSession();
@@ -49,8 +51,14 @@ export default async function PerfilPage() {
                 player2: true,
                 category: { include: { tournament: true } }
             }
+        }),
+        prisma.user.findUnique({
+            where: { id: session.id },
+            select: { avatarUrl: true, bio: true, preferredPosition: true, lookingForPartner: true }
         })
     ]);
+
+    const isCommunityEnabled = (settings as any)?.communityEnabled !== false;
 
     const officialCategoryName = categoryAssignment?.level?.name || session.category || null;
     const categoryColor = categoryAssignment?.level?.color || userCategoryLevel?.color || primaryColor;
@@ -86,6 +94,21 @@ export default async function PerfilPage() {
     const playedBookingsCount = bookings.filter(b => b.status === 'CONFIRMED' && b.endTime < now).length;
     const activeBookingsCount = bookings.filter(b => (b.status === 'CONFIRMED' || b.status === 'PENDING') && b.endTime >= now).length;
 
+    const upcomingPlayerBookings = bookings
+        .filter(b => b.startTime >= now && (b.status === 'CONFIRMED' || b.status === 'PENDING'))
+        .map(b => ({
+            id: b.id,
+            courtName: b.court.name,
+            startTime: b.startTime,
+            endTime: b.endTime,
+            status: b.status,
+        }));
+
+    const userProfile = (await prisma.user.findUnique({
+        where: { id: session.id },
+        select: { avatarUrl: true, bio: true, preferredPosition: true, lookingForPartner: true }
+    })) || null;
+
     // Iniciales para el avatar
     const initials = `${(session.name || '').charAt(0)}${(session.lastName || '').charAt(0)}`.toUpperCase() || 'TP';
 
@@ -112,8 +135,12 @@ export default async function PerfilPage() {
                         <div className="relative z-10">
                             <div className="flex items-start justify-between gap-3 mb-4">
                                 <div className="flex items-center gap-3.5">
-                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] flex items-center justify-center font-black text-xl text-[var(--color-primary-foreground)] shadow-lg ring-2 ring-white/20 shrink-0">
-                                        {initials}
+                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] flex items-center justify-center font-black text-xl text-[var(--color-primary-foreground)] shadow-lg ring-2 ring-white/20 shrink-0 overflow-hidden relative">
+                                        {userProfile?.avatarUrl ? (
+                                            <Image src={userProfile.avatarUrl} alt="Avatar" fill unoptimized className="object-cover" />
+                                        ) : (
+                                            initials
+                                        )}
                                     </div>
                                     <div>
                                         <h2 className="text-xl font-black text-white leading-tight tracking-tight">
@@ -152,6 +179,18 @@ export default async function PerfilPage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* SECCIÓN COMUNITARIA & CONVOCATORIAS */}
+                    {isCommunityEnabled && (
+                        <ProfileCommunitySection
+                            userId={session.id}
+                            initialAvatarUrl={userProfile?.avatarUrl || null}
+                            initialBio={userProfile?.bio || null}
+                            initialPosition={userProfile?.preferredPosition || null}
+                            initialLookingForPartner={userProfile?.lookingForPartner || false}
+                            upcomingBookings={upcomingPlayerBookings}
+                        />
+                    )}
 
                     {/* TARJETA DE CATEGORÍA OFICIAL DEPORTIVA */}
                     <div className="bg-slate-50 dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm relative overflow-hidden">

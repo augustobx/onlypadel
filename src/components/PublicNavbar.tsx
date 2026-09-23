@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { BadgeCheck, BarChart3, CalendarSearch, Trophy, User } from 'lucide-react';
+import { BadgeCheck, BarChart3, CalendarSearch, Trophy, User, Users2 } from 'lucide-react';
 
 type PublicNavbarSettings = {
   topbarName?: string | null;
@@ -13,6 +13,7 @@ type PublicNavbarSettings = {
   rankingsEnabled?: boolean;
   usersModuleEnabled?: boolean;
   playerCategoriesEnabled?: boolean;
+  communityEnabled?: boolean;
 };
 
 export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavbarSettings | null }) {
@@ -69,6 +70,15 @@ export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavb
               >
                 <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span className="hidden sm:inline">Perfil</span>
+              </Link>
+            )}
+            {sysSettings?.communityEnabled && (
+              <Link
+                href="/comunidad"
+                className="flex items-center gap-1.5 rounded-full bg-violet-50 dark:bg-violet-950/60 border border-violet-200 dark:border-violet-800/60 px-3 py-1.5 text-xs sm:text-sm font-bold text-violet-800 dark:text-violet-300 transition-all hover:bg-violet-100 dark:hover:bg-violet-900/60 active:scale-95"
+              >
+                <Users2 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                <span className="hidden sm:inline">Comunidad</span>
               </Link>
             )}
             <Link

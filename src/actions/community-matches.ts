@@ -1,0 +1,386 @@
+'use server';
+
+import { prisma } from '@/lib/prisma';
+import { readUserSessionId } from '@/lib/user-session';
+import { revalidatePath } from 'next/cache';
+import { requireTenantFeature } from '@/lib/features';
+import type { PreferredPosition, OpenMatchStatus } from '@prisma/client';
+
+export interface OpenMatchCardData {
+  id: string;
+  bookingId: string | null;
+  courtName: string;
+  date: Date;
+  startTime: string;
+  endTime: string;
+  level: string | null;
+  slotsNeeded: number;
+  positionNeeded: PreferredPosition | null;
+  description: string | null;
+  status: OpenMatchStatus;
+  createdAt: Date;
+  creator: {
+    id: string;
+    name: string | null;
+    lastName: string | null;
+    avatarUrl: string | null;
+    category: string | null;
+    phone: string | null;
+  };
+  players: {
+    id: string;
+    user: {
+      id: string;
+      name: string | null;
+      lastName: string | null;
+      avatarUrl: string | null;
+      category: string | null;
+    };
+    joinedAt: Date;
+  }[];
+  isCreator: boolean;
+  hasJoined: boolean;
+}
+
+export async function getOpenMatches(filters?: {
+  date?: string;
+  level?: string;
+  status?: OpenMatchStatus;
+}) {
+  try {
+    await requireTenantFeature('community');
+    const currentUserId = await readUserSessionId();
+
+    const where: any = {};
+
+    if (filters?.status) {
+      where.status = filters.status;
+    } else {
+      where.status = 'OPEN';
+    }
+
+    if (filters?.date) {
+      const startOfDay = new Date(`${filters.date}T00:00:00-03:00`);
+      const endOfDay = new Date(`${filters.date}T23:59:59.999-03:00`);
+      where.date = { gte: startOfDay, lte: endOfDay };
+    } else {
+      // Por defecto no mostrar turnos del pasado
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      where.date = { gte: startOfToday };
+    }
+
+    if (filters?.level && filters.level !== 'ALL') {
+      where.level = { contains: filters.level };
+    }
+
+    const matches = await prisma.openMatch.findMany({
+      where,
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            avatarUrl: true,
+            category: true,
+            phone: true,
+          },
+        },
+        players: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                lastName: true,
+                avatarUrl: true,
+                category: true,
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+      },
+      take: 50,
+    });
+
+    const data: OpenMatchCardData[] = matches.map((m) => ({
+      id: m.id,
+      bookingId: m.bookingId,
+      courtName: m.courtName,
+      date: m.date,
+      startTime: m.startTime,
+      endTime: m.endTime,
+      level: m.level,
+      slotsNeeded: m.slotsNeeded,
+      positionNeeded: m.positionNeeded,
+      description: m.description,
+      status: m.status,
+      createdAt: m.createdAt,
+      creator: m.creator,
+      players: m.players,
+      isCreator: currentUserId ? m.creatorId === currentUserId : false,
+      hasJoined: currentUserId
+        ? m.players.some((p) => p.userId === currentUserId)
+        : false,
+    }));
+
+    return { success: true, matches: data };
+  } catch (error) {
+    console.error('Error fetching open matches:', error);
+    return { success: false, error: 'Error al cargar las convocatorias de juego.', matches: [] };
+  }
+}
+
+export async function createOpenMatchFromBooking(data: {
+  bookingId: string;
+  slotsNeeded: number;
+  level?: string;
+  positionNeeded?: PreferredPosition;
+  description?: string;
+}) {
+  try {
+    await requireTenantFeature('community');
+    const userId = await readUserSessionId();
+    if (!userId) return { success: false, error: 'Inicia sesión para convocar jugadores.' };
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: data.bookingId },
+      include: { court: true, user: true },
+    });
+
+    if (!booking) {
+      return { success: false, error: 'No se encontró la reserva vinculada.' };
+    }
+
+    if (booking.userId !== userId) {
+      return { success: false, error: 'Solo el titular de la reserva puede publicar este turno.' };
+    }
+
+    // Formatear horas
+    const startTimeStr = new Date(booking.startTime).toLocaleTimeString('es-AR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Argentina/Buenos_Aires',
+    });
+    const endTimeStr = new Date(booking.endTime).toLocaleTimeString('es-AR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Argentina/Buenos_Aires',
+    });
+
+    const openMatch = await prisma.openMatch.create({
+      data: {
+        bookingId: booking.id,
+        creatorId: userId,
+        courtId: booking.courtId,
+        courtName: booking.court.name,
+        date: booking.startTime,
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        slotsNeeded: Math.max(1, Math.min(3, data.slotsNeeded)),
+        level: data.level || (booking.user?.category ? `Categoría ${booking.user.category}` : null),
+        positionNeeded: data.positionNeeded || null,
+        description: data.description || null,
+        status: 'OPEN',
+      },
+    });
+
+    // Crear automáticamente un post en el muro para darle difusión instantánea
+    try {
+      const positionText = data.positionNeeded ? ` (Posición: ${data.positionNeeded})` : '';
+      const levelText = data.level ? ` | Nivel: ${data.level}` : '';
+      const dateFormatted = new Date(booking.startTime).toLocaleDateString('es-AR', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      });
+
+      await prisma.post.create({
+        data: {
+          authorId: userId,
+          type: 'PLAYER',
+          content: `🎾 ¡Faltan ${openMatch.slotsNeeded} jugador${openMatch.slotsNeeded > 1 ? 'es' : ''} para completar turno!\n📅 ${dateFormatted} a las ${startTimeStr} hs en ${booking.court.name}${levelText}${positionText}.\n${data.description ? `"${data.description}"` : '¡Comunicate o sumate desde la sección Turnos Armados!'}`,
+        },
+      });
+    } catch (e) {
+      console.error('Error auto-creating post for open match:', e);
+    }
+
+    revalidatePath('/comunidad');
+    revalidatePath('/comunidad/turnos');
+    revalidatePath('/perfil');
+
+    return { success: true, matchId: openMatch.id };
+  } catch (error) {
+    console.error('Error creating open match from booking:', error);
+    return { success: false, error: 'No se pudo crear la convocatoria.' };
+  }
+}
+
+export async function createManualOpenMatch(data: {
+  courtName: string;
+  dateStr: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  slotsNeeded: number;
+  level?: string;
+  positionNeeded?: PreferredPosition;
+  description?: string;
+}) {
+  try {
+    await requireTenantFeature('community');
+    const userId = await readUserSessionId();
+    if (!userId) return { success: false, error: 'Inicia sesión para convocar jugadores.' };
+
+    const matchDate = new Date(`${data.dateStr}T${data.startTime}:00-03:00`);
+
+    const openMatch = await prisma.openMatch.create({
+      data: {
+        creatorId: userId,
+        courtName: data.courtName || 'Cancha del Club',
+        date: matchDate,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        slotsNeeded: Math.max(1, Math.min(3, data.slotsNeeded)),
+        level: data.level || null,
+        positionNeeded: data.positionNeeded || null,
+        description: data.description || null,
+        status: 'OPEN',
+      },
+    });
+
+    revalidatePath('/comunidad');
+    revalidatePath('/comunidad/turnos');
+
+    return { success: true, matchId: openMatch.id };
+  } catch (error) {
+    console.error('Error creating manual open match:', error);
+    return { success: false, error: 'No se pudo crear el turno abierto.' };
+  }
+}
+
+export async function joinOpenMatch(matchId: string) {
+  try {
+    await requireTenantFeature('community');
+    const userId = await readUserSessionId();
+    if (!userId) return { success: false, error: 'Inicia sesión para anotarte.' };
+
+    const match = await prisma.openMatch.findUnique({
+      where: { id: matchId },
+      include: { players: true, creator: true },
+    });
+
+    if (!match) return { success: false, error: 'El turno no existe o fue eliminado.' };
+    if (match.status !== 'OPEN') return { success: false, error: 'Este turno ya se encuentra completo o cancelado.' };
+    if (match.creatorId === userId) return { success: false, error: 'Ya eres el creador de este turno.' };
+
+    const alreadyJoined = match.players.some((p) => p.userId === userId);
+    if (alreadyJoined) return { success: false, error: 'Ya estás anotado en este turno.' };
+
+    // Agregar jugador
+    await prisma.openMatchPlayer.create({
+      data: {
+        matchId,
+        userId,
+      },
+    });
+
+    // Comprobar si se completaron los lugares
+    const newPlayerCount = match.players.length + 1;
+    if (newPlayerCount >= match.slotsNeeded) {
+      await prisma.openMatch.update({
+        where: { id: matchId },
+        data: { status: 'FULL' },
+      });
+    }
+
+    // Notificar al organizador
+    try {
+      const joiningUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, lastName: true },
+      });
+      const name = joiningUser ? `${joiningUser.name} ${joiningUser.lastName || ''}`.trim() : 'Un jugador';
+
+      await prisma.communityNotification.create({
+        data: {
+          userId: match.creatorId,
+          type: 'MATCH_JOIN',
+          title: '¡Alguien se sumó a tu turno! 🎾',
+          body: `${name} se sumó a tu convocatoria para el ${new Date(match.date).toLocaleDateString('es-AR')} a las ${match.startTime} hs.`,
+          linkUrl: `/comunidad/turnos`,
+        },
+      });
+    } catch (e) {
+      console.error('Error creating join notification:', e);
+    }
+
+    revalidatePath('/comunidad/turnos');
+    return { success: true };
+  } catch (error) {
+    console.error('Error joining open match:', error);
+    return { success: false, error: 'No se pudo unir al turno.' };
+  }
+}
+
+export async function leaveOpenMatch(matchId: string) {
+  try {
+    await requireTenantFeature('community');
+    const userId = await readUserSessionId();
+    if (!userId) return { success: false, error: 'Inicia sesión.' };
+
+    await prisma.openMatchPlayer.deleteMany({
+      where: { matchId, userId },
+    });
+
+    // Si estaba FULL, volver a abrirlo
+    const match = await prisma.openMatch.findUnique({
+      where: { id: matchId },
+      include: { players: true },
+    });
+
+    if (match && match.status === 'FULL') {
+      await prisma.openMatch.update({
+        where: { id: matchId },
+        data: { status: 'OPEN' },
+      });
+    }
+
+    revalidatePath('/comunidad/turnos');
+    return { success: true };
+  } catch (error) {
+    console.error('Error leaving open match:', error);
+    return { success: false, error: 'No se pudo cancelar tu participación.' };
+  }
+}
+
+export async function cancelOpenMatch(matchId: string) {
+  try {
+    await requireTenantFeature('community');
+    const userId = await readUserSessionId();
+    if (!userId) return { success: false, error: 'Inicia sesión.' };
+
+    const match = await prisma.openMatch.findUnique({
+      where: { id: matchId },
+    });
+
+    if (!match) return { success: false, error: 'Turno no encontrado.' };
+    if (match.creatorId !== userId) {
+      return { success: false, error: 'Solo el creador puede cancelar esta convocatoria.' };
+    }
+
+    await prisma.openMatch.update({
+      where: { id: matchId },
+      data: { status: 'CANCELLED' },
+    });
+
+    revalidatePath('/comunidad/turnos');
+    return { success: true };
+  } catch (error) {
+    console.error('Error canceling open match:', error);
+    return { success: false, error: 'No se pudo cancelar la convocatoria.' };
+  }
+}

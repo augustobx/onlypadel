@@ -15,6 +15,10 @@ export async function getSettings() {
                 sportEmoji: true, topbarName: true, pwaEnabled: true, autoWhatsapp: true,
                 requireDeposit: true, reservationsEnabled: true, whatsappReservations: true,
                 notifyAdmin: true, tournamentsEnabled: true, rankingsEnabled: true, usersModuleEnabled: true,
+                communityEnabled: true,
+                communityFeedEnabled: true,
+                communityMatchesEnabled: true,
+                communityChatEnabled: true,
                 requireDepositForRegistered: true, clientCancellations: true,
                 splashLogo: true, splashName: true, splashDuration: true,
                 bubbleActive: true, bubbleText: true, bubbleDuration: true, bubbleColor: true,
@@ -57,9 +61,10 @@ export async function getSettings() {
             ? customMap['announcement_auto_close'] === 'true'
             : true;
 
-        const [reservations, users, tournaments, rankings, playerCategories, whatsapp] = await Promise.all([
+        const [reservations, users, tournaments, rankings, playerCategories, whatsapp, communityFeature] = await Promise.all([
             hasTenantFeature('reservations'), hasTenantFeature('users'), hasTenantFeature('tournaments'),
             hasTenantFeature('rankings'), hasTenantFeature('player_categories'), hasTenantFeature('whatsapp'),
+            hasTenantFeature('community'),
         ]);
         return {
             ...settings,
@@ -82,6 +87,10 @@ export async function getSettings() {
             rankingsEnabled: settings.rankingsEnabled && rankings,
             playerCategoriesEnabled: playerCategories,
             whatsappReservations: settings.whatsappReservations && whatsapp,
+            communityEnabled: (settings.communityEnabled ?? false) && communityFeature,
+            communityFeedEnabled: (settings.communityFeedEnabled ?? false) && (settings.communityEnabled ?? false) && communityFeature,
+            communityMatchesEnabled: (settings.communityMatchesEnabled ?? false) && (settings.communityEnabled ?? false) && communityFeature,
+            communityChatEnabled: (settings.communityChatEnabled ?? false) && (settings.communityEnabled ?? false) && communityFeature,
         };
     } catch (error) {
         console.error("Error fetching settings:", error);
@@ -104,6 +113,10 @@ export async function updateSystemSettings(formData: FormData) {
         const requireDepositForRegistered = formData.get("requireDepositForRegistered") === "on";
         const clientCancellations = formData.get("clientCancellations") === "on";
         const currentAccountEnabled = formData.get("currentAccountEnabled") === "on";
+        const communityEnabled = formData.get("communityEnabled") === "on";
+        const communityFeedEnabled = formData.get("communityFeedEnabled") === "on";
+        const communityMatchesEnabled = formData.get("communityMatchesEnabled") === "on";
+        const communityChatEnabled = formData.get("communityChatEnabled") === "on";
 
         const clubName = (formData.get("clubName") as string) || "";
         const topbarName = (formData.get("topbarName") as string) || "";
@@ -161,6 +174,7 @@ export async function updateSystemSettings(formData: FormData) {
             data: {
                 clubName, topbarName, contactPhone, courtPhone, apiPhone, mpAccessToken, whatsappPhoneId, whatsappToken, whatsappVerifyToken, reservationFee, sportEmoji, theme, appLayout,
                 reservationsEnabled, whatsappReservations, pwaEnabled, autoWhatsapp, requireDeposit, notifyAdmin, tournamentsEnabled, rankingsEnabled,
+                communityEnabled, communityFeedEnabled, communityMatchesEnabled, communityChatEnabled,
                 usersModuleEnabled, requireDepositForRegistered, clientCancellations,
                 splashLogo, splashName, splashDuration,
                 bubbleActive, bubbleText, bubbleColor, bubbleDuration,

@@ -30,6 +30,10 @@ export type ExtendedSettings = SystemSetting & {
   announcementDuration?: number;
   announcementAutoClose?: boolean;
   currentAccountEnabled?: boolean;
+  communityEnabled?: boolean;
+  communityFeedEnabled?: boolean;
+  communityMatchesEnabled?: boolean;
+  communityChatEnabled?: boolean;
 };
 
 const THEMES = [
@@ -125,6 +129,20 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
     );
     const [announcementAutoClose, setAnnouncementAutoClose] = useState<boolean>(
       initialSettings.announcementAutoClose ?? true
+    );
+
+    // Community Module states (all default to false)
+    const [communityEnabled, setCommunityEnabled] = useState<boolean>(
+      initialSettings.communityEnabled ?? false
+    );
+    const [communityFeedEnabled, setCommunityFeedEnabled] = useState<boolean>(
+      initialSettings.communityFeedEnabled ?? false
+    );
+    const [communityMatchesEnabled, setCommunityMatchesEnabled] = useState<boolean>(
+      initialSettings.communityMatchesEnabled ?? false
+    );
+    const [communityChatEnabled, setCommunityChatEnabled] = useState<boolean>(
+      initialSettings.communityChatEnabled ?? false
     );
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -950,6 +968,117 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                     <input type="checkbox" id="currentAccountEnabled" name="currentAccountEnabled" defaultChecked={initialSettings.currentAccountEnabled !== false} className="sr-only peer" />
                                     <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:transition-all peer-checked:bg-[var(--color-primary)]"></div>
                                 </label>
+                            </div>
+
+                            {/* MÓDULO COMUNIDAD */}
+                            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 overflow-hidden">
+                                <div className="flex items-center justify-between p-4">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="communityEnabled" className="text-sm font-bold text-slate-900 dark:text-white cursor-pointer">
+                                                Módulo Comunidad (Social & Jugadores)
+                                            </Label>
+                                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                                                Interactivo
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Habilita la red social interna del club: muro social, búsqueda de compañeros y chat entre socios.
+                                        </p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            id="communityEnabled" 
+                                            name="communityEnabled" 
+                                            checked={communityEnabled}
+                                            onChange={(e) => setCommunityEnabled(e.target.checked)}
+                                            className="sr-only peer" 
+                                        />
+                                        <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:transition-all peer-checked:bg-[var(--color-primary)]"></div>
+                                    </label>
+                                </div>
+
+                                {communityEnabled && (
+                                    <div className="p-4 pt-3 border-t border-slate-150 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/60 space-y-3">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                            Subfunciones Activas de la Comunidad
+                                        </p>
+
+                                        {/* Subfunción: Feed Social */}
+                                        <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800">
+                                            <div>
+                                                <Label htmlFor="communityFeedEnabled" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                                                    Muro Social & Publicaciones (Feed)
+                                                </Label>
+                                                <p className="text-[11px] text-slate-500">
+                                                    Permite a socios publicar fotos, textos, dar likes y comentar. El club puede publicar anuncios oficiales.
+                                                </p>
+                                            </div>
+                                            <input 
+                                                type="checkbox" 
+                                                id="communityFeedEnabled" 
+                                                name="communityFeedEnabled" 
+                                                checked={communityFeedEnabled}
+                                                onChange={(e) => setCommunityFeedEnabled(e.target.checked)}
+                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)]" 
+                                            />
+                                        </div>
+
+                                        {/* Subfunción: Turnos Armados / Búsqueda */}
+                                        <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800">
+                                            <div>
+                                                <Label htmlFor="communityMatchesEnabled" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                                                    Búsqueda de Jugadores & Turnos Abiertos (&quot;Falta 1&quot;)
+                                                </Label>
+                                                <p className="text-[11px] text-slate-500">
+                                                    Permite a socios con turnos ya reservados abrir plazas para que otros se sumen según nivel o categoría.
+                                                </p>
+                                            </div>
+                                            <input 
+                                                type="checkbox" 
+                                                id="communityMatchesEnabled" 
+                                                name="communityMatchesEnabled" 
+                                                checked={communityMatchesEnabled}
+                                                onChange={(e) => setCommunityMatchesEnabled(e.target.checked)}
+                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)]" 
+                                            />
+                                        </div>
+
+                                        {/* Subfunción: Chat Interno */}
+                                        <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800">
+                                            <div>
+                                                <Label htmlFor="communityChatEnabled" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                                                    Chat Interno & Mensajería Directa
+                                                </Label>
+                                                <p className="text-[11px] text-slate-500">
+                                                    Permite chats privados 1 a 1 y grupales vinculados a partidos para coordinar turnos.
+                                                </p>
+                                            </div>
+                                            <input 
+                                                type="checkbox" 
+                                                id="communityChatEnabled" 
+                                                name="communityChatEnabled" 
+                                                checked={communityChatEnabled}
+                                                onChange={(e) => setCommunityChatEnabled(e.target.checked)}
+                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)]" 
+                                            />
+                                        </div>
+
+                                        {/* Moderación info */}
+                                        <div className="p-3 rounded-xl bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 flex items-center justify-between text-xs">
+                                            <span className="text-slate-700 dark:text-slate-300">
+                                                🛡️ Moderación: Puedes revisar, moderar posts y fijar comunicados oficiales desde el panel de control.
+                                            </span>
+                                            <a 
+                                                href="/admin/comunidad" 
+                                                className="shrink-0 ml-3 text-[var(--color-primary)] font-bold hover:underline"
+                                            >
+                                                Ir a Moderación →
+                                            </a>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

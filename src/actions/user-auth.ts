@@ -121,7 +121,7 @@ export async function getUserSession() {
     try {
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, name: true, lastName: true, dni: true, phone: true, email: true, category: true, role: true, isActive: true }
+            select: { id: true, name: true, lastName: true, dni: true, phone: true, email: true, category: true, role: true, isActive: true, avatarUrl: true }
         });
         
         if (user && user.isActive === false) {

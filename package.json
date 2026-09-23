@@ -15,6 +15,7 @@
     "clean-db": "npx tsx scripts/clean-db.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1138.0",
     "@base-ui/react": "^1.4.1",
     "@prisma/adapter-mariadb": "7.10.0",
     "@prisma/client": "7.10.0",

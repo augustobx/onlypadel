@@ -5,7 +5,7 @@ import { resolveTenantContext } from '@/lib/tenant-context';
 
 export const FEATURE_KEYS = [
   'reservations', 'users', 'tournaments', 'rankings', 'player_categories',
-  'expenses', 'whatsapp', 'push', 'payments',
+  'expenses', 'whatsapp', 'push', 'payments', 'community',
 ] as const;
 export type FeatureKey = typeof FEATURE_KEYS[number];
 

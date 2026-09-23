@@ -75,6 +75,30 @@ enum SaasPaymentStatus {
   VOID
 }
 
+enum PostType {
+  PLAYER
+  CLUB_ANNOUNCEMENT
+  MATCH_RESULT
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum PreferredPosition {
+  DRIVE
+  REVES
+  AMBOS
+}
+
+enum OpenMatchStatus {
+  OPEN
+  FULL
+  CANCELLED
+  COMPLETED
+}
+
 // ==========================================
 // PLATAFORMA SAAS ONLYPADEL
 // ==========================================
@@ -115,6 +139,17 @@ model Tenant {
   playerCategoryAssignments PlayerCategoryAssignment[]
   systemSetting             SystemSetting?
   auditLogs                 PlatformAuditLog[]
+
+  // Community
+  posts                     Post[]
+  postLikes                 PostLike[]
+  postComments              PostComment[]
+  chatConversations         ChatConversation[]
+  chatParticipants          ChatParticipant[]
+  chatMessages              ChatMessage[]
+  communityNotifications    CommunityNotification[]
+  openMatches               OpenMatch[]
+  openMatchPlayers          OpenMatchPlayer[]
 
   @@index([status, createdAt], map: "Tenant_status_createdAt_idx")
   @@map("tenant")
@@ -331,6 +366,15 @@ model User {
   category String?
   role     Role    @default(PLAYER)
 
+  // Enriched profile (Community)
+  avatarUrl         String?            @db.VarChar(500)
+  bio               String?            @db.Text
+  preferredPosition PreferredPosition?
+  availableDays     Json?              // ["lunes","miercoles","viernes"]
+  availableTimeSlot String?            @db.VarChar(20) // Mañana / Tarde / Noche / Flexible
+  isProfilePublic   Boolean            @default(true)
+  lookingForPartner Boolean            @default(false)
+
   bookings                  Booking[]
   fixedBookings             FixedBooking[]
   teamsAsPlayer1            TournamentTeam[]           @relation("Player1")
@@ -342,6 +386,16 @@ model User {
   userSessions              UserSession[]
   isActive                  Boolean                    @default(true)
 
+  // Community relations
+  posts                     Post[]
+  postLikes                 PostLike[]
+  postComments              PostComment[]
+  chatParticipants          ChatParticipant[]
+  sentMessages              ChatMessage[]
+  communityNotifications    CommunityNotification[]
+  createdOpenMatches        OpenMatch[]                @relation("OpenMatchCreator")
+  joinedOpenMatches         OpenMatchPlayer[]
+
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "User_tenantId_fkey")
 
   createdAt DateTime @default(now())
@@ -350,6 +404,7 @@ model User {
   @@unique([tenantId, email], map: "User_tenantId_email_key")
   @@unique([tenantId, dni], map: "User_tenantId_dni_key")
   @@index([tenantId, role, isActive], map: "User_tenantId_role_isActive_idx")
+  @@index([tenantId, lookingForPartner, isProfilePublic], map: "User_tenantId_looking_public_idx")
   @@map("user")
 }
 
@@ -409,6 +464,7 @@ model Booking {
   fixedBookingId String?
   fixedBooking   FixedBooking? @relation(fields: [fixedBookingId], references: [id], onDelete: SetNull, map: "Booking_fixedBookingId_fkey")
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "Booking_tenantId_fkey")
+  openMatches    OpenMatch[]
   // Claves de integridad: requestKey hace los reintentos idempotentes y
   // slotKey impide que dos solicitudes ocupen el mismo inicio de turno.
   requestKey     String?       @db.VarChar(64)
@@ -768,6 +824,10 @@ model SystemSetting {
   notifyAdmin          Boolean @default(true)
   tournamentsEnabled   Boolean @default(true)
   rankingsEnabled      Boolean @default(true)
+  communityEnabled        Boolean @default(false)
+  communityFeedEnabled    Boolean @default(false)
+  communityMatchesEnabled Boolean @default(false)
+  communityChatEnabled    Boolean @default(false)
 
   // --- USERS MODULE ---
   usersModuleEnabled          Boolean @default(false)
@@ -803,4 +863,177 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 
   @@map("systemsetting")
+}
+
+// ==========================================
+// COMUNIDAD: FEED, CHAT, NOTIFICACIONES
+// ==========================================
+model Post {
+  id        String   @id @default(uuid())
+  tenantId  String   @default("")
+  authorId  String
+  content   String   @db.Text
+  imageUrl  String?  @db.VarChar(500)
+  type      PostType @default(PLAYER)
+  isPinned  Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade, map: "Post_authorId_fkey")
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "Post_tenantId_fkey")
+  likes    PostLike[]
+  comments PostComment[]
+
+  @@index([tenantId, isActive, isPinned, createdAt], map: "Post_tenant_active_pinned_created_idx")
+  @@index([tenantId, authorId], map: "Post_tenant_author_idx")
+  @@map("post")
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  tenantId  String   @default("")
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade, map: "PostLike_postId_fkey")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, map: "PostLike_userId_fkey")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "PostLike_tenantId_fkey")
+
+  @@unique([tenantId, postId, userId], map: "PostLike_tenant_post_user_key")
+  @@map("postlike")
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  tenantId  String   @default("")
+  postId    String
+  authorId  String
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade, map: "PostComment_postId_fkey")
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade, map: "PostComment_authorId_fkey")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "PostComment_tenantId_fkey")
+
+  @@index([tenantId, postId, createdAt], map: "PostComment_tenant_post_created_idx")
+  @@map("postcomment")
+}
+
+model ChatConversation {
+  id        String           @id @default(uuid())
+  tenantId  String           @default("")
+  type      ConversationType @default(DIRECT)
+  name      String?          @db.VarChar(120)
+  imageUrl  String?          @db.VarChar(500)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "ChatConversation_tenantId_fkey")
+  participants ChatParticipant[]
+  messages     ChatMessage[]
+
+  @@index([tenantId, type, updatedAt], map: "ChatConversation_tenant_type_updated_idx")
+  @@map("chatconversation")
+}
+
+model ChatParticipant {
+  id             String    @id @default(uuid())
+  tenantId       String    @default("")
+  conversationId String
+  userId         String
+  role           String    @default("MEMBER") @db.VarChar(20)
+  joinedAt       DateTime  @default(now())
+  mutedUntil     DateTime?
+  lastReadAt     DateTime?
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade, map: "ChatParticipant_conversationId_fkey")
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade, map: "ChatParticipant_userId_fkey")
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "ChatParticipant_tenantId_fkey")
+
+  @@unique([tenantId, conversationId, userId], map: "ChatParticipant_tenant_conv_user_key")
+  @@index([tenantId, userId], map: "ChatParticipant_tenant_user_idx")
+  @@map("chatparticipant")
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid())
+  tenantId       String   @default("")
+  conversationId String
+  senderId       String
+  content        String   @db.Text
+  type           String   @default("TEXT") @db.VarChar(20)
+  isDeleted      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade, map: "ChatMessage_conversationId_fkey")
+  sender       User             @relation(fields: [senderId], references: [id], onDelete: Cascade, map: "ChatMessage_senderId_fkey")
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "ChatMessage_tenantId_fkey")
+
+  @@index([tenantId, conversationId, createdAt], map: "ChatMessage_tenant_conv_created_idx")
+  @@map("chatmessage")
+}
+
+model CommunityNotification {
+  id        String   @id @default(uuid())
+  tenantId  String   @default("")
+  userId    String
+  type      String   @db.VarChar(40)
+  title     String   @db.VarChar(255)
+  body      String?  @db.Text
+  linkUrl   String?  @db.VarChar(500)
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, map: "CommunityNotification_userId_fkey")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "CommunityNotification_tenantId_fkey")
+
+  @@index([tenantId, userId, isRead, createdAt], map: "CommunityNotification_tenant_user_read_created_idx")
+  @@map("communitynotification")
+}
+
+model OpenMatch {
+  id              String            @id @default(uuid())
+  tenantId        String            @default("")
+  bookingId       String?
+  creatorId       String
+  courtId         String?
+  courtName       String            @db.VarChar(120)
+  date            DateTime
+  startTime       String            @db.VarChar(10)
+  endTime         String            @db.VarChar(10)
+  level           String?           @db.VarChar(60)
+  slotsNeeded     Int               @default(1)
+  positionNeeded  PreferredPosition?
+  description     String?           @db.Text
+  status          OpenMatchStatus   @default(OPEN)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "OpenMatch_tenantId_fkey")
+  creator         User              @relation("OpenMatchCreator", fields: [creatorId], references: [id], onDelete: Cascade, map: "OpenMatch_creatorId_fkey")
+  booking         Booking?          @relation(fields: [bookingId], references: [id], onDelete: SetNull, map: "OpenMatch_bookingId_fkey")
+  players         OpenMatchPlayer[]
+
+  @@index([tenantId, status, date], map: "OpenMatch_tenant_status_date_idx")
+  @@index([tenantId, creatorId], map: "OpenMatch_tenant_creator_idx")
+  @@map("openmatch")
+}
+
+model OpenMatchPlayer {
+  id        String    @id @default(uuid())
+  tenantId  String    @default("")
+  matchId   String
+  userId    String
+  joinedAt  DateTime  @default(now())
+
+  match     OpenMatch @relation(fields: [matchId], references: [id], onDelete: Cascade, map: "OpenMatchPlayer_matchId_fkey")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "OpenMatchPlayer_userId_fkey")
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "OpenMatchPlayer_tenantId_fkey")
+
+  @@unique([tenantId, matchId, userId], map: "OpenMatchPlayer_tenant_match_user_key")
+  @@index([tenantId, userId], map: "OpenMatchPlayer_tenant_user_idx")
+  @@map("openmatchplayer")
 }
