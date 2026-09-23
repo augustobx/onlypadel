@@ -1002,7 +1002,10 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                 {communityEnabled && (
                                     <div className="p-4 pt-3 border-t border-slate-150 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/60 space-y-3">
                                         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                            {/* Subfunción: Feed Social */}
+                                            Módulos de la Comunidad:
+                                        </p>
+
+                                        {/* Subfunción: Feed Social */}
                                         <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
                                             <div>
                                                 <Label htmlFor="communityFeedEnabled" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
