@@ -104,11 +104,6 @@ export default async function PerfilPage() {
             status: b.status,
         }));
 
-    const userProfile = (await prisma.user.findUnique({
-        where: { id: session.id },
-        select: { avatarUrl: true, bio: true, preferredPosition: true, lookingForPartner: true }
-    })) || null;
-
     // Iniciales para el avatar
     const initials = `${(session.name || '').charAt(0)}${(session.lastName || '').charAt(0)}`.toUpperCase() || 'TP';
 
