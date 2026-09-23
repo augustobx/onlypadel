@@ -538,8 +538,8 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
 
                             {/* Campo de Imagen Completa (Solo en Modo Full Image) */}
                             {selectedSplashMode === 'full_image' && (
-                              <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 animate-in fade-in">
-                                  <Label htmlFor="splashFullImageInput" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                              <div className="space-y-2 p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 animate-in fade-in">
+                                  <Label htmlFor="splashFullImageInput" className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                     URL de la Imagen Completa de Splash (Full Cover)
                                   </Label>
                                   <div className="flex gap-2">
@@ -625,7 +625,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                             </div>
 
                             {/* PWA TOGGLE */}
-                            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-850">
+                            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60">
                                 <div>
                                     <Label htmlFor="pwaEnabled" className="text-sm font-bold text-slate-900 dark:text-white">
                                       Habilitar Instalación PWA (App Celular)
@@ -654,7 +654,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                       Publica comunicados, promociones, torneos o avisos importantes para todos los jugadores en la PWA.
                                     </CardDescription>
                                 </div>
-                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-850 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0">
+                                <div className="flex items-center gap-2 bg-slate-50/70 dark:bg-slate-800/60 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0">
                                     <input 
                                       type="checkbox" 
                                       id="announcementActive" 
@@ -801,7 +801,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                             </div>
 
                             {/* Configuración del Contador y Autocierre */}
-                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-4">
+                            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <Label htmlFor="announcementAutoClose" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
@@ -1002,16 +1002,13 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                 {communityEnabled && (
                                     <div className="p-4 pt-3 border-t border-slate-150 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/60 space-y-3">
                                         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                            Subfunciones Activas de la Comunidad
-                                        </p>
-
-                                        {/* Subfunción: Feed Social */}
-                                        <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800">
+                                            {/* Subfunción: Feed Social */}
+                                        <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
                                             <div>
                                                 <Label htmlFor="communityFeedEnabled" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
                                                     Muro Social & Publicaciones (Feed)
                                                 </Label>
-                                                <p className="text-[11px] text-slate-500">
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                                     Permite a socios publicar fotos, textos, dar likes y comentar. El club puede publicar anuncios oficiales.
                                                 </p>
                                             </div>
@@ -1019,19 +1016,19 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                                 type="checkbox" 
                                                 id="communityFeedEnabled" 
                                                 name="communityFeedEnabled" 
-                                                checked={communityFeedEnabled}
-                                                onChange={(e) => setCommunityFeedEnabled(e.target.checked)}
-                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)]" 
+                                                checked={communityFeedEnabled} 
+                                                onChange={(e) => setCommunityFeedEnabled(e.target.checked)} 
+                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]" 
                                             />
                                         </div>
 
                                         {/* Subfunción: Turnos Armados / Búsqueda */}
-                                        <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800">
+                                        <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
                                             <div>
                                                 <Label htmlFor="communityMatchesEnabled" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
                                                     Búsqueda de Jugadores & Turnos Abiertos (&quot;Falta 1&quot;)
                                                 </Label>
-                                                <p className="text-[11px] text-slate-500">
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                                     Permite a socios con turnos ya reservados abrir plazas para que otros se sumen según nivel o categoría.
                                                 </p>
                                             </div>
@@ -1039,19 +1036,19 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                                 type="checkbox" 
                                                 id="communityMatchesEnabled" 
                                                 name="communityMatchesEnabled" 
-                                                checked={communityMatchesEnabled}
-                                                onChange={(e) => setCommunityMatchesEnabled(e.target.checked)}
-                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)]" 
+                                                checked={communityMatchesEnabled} 
+                                                onChange={(e) => setCommunityMatchesEnabled(e.target.checked)} 
+                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]" 
                                             />
                                         </div>
 
                                         {/* Subfunción: Chat Interno */}
-                                        <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800">
+                                        <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
                                             <div>
                                                 <Label htmlFor="communityChatEnabled" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
                                                     Chat Interno & Mensajería Directa
                                                 </Label>
-                                                <p className="text-[11px] text-slate-500">
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                                     Permite chats privados 1 a 1 y grupales vinculados a partidos para coordinar turnos.
                                                 </p>
                                             </div>
@@ -1059,9 +1056,9 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                                 type="checkbox" 
                                                 id="communityChatEnabled" 
                                                 name="communityChatEnabled" 
-                                                checked={communityChatEnabled}
-                                                onChange={(e) => setCommunityChatEnabled(e.target.checked)}
-                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)]" 
+                                                checked={communityChatEnabled} 
+                                                onChange={(e) => setCommunityChatEnabled(e.target.checked)} 
+                                                className="w-4 h-4 rounded text-[var(--color-primary)] focus:ring-[var(--color-primary)] accent-[var(--color-primary)]" 
                                             />
                                         </div>
 
@@ -1108,30 +1105,30 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                       className="rounded-xl"
                                     />
                                 </div>
-                                <div className="flex items-center justify-between p-3.5 border rounded-2xl bg-slate-50 dark:bg-slate-850">
+                                <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60">
                                     <div>
-                                      <Label htmlFor="requireDeposit" className="text-xs font-bold">Exigir Seña Obligatoria (Global)</Label>
-                                      <p className="text-[10px] text-slate-400">Si está inactivo, todos los turnos se reservan sin pago previo.</p>
+                                      <Label htmlFor="requireDeposit" className="text-xs font-bold text-slate-800 dark:text-slate-200">Exigir Seña Obligatoria (Global)</Label>
+                                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Si está inactivo, todos los turnos se reservan sin pago previo.</p>
                                     </div>
                                     <input 
                                       type="checkbox" 
                                       id="requireDeposit" 
                                       name="requireDeposit" 
                                       defaultChecked={initialSettings.requireDeposit} 
-                                      className="w-5 h-5 rounded text-[var(--color-primary)]" 
+                                      className="w-5 h-5 rounded text-[var(--color-primary)] accent-[var(--color-primary)]" 
                                     />
                                 </div>
-                                <div className="flex items-center justify-between p-3.5 border rounded-2xl bg-slate-50 dark:bg-slate-850">
+                                <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60">
                                     <div>
-                                      <Label htmlFor="requireDepositForRegistered" className="text-xs font-bold">Cobrar Seña a Socios Registrados</Label>
-                                      <p className="text-[10px] text-slate-400">Si está activo, los socios logueados pagan seña online. Si se desactiva, reservan sin pago previo.</p>
+                                      <Label htmlFor="requireDepositForRegistered" className="text-xs font-bold text-slate-800 dark:text-slate-200">Cobrar Seña a Socios Registrados</Label>
+                                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Si está activo, los socios logueados pagan seña online. Si se desactiva, reservan sin pago previo.</p>
                                     </div>
                                     <input 
                                       type="checkbox" 
                                       id="requireDepositForRegistered" 
                                       name="requireDepositForRegistered" 
                                       defaultChecked={initialSettings.requireDepositForRegistered ?? true} 
-                                      className="w-5 h-5 rounded text-[var(--color-primary)]" 
+                                      className="w-5 h-5 rounded text-[var(--color-primary)] accent-[var(--color-primary)]" 
                                     />
                                 </div>
                             </div>
@@ -1181,20 +1178,20 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                 <Input id="whatsappToken" name="whatsappToken" type="password" autoComplete="new-password" placeholder="Dejar vacío para conservar el actual" className="rounded-xl font-mono text-xs" />
                             </div>
 
-                            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-850">
+                            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60">
                                 <div>
-                                    <Label htmlFor="autoWhatsapp" className="text-xs font-bold">Envío Automático de Confirmaciones</Label>
-                                    <p className="text-[10px] text-slate-400">Envía mensaje instantáneo a cada cliente al confirmar reserva.</p>
+                                    <Label htmlFor="autoWhatsapp" className="text-xs font-bold text-slate-800 dark:text-slate-200">Envío Automático de Confirmaciones</Label>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Envía mensaje instantáneo a cada cliente al confirmar reserva.</p>
                                 </div>
-                                <input type="checkbox" id="autoWhatsapp" name="autoWhatsapp" defaultChecked={initialSettings.autoWhatsapp} className="w-5 h-5 rounded text-[var(--color-primary)]" />
+                                <input type="checkbox" id="autoWhatsapp" name="autoWhatsapp" defaultChecked={initialSettings.autoWhatsapp} className="w-5 h-5 rounded text-[var(--color-primary)] accent-[var(--color-primary)]" />
                             </div>
 
-                            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-850">
+                            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60">
                                 <div>
-                                    <Label htmlFor="notifyAdmin" className="text-xs font-bold">Notificar al Celular del Club</Label>
-                                    <p className="text-[10px] text-slate-400">Recibe una alerta en el teléfono del club ante cada reserva.</p>
+                                    <Label htmlFor="notifyAdmin" className="text-xs font-bold text-slate-800 dark:text-slate-200">Notificar al Celular del Club</Label>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Recibe una alerta en el teléfono del club ante cada reserva.</p>
                                 </div>
-                                <input type="checkbox" id="notifyAdmin" name="notifyAdmin" defaultChecked={initialSettings.notifyAdmin} className="w-5 h-5 rounded text-[var(--color-primary)]" />
+                                <input type="checkbox" id="notifyAdmin" name="notifyAdmin" defaultChecked={initialSettings.notifyAdmin} className="w-5 h-5 rounded text-[var(--color-primary)] accent-[var(--color-primary)]" />
                             </div>
                         </CardContent>
                     </Card>

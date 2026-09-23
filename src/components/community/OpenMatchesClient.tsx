@@ -164,7 +164,7 @@ export default function OpenMatchesClient({
   return (
     <div className="space-y-4">
       {/* Banner Superior & CTA */}
-      <div className="p-4 rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-indigo-700 text-white shadow-lg shadow-violet-500/15 relative overflow-hidden">
+      <div className="p-4 rounded-3xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] text-white shadow-lg shadow-[var(--color-primary)]/15 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-6 -mt-6 w-32 h-32 rounded-full bg-white/10 blur-xl pointer-events-none" />
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
           <div>
@@ -172,7 +172,7 @@ export default function OpenMatchesClient({
               <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase tracking-wider backdrop-blur-md">
                 Turnos Armados
               </span>
-              <span className="text-xs text-violet-200">
+              <span className="text-xs text-white/85">
                 {filteredMatches.length} convocatoria{filteredMatches.length !== 1 ? "s" : ""}
               </span>
             </div>
@@ -190,15 +190,15 @@ export default function OpenMatchesClient({
               className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 text-white text-xs font-black backdrop-blur-md border border-white/25 active:scale-95 transition-all shadow-sm"
               title="Ir al calendario para reservar una cancha"
             >
-              <CalendarDays className="w-4 h-4 text-emerald-300" />
+              <CalendarDays className="w-4 h-4 text-white" />
               <span>Sacar Turno</span>
             </Link>
 
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-violet-900 text-xs font-black shadow-md hover:bg-white/95 active:scale-95 transition-all"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-[var(--color-primary)] text-xs font-black shadow-md hover:bg-white/95 active:scale-95 transition-all"
             >
-              <PlusCircle className="w-4 h-4 text-violet-600" />
+              <PlusCircle className="w-4 h-4 text-[var(--color-primary)]" />
               Convocar Jugadores
             </button>
           </div>
@@ -224,7 +224,7 @@ export default function OpenMatchesClient({
           onClick={() => setFilterDate("ALL")}
           className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
             filterDate === "ALL"
-              ? "bg-violet-600 text-white shadow-sm"
+              ? "bg-[var(--color-primary)] text-white shadow-sm"
               : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
           }`}
         >
@@ -234,7 +234,7 @@ export default function OpenMatchesClient({
           onClick={() => setFilterDate("TODAY")}
           className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
             filterDate === "TODAY"
-              ? "bg-violet-600 text-white shadow-sm"
+              ? "bg-[var(--color-primary)] text-white shadow-sm"
               : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
           }`}
         >
@@ -308,7 +308,7 @@ export default function OpenMatchesClient({
                 className={`bg-white dark:bg-slate-900 rounded-3xl border p-4 shadow-sm flex flex-col justify-between transition-all ${
                   isFull
                     ? "border-slate-200 dark:border-slate-800 opacity-80"
-                    : "border-violet-200/80 dark:border-violet-800/60 ring-1 ring-violet-500/10 hover:shadow-md"
+                    : "border-[var(--color-primary)]/40 ring-1 ring-[var(--color-primary)]/15 hover:shadow-md"
                 }`}
               >
                 <div>
@@ -316,7 +316,7 @@ export default function OpenMatchesClient({
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div>
                       <div className="flex items-center gap-1.5 text-xs font-black text-slate-900 dark:text-white">
-                        <CalendarDays className="w-4 h-4 text-violet-600" />
+                        <CalendarDays className="w-4 h-4 text-[var(--color-primary)]" />
                         <span className="capitalize">{dateStr}</span>
                         <span className="text-slate-400">•</span>
                         <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -350,7 +350,7 @@ export default function OpenMatchesClient({
                       </span>
                     )}
                     {match.positionNeeded && (
-                      <span className="px-2 py-0.5 rounded-lg bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-[10px] font-bold border border-violet-200/60 dark:border-violet-800/40">
+                      <span className="px-2 py-0.5 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-[10px] font-bold border border-[var(--color-primary)]/25">
                         Posición: {match.positionNeeded}
                       </span>
                     )}
@@ -358,7 +358,7 @@ export default function OpenMatchesClient({
 
                   {/* Descripción / Mensaje del Host */}
                   {match.description && (
-                    <p className="text-xs text-slate-600 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 mb-3">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 mb-3">
                       &quot;{match.description}&quot;
                     </p>
                   )}
@@ -433,7 +433,7 @@ export default function OpenMatchesClient({
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/comunidad/chat?to=${match.creator.id}`}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[var(--color-primary)] hover:brightness-110 transition-colors"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
                         Chat con Host
@@ -449,9 +449,9 @@ export default function OpenMatchesClient({
                   ) : (
                     <Link
                       href={`/comunidad/chat?to=${match.creator.id}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-violet-600 transition-colors"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-[var(--color-primary)] transition-colors"
                     >
-                      <MessageCircle className="w-3.5 h-3.5 text-violet-500" />
+                      <MessageCircle className="w-3.5 h-3.5 text-[var(--color-primary)]" />
                       Consultar por Chat
                     </Link>
                   )}
@@ -460,7 +460,7 @@ export default function OpenMatchesClient({
                     <button
                       onClick={() => handleJoin(match.id)}
                       disabled={isPending}
-                      className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-xs font-black shadow-md shadow-violet-500/20 active:scale-95 transition-all"
+                      className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] hover:brightness-105 text-white text-xs font-black shadow-md shadow-[var(--color-primary)]/20 active:scale-95 transition-all"
                     >
                       {isPending ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -524,7 +524,7 @@ export default function OpenMatchesClient({
                   value={formCourt}
                   onChange={(e) => setFormCourt(e.target.value)}
                   placeholder="Ej: Cancha Panorámica 1"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
                 />
               </div>
 
@@ -538,7 +538,7 @@ export default function OpenMatchesClient({
                     required
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
                   />
                 </div>
                 <div className="space-y-1">
@@ -548,7 +548,7 @@ export default function OpenMatchesClient({
                   <select
                     value={formSlots}
                     onChange={(e) => setFormSlots(Number(e.target.value))}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
                   >
                     <option value={1}>Falta 1 jugador</option>
                     <option value={2}>Faltan 2 jugadores</option>
@@ -567,7 +567,7 @@ export default function OpenMatchesClient({
                     required
                     value={formStartTime}
                     onChange={(e) => setFormStartTime(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
                   />
                 </div>
                 <div className="space-y-1">
@@ -579,7 +579,7 @@ export default function OpenMatchesClient({
                     required
                     value={formEndTime}
                     onChange={(e) => setFormEndTime(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -594,7 +594,7 @@ export default function OpenMatchesClient({
                     value={formLevel}
                     onChange={(e) => setFormLevel(e.target.value)}
                     placeholder="Ej: 6ta pareja"
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
                   />
                 </div>
                 <div className="space-y-1">
@@ -604,7 +604,7 @@ export default function OpenMatchesClient({
                   <select
                     value={formPosition}
                     onChange={(e) => setFormPosition(e.target.value as any)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
                   >
                     <option value="">Cualquiera</option>
                     <option value="DRIVE">Drive</option>
@@ -623,7 +623,7 @@ export default function OpenMatchesClient({
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Ej: Nos bajamos uno a último momento, picadito parejo y con buena onda..."
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium resize-none"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 resize-none"
                 />
               </div>
 
@@ -638,7 +638,7 @@ export default function OpenMatchesClient({
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="px-5 py-2 rounded-xl bg-violet-600 text-white font-bold shadow-md hover:bg-violet-700 active:scale-95 transition-all flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl bg-[var(--color-primary)] hover:brightness-110 text-white font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5"
                 >
                   {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Publicar Convocatoria

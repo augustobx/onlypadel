@@ -11,7 +11,7 @@ import { Trophy, ChevronRight, Users2 } from "lucide-react";
 import { cookies } from "next/headers";
 import UserWelcomeSplash from "@/components/UserWelcomeSplash";
 import { getUserSession } from "@/actions/user-auth";
-import { getReadableForeground, normalizeHexColor } from "@/lib/color";
+import { getReadableForeground, getThemeColors } from "@/lib/color";
 import { isPlatformRequest, resolveTenantContext, TenantResolutionError } from "@/lib/tenant-context";
 import { notFound, redirect } from "next/navigation";
 
@@ -42,15 +42,10 @@ export default async function HomePage() {
 
     const settings = await getSettings();
     const theme = settings?.theme || 'light';
-    const themeClass = theme === 'cyber-padel'
-        ? 'dark theme-cyber-padel'
-        : theme === 'sunset-clay'
-        ? 'dark theme-sunset-clay'
-        : theme === 'ocean-frost'
-        ? 'dark theme-ocean-frost'
-        : theme === 'dark'
-        ? 'dark'
-        : '';
+    const themeData = getThemeColors(theme, settings?.primaryColor, settings?.secondaryColor);
+    const themeClass = themeData.themeClass;
+    const primaryColor = themeData.primary;
+    const secondaryColor = themeData.secondary;
     const appLayout = settings?.appLayout || 'classic';
 
     const isReservationsEnabled = settings?.reservationsEnabled ?? true;
@@ -62,20 +57,6 @@ export default async function HomePage() {
         timeZone: 'America/Argentina/Buenos_Aires',
         year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date());
-
-    let primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');
-    let secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
-
-    if (theme === 'cyber-padel') {
-        primaryColor = '#10b981';
-        secondaryColor = '#00e5ff';
-    } else if (theme === 'sunset-clay') {
-        primaryColor = '#ea580c';
-        secondaryColor = '#f59e0b';
-    } else if (theme === 'ocean-frost') {
-        primaryColor = '#0284c7';
-        secondaryColor = '#06b6d4';
-    }
 
     if (usersModuleEnabled) {
         const cookieStore = await cookies();

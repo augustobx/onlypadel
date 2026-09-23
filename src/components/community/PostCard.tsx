@@ -82,7 +82,7 @@ export default function PostCard({
         bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden transition-all
         ${
           isAnnouncement
-            ? "border-violet-200/80 dark:border-violet-800/60 ring-1 ring-violet-100 dark:ring-violet-900/40"
+            ? "border-[var(--color-primary)]/40 ring-1 ring-[var(--color-primary)]/20"
             : "border-slate-200/80 dark:border-slate-800/80"
         }
         ${post.isPinned ? "ring-1 ring-amber-200 dark:ring-amber-800/40" : ""}
@@ -93,7 +93,7 @@ export default function PostCard({
         <div
           className={`px-4 py-1.5 text-[11px] font-bold flex items-center gap-1.5 ${
             isAnnouncement
-              ? "bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-950/40 dark:to-fuchsia-950/40 text-violet-700 dark:text-violet-300"
+              ? "bg-gradient-to-r from-[var(--color-primary)]/15 to-[var(--color-secondary)]/15 text-[var(--color-primary)]"
               : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300"
           }`}
         >
@@ -111,7 +111,7 @@ export default function PostCard({
           <div
             className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-md ${
               isAnnouncement
-                ? "bg-gradient-to-br from-violet-600 to-fuchsia-600"
+                ? "bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)]"
                 : "bg-gradient-to-br from-slate-500 to-slate-700 dark:from-slate-600 dark:to-slate-800"
             }`}
           >

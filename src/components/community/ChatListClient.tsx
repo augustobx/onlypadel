@@ -60,7 +60,7 @@ export default function ChatListClient({
           </p>
           <Link
             href="/comunidad/jugadores"
-            className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-sm font-bold shadow-md shadow-violet-500/20 transition-all hover:from-violet-500 hover:to-fuchsia-500 active:scale-95"
+            className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white text-sm font-bold shadow-md shadow-[var(--color-primary)]/20 transition-all hover:brightness-105 active:scale-95"
           >
             <Users className="w-4 h-4" />
             Buscar jugadores
@@ -84,16 +84,12 @@ function ConversationCard({ conversation }: { conversation: Conversation }) {
   return (
     <Link
       href={`/comunidad/chat/${conversation.id}`}
-      className="block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm p-4 transition-all hover:shadow-md hover:border-violet-200 dark:hover:border-violet-800 active:scale-[0.99]"
+      className="block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm p-4 transition-all hover:shadow-md hover:border-[var(--color-primary)]/50 active:scale-[0.99]"
     >
       <div className="flex items-center gap-3">
         {/* Avatar */}
         <div
-          className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold shadow-md ${
-            isGroup
-              ? "bg-gradient-to-br from-fuchsia-500 to-pink-500"
-              : "bg-gradient-to-br from-violet-500 to-indigo-500"
-          }`}
+          className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold shadow-md bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)]`}
         >
           {isGroup ? (
             <Users className="w-5 h-5" />
@@ -138,7 +134,7 @@ function ConversationCard({ conversation }: { conversation: Conversation }) {
 
         {/* Unread badge */}
         {conversation.unreadCount > 0 && (
-          <div className="w-5 h-5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-5 h-5 rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] flex items-center justify-center flex-shrink-0">
             <span className="text-[9px] font-bold text-white">
               {conversation.unreadCount > 9 ? "9+" : conversation.unreadCount}
             </span>

@@ -2,7 +2,7 @@ import AdminSidebar from "@/components/AdminSidebar";
 import { getAdminSession } from "@/lib/admin-auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getReadableForeground, normalizeHexColor } from "@/lib/color";
+import { getReadableForeground, getThemeColors } from "@/lib/color";
 import { FEATURE_KEYS, hasTenantFeature } from "@/lib/features";
 
 export default async function AdminLayout({
@@ -22,25 +22,18 @@ export default async function AdminLayout({
   const enabledFeatures = featureStates.filter(([, enabled]) => enabled).map(([key]) => key);
   
   const theme = settings?.theme || 'light';
-  const themeClass = theme === 'cyber-padel'
-    ? 'dark theme-cyber-padel'
-    : theme === 'sunset-clay'
-    ? 'dark theme-sunset-clay'
-    : theme === 'ocean-frost'
-    ? 'dark theme-ocean-frost'
-    : theme === 'dark'
-    ? 'dark'
-    : '';
-
-  const primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');
-  const secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
+  const themeData = getThemeColors(theme, settings?.primaryColor, settings?.secondaryColor);
+  const themeClass = themeData.themeClass;
+  const primaryColor = themeData.primary;
+  const secondaryColor = themeData.secondary;
   const clubLogo = logoSetting?.value || settings?.splashLogo || '';
   const clubName = settings?.topbarName || settings?.clubName || 'OnlyPadel';
   const sportEmoji = settings?.sportEmoji || '🎾';
 
   return (
     <div
-      className={`${themeClass} flex flex-col md:flex-row min-h-screen bg-slate-50 dark:bg-slate-950`}
+      data-theme={themeData.themeName}
+      className={`${themeClass} flex flex-col md:flex-row min-h-screen bg-[var(--background,#f8fafc)] text-[var(--foreground,#0f172a)] transition-colors duration-300`}
       style={{
         '--color-primary': primaryColor,
         '--color-primary-foreground': getReadableForeground(primaryColor),

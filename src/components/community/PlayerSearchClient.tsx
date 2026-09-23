@@ -102,15 +102,15 @@ export default function PlayerSearchClient({
                 if (e.key === "Enter") doSearch();
               }}
               placeholder="Buscar por nombre..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-300 dark:focus:ring-violet-700 transition-all"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
             />
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`p-2.5 rounded-xl border transition-all ${
               showFilters
-                ? "bg-violet-50 dark:bg-violet-950/40 border-violet-200 dark:border-violet-800 text-violet-600"
-                : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                ? "bg-[var(--color-primary)]/15 border-[var(--color-primary)]/40 text-[var(--color-primary)]"
+                : "bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -118,7 +118,7 @@ export default function PlayerSearchClient({
           <button
             onClick={() => doSearch()}
             disabled={isPending}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-sm font-bold shadow-md shadow-violet-500/20 transition-all active:scale-95 disabled:opacity-50"
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white text-sm font-bold shadow-md shadow-[var(--color-primary)]/20 transition-all active:scale-95 disabled:opacity-50"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserSearch className="w-4 h-4" />}
           </button>
@@ -143,7 +143,7 @@ export default function PlayerSearchClient({
                     }}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                       selectedDay === day.value
-                        ? "bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 ring-1 ring-violet-300 dark:ring-violet-700"
+                        ? "bg-[var(--color-primary)]/20 text-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/40 font-bold"
                         : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                     }`}
                   >
@@ -169,7 +169,7 @@ export default function PlayerSearchClient({
                     }}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                       selectedTimeSlot === slot
-                        ? "bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 ring-1 ring-violet-300 dark:ring-violet-700"
+                        ? "bg-[var(--color-primary)]/20 text-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/40 font-bold"
                         : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                     }`}
                   >
@@ -188,7 +188,7 @@ export default function PlayerSearchClient({
                   setOnlyLooking(e.target.checked);
                   doSearch({ lookingForPartner: e.target.checked });
                 }}
-                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-violet-600 focus:ring-violet-500"
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 accent-[var(--color-primary)]"
               />
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 🏓 Solo jugadores buscando compañero
@@ -266,7 +266,7 @@ function PlayerCard({ player }: { player: Player }) {
           <div className="flex items-center gap-2 mb-0.5">
             <Link
               href={`/comunidad/perfil/${player.id}`}
-              className="font-bold text-sm text-slate-900 dark:text-white hover:text-violet-600 dark:hover:text-violet-400 transition-colors truncate"
+              className="font-bold text-sm text-slate-900 dark:text-white hover:text-[var(--color-primary)] transition-colors truncate"
             >
               {fullName}
             </Link>
@@ -330,7 +330,7 @@ function PlayerCard({ player }: { player: Player }) {
         <div className="flex-shrink-0">
           <Link
             href={`/comunidad/chat?to=${player.id}`}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-xs font-bold shadow-md shadow-violet-500/20 transition-all active:scale-95 hover:from-violet-500 hover:to-fuchsia-500"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white text-xs font-bold shadow-md shadow-[var(--color-primary)]/20 transition-all active:scale-95 hover:brightness-105"
           >
             <MessageCircle className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Mensaje</span>

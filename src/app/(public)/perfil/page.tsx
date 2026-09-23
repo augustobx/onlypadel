@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { getReadableForeground, normalizeHexColor } from "@/lib/color";
+import { getReadableForeground, normalizeHexColor, getThemeColors } from "@/lib/color";
 import ProfileCommunitySection from "@/components/community/ProfileCommunitySection";
 
 export default async function PerfilPage() {
@@ -20,9 +20,9 @@ export default async function PerfilPage() {
     }
 
     const settings = await getSettings();
-    const theme = settings?.theme || 'light';
-    const primaryColor = normalizeHexColor(settings?.primaryColor, '#10b981');
-    const secondaryColor = normalizeHexColor(settings?.secondaryColor, '#0ea5e9');
+    const themeColors = getThemeColors(settings?.theme, settings?.primaryColor, settings?.secondaryColor);
+    const primaryColor = themeColors.primary;
+    const secondaryColor = themeColors.secondary;
 
     // Cargar asignación de categoría oficial del jugador
     const [categoryAssignment, userCategoryLevel, bookings, teams, userProfile] = await Promise.all([
@@ -109,7 +109,8 @@ export default async function PerfilPage() {
 
     return (
         <div 
-            className={`${theme} min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col md:items-center md:py-8`}
+            data-theme={themeColors.themeName}
+            className={`${themeColors.themeClass} min-h-screen bg-[var(--background)] text-[var(--foreground)] flex flex-col md:items-center md:py-8`}
             style={{ 
                 '--color-primary': primaryColor,
                 '--color-primary-foreground': getReadableForeground(primaryColor),

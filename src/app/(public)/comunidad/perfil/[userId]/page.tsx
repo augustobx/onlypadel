@@ -99,7 +99,7 @@ export default async function PlayerProfilePage({
       {/* Profile card */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm overflow-hidden">
         {/* Header gradient */}
-        <div className="h-24 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 relative">
+        <div className="h-24 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] relative">
           {profile.lookingForPartner && (
             <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-bold flex items-center gap-1">
               🏓 Busca compañero
@@ -110,7 +110,7 @@ export default async function PlayerProfilePage({
         <div className="px-6 pb-6">
           {/* Avatar */}
           <div className="-mt-10 mb-4 flex items-end gap-4">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center text-white text-2xl font-black shadow-xl border-4 border-white dark:border-slate-900">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] flex items-center justify-center text-white text-2xl font-black shadow-xl border-4 border-white dark:border-slate-900">
               {profile.avatarUrl ? (
                 <img
                   src={profile.avatarUrl}
@@ -199,7 +199,7 @@ export default async function PlayerProfilePage({
           {days.length > 0 && (
             <div className="mb-4">
               <div className="flex items-center gap-1.5 mb-2">
-                <Calendar className="w-3.5 h-3.5 text-violet-500" />
+                <Calendar className="w-3.5 h-3.5 text-[var(--color-primary)]" />
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Días disponibles
                 </span>
@@ -208,7 +208,7 @@ export default async function PlayerProfilePage({
                 {days.map((day) => (
                   <span
                     key={day}
-                    className="px-3 py-1 rounded-full bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-xs font-semibold"
+                    className="px-3 py-1 rounded-full bg-[var(--color-primary)]/15 text-[var(--color-primary)] text-xs font-semibold"
                   >
                     {DAY_LABELS[day] || day}
                   </span>
@@ -221,7 +221,7 @@ export default async function PlayerProfilePage({
           {!isOwnProfile && (
             <Link
               href={`/comunidad/chat?to=${profile.id}`}
-              className="flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-sm font-bold shadow-lg shadow-violet-500/20 transition-all active:scale-[0.98]"
+              className="flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] hover:brightness-105 text-white text-sm font-bold shadow-lg shadow-[var(--color-primary)]/20 transition-all active:scale-[0.98]"
             >
               <MessageCircle className="w-4 h-4" />
               Enviar mensaje

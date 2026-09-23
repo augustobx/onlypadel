@@ -103,22 +103,22 @@ export default function PushConfig() {
   };
 
   return (
-    <Card className="border-amber-200">
-      <CardHeader className="bg-amber-50/50 rounded-t-lg">
-        <CardTitle className="flex items-center gap-2">
-          {isSubscribed ? <Bell className="w-5 h-5 text-amber-600" /> : <BellOff className="w-5 h-5 text-gray-400" />}
+    <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-sm bg-card text-card-foreground">
+      <CardHeader className="bg-slate-50/70 dark:bg-slate-900/60 rounded-t-3xl border-b border-slate-200/60 dark:border-slate-800/60">
+        <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white font-black text-lg">
+          {isSubscribed ? <Bell className="w-5 h-5 text-[var(--color-primary)]" /> : <BellOff className="w-5 h-5 text-slate-400" />}
           Notificaciones Push
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-slate-500 dark:text-slate-400 text-xs">
           Recibe un aviso sonoro e instantáneo en este dispositivo cada vez que alguien reserve un turno.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-4">
         
-        <div className="flex items-center justify-between p-3 border rounded-lg bg-white">
+        <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/60 dark:bg-slate-800/60">
           <div>
-            <p className="font-medium text-gray-900">Estado en este dispositivo</p>
-            <p className="text-xs text-gray-500">
+            <p className="font-bold text-xs text-slate-800 dark:text-slate-200">Estado en este dispositivo</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               {loading ? 'Verificando...' : isSubscribed ? 'Recibiendo alertas de nuevos turnos.' : 'Alertas pausadas.'}
             </p>
           </div>
@@ -134,16 +134,16 @@ export default function PushConfig() {
                 else handleUnsubscribe();
               }} 
             />
-            <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${isSubscribed ? 'bg-amber-500' : 'bg-gray-200'} ${loading ? 'opacity-50' : ''}`}></div>
+            <div className={`w-11 h-6 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${isSubscribed ? 'bg-[var(--color-primary)]' : 'bg-slate-300 dark:bg-slate-700'} ${loading ? 'opacity-50' : ''}`}></div>
           </label>
         </div>
 
-        <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded-lg leading-relaxed border border-blue-100">
-          <p className="font-bold mb-1">Cómo probar las notificaciones:</p>
-          <ol className="list-decimal list-inside space-y-1">
+        <div className="bg-sky-500/10 dark:bg-sky-500/15 text-sky-900 dark:text-sky-200 text-xs p-4 rounded-2xl leading-relaxed border border-sky-500/25">
+          <p className="font-bold mb-1.5 flex items-center gap-1.5 text-sky-800 dark:text-sky-300">💡 Cómo probar las notificaciones:</p>
+          <ol className="list-decimal list-inside space-y-1 text-slate-600 dark:text-slate-300 text-[11px]">
             <li>Activa el interruptor de arriba y acepta el permiso del navegador si te lo pide.</li>
             <li>Abre otra pestaña o dispositivo simulando ser un cliente y haz una reserva.</li>
-            <li>Asegúrate de que la campanita (Notificaciones) de tu SO no esté en modo "No Molestar".</li>
+            <li>Asegúrate de que la campanita (Notificaciones) de tu SO no esté en modo &quot;No Molestar&quot;.</li>
             <li>Deberías recibir la notificación push al instante.</li>
           </ol>
         </div>

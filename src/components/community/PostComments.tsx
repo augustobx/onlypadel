@@ -116,12 +116,12 @@ export default function PostComments({
             placeholder="Escribí un comentario..."
             maxLength={500}
             disabled={isPending}
-            className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-full px-4 py-2 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-300 dark:focus:ring-violet-700 transition-all"
+            className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-full px-4 py-2 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
           />
           <button
             onClick={handleSubmit}
             disabled={!content.trim() || isPending}
-            className="p-2 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+            className="p-2 rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white shadow-md shadow-[var(--color-primary)]/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
           >
             {isPending ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />

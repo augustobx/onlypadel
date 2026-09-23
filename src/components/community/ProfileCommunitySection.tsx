@@ -178,7 +178,7 @@ export default function ProfileCommunitySection({
   return (
     <div className="space-y-4">
       {/* TARJETA DE PERFIL SOCIAL & AVATAR */}
-      <div className="p-5 rounded-3xl bg-gradient-to-br from-violet-50 via-fuchsia-50/50 to-indigo-50 dark:from-slate-800/90 dark:via-violet-950/20 dark:to-slate-850 border border-violet-200/80 dark:border-violet-900/40 shadow-sm relative overflow-hidden">
+      <div className="p-5 rounded-3xl bg-gradient-to-br from-[var(--color-primary)]/10 via-[var(--card)] to-[var(--color-secondary)]/10 border border-[var(--color-primary)]/30 shadow-sm relative overflow-hidden">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             {/* Avatar Interactivo con Botón de Cámara */}
@@ -190,7 +190,7 @@ export default function ProfileCommunitySection({
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
               />
-              <div className="w-16 h-16 rounded-2xl overflow-hidden relative border-2 border-violet-500/30 bg-white dark:bg-slate-900 shadow-md">
+              <div className="w-16 h-16 rounded-2xl overflow-hidden relative border-2 border-[var(--color-primary)]/30 bg-white dark:bg-slate-900 shadow-md">
                 {avatarUrl ? (
                   <Image
                     src={avatarUrl}
@@ -200,7 +200,7 @@ export default function ProfileCommunitySection({
                     className="object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center text-white font-bold text-xl">
+                  <div className="w-full h-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] flex items-center justify-center text-white font-bold text-xl">
                     🎾
                   </div>
                 )}
@@ -214,7 +214,7 @@ export default function ProfileCommunitySection({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="absolute -bottom-1.5 -right-1.5 p-1.5 rounded-full bg-violet-600 hover:bg-violet-700 text-white shadow-md active:scale-95 transition-all"
+                className="absolute -bottom-1.5 -right-1.5 p-1.5 rounded-full bg-[var(--color-primary)] hover:brightness-110 text-white shadow-md active:scale-95 transition-all"
                 title="Cambiar foto de perfil"
               >
                 <Camera className="w-3.5 h-3.5" />
@@ -223,10 +223,10 @@ export default function ProfileCommunitySection({
 
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                <span className="text-xs font-black uppercase tracking-wider text-[var(--color-primary)]">
                   Mi Perfil Comunitario
                 </span>
-                <Sparkles className="w-3.5 h-3.5 text-fuchsia-500" />
+                <Sparkles className="w-3.5 h-3.5 text-[var(--color-secondary)]" />
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {position ? `Juega al ${position}` : "Posición no definida"}
@@ -242,7 +242,7 @@ export default function ProfileCommunitySection({
           <button
             type="button"
             onClick={() => setIsEditing(!isEditing)}
-            className="text-xs font-bold text-violet-700 dark:text-violet-300 hover:underline shrink-0"
+            className="text-xs font-bold text-[var(--color-primary)] hover:underline shrink-0"
           >
             {isEditing ? "Cancelar" : "Editar perfil"}
           </button>
@@ -259,7 +259,7 @@ export default function ProfileCommunitySection({
         {!isEditing && (
           <div className="space-y-2">
             {bio && (
-              <p className="text-xs text-slate-600 dark:text-slate-300 italic bg-white/70 dark:bg-slate-900/60 p-3 rounded-2xl border border-violet-100 dark:border-violet-900/30">
+              <p className="text-xs text-slate-600 dark:text-slate-300 italic bg-white/70 dark:bg-slate-900/60 p-3 rounded-2xl border border-[var(--color-primary)]/20">
                 &quot;{bio}&quot;
               </p>
             )}
@@ -267,13 +267,13 @@ export default function ProfileCommunitySection({
             {(selectedDays.length > 0 || timeSlot) && (
               <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] text-slate-500 dark:text-slate-400">
                 {timeSlot && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-white/60 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/30 font-semibold">
-                    <Clock className="w-3 h-3 text-violet-500" /> {timeSlot}
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-white/60 dark:bg-slate-900/60 border border-[var(--color-primary)]/20 font-semibold">
+                    <Clock className="w-3 h-3 text-[var(--color-primary)]" /> {timeSlot}
                   </span>
                 )}
                 {selectedDays.length > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-white/60 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/30 font-semibold">
-                    <CalendarDays className="w-3 h-3 text-violet-500" />
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-white/60 dark:bg-slate-900/60 border border-[var(--color-primary)]/20 font-semibold">
+                    <CalendarDays className="w-3 h-3 text-[var(--color-primary)]" />
                     {selectedDays.map((d) => ALL_DAYS.find((item) => item.id === d)?.label || d).join(", ")}
                   </span>
                 )}
@@ -284,7 +284,7 @@ export default function ProfileCommunitySection({
 
         {/* Formulario de Edición */}
         {isEditing && (
-          <form onSubmit={handleSaveProfile} className="space-y-3 pt-3 border-t border-violet-200/60 dark:border-violet-900/40 text-xs">
+          <form onSubmit={handleSaveProfile} className="space-y-3 pt-3 border-t border-[var(--color-primary)]/20 text-xs">
             <div className="space-y-1">
               <label className="font-bold text-slate-700 dark:text-slate-300">
                 Sobre mí / Descripción
@@ -295,7 +295,7 @@ export default function ProfileCommunitySection({
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Ej: Juego hace 2 años, busco partidos parejos entre semana a la tarde..."
-                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium resize-none focus:ring-1 focus:ring-violet-500 outline-none"
+                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium resize-none focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
               />
             </div>
 
@@ -307,7 +307,7 @@ export default function ProfileCommunitySection({
                 <select
                   value={position}
                   onChange={(e) => setPosition(e.target.value as any)}
-                  className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium focus:ring-1 focus:ring-violet-500 outline-none"
+                  className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
                 >
                   <option value="">No especificado</option>
                   <option value="DRIVE">Drive</option>
@@ -323,7 +323,7 @@ export default function ProfileCommunitySection({
                 <select
                   value={timeSlot}
                   onChange={(e) => setTimeSlot(e.target.value)}
-                  className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium focus:ring-1 focus:ring-violet-500 outline-none"
+                  className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium focus:ring-1 focus:ring-[var(--color-primary)] outline-none"
                 >
                   <option value="">Cualquier horario</option>
                   <option value="Mañanas (8:00 a 12:00)">Mañanas (8:00 a 12:00)</option>
@@ -353,7 +353,7 @@ export default function ProfileCommunitySection({
                       }
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                         isSelected
-                          ? "bg-violet-600 text-white shadow-sm"
+                          ? "bg-[var(--color-primary)] text-white shadow-sm"
                           : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50"
                       }`}
                     >
@@ -370,7 +370,7 @@ export default function ProfileCommunitySection({
                   type="checkbox"
                   checked={lookingForPartner}
                   onChange={(e) => setLookingForPartner(e.target.checked)}
-                  className="w-4 h-4 rounded text-violet-600 focus:ring-violet-500"
+                  className="w-4 h-4 rounded accent-[var(--color-primary)]"
                 />
                 <span>Activar &quot;Busco compañeros de juego&quot; en la comunidad</span>
               </label>
@@ -387,7 +387,7 @@ export default function ProfileCommunitySection({
               <button
                 type="submit"
                 disabled={isPending}
-                className="px-4 py-1.5 rounded-xl bg-violet-600 text-white font-bold shadow-md hover:bg-violet-700 active:scale-95 transition-all flex items-center gap-1.5"
+                className="px-4 py-1.5 rounded-xl bg-[var(--color-primary)] text-white font-bold shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
               >
                 {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Guardar Cambios
@@ -402,7 +402,7 @@ export default function ProfileCommunitySection({
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-violet-600" />
+              <Users className="w-4 h-4 text-[var(--color-primary)]" />
               ¿Te falta gente para tus turnos?
             </h4>
             <span className="text-[10px] text-slate-400">
@@ -429,7 +429,7 @@ export default function ProfileCommunitySection({
                 >
                   <div>
                     <div className="flex items-center gap-1.5 text-xs font-black text-slate-900 dark:text-white">
-                      <CalendarDays className="w-3.5 h-3.5 text-violet-600" />
+                      <CalendarDays className="w-3.5 h-3.5 text-[var(--color-primary)]" />
                       <span className="capitalize">{dateStr}</span>
                       <span className="text-slate-400">•</span>
                       <span>{timeStr}</span>
@@ -447,7 +447,7 @@ export default function ProfileCommunitySection({
                         startTime: b.startTime,
                       })
                     }
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-50 dark:bg-violet-950/50 hover:bg-violet-100 text-violet-700 dark:text-violet-300 text-xs font-black border border-violet-200 dark:border-violet-800 active:scale-95 transition-all shrink-0"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--color-primary)]/15 hover:brightness-105 text-[var(--color-primary)] text-xs font-black border border-[var(--color-primary)]/30 active:scale-95 transition-all shrink-0"
                   >
                     <PlusCircle className="w-3.5 h-3.5" />
                     Convocar
@@ -498,7 +498,7 @@ export default function ProfileCommunitySection({
                       onClick={() => setSlotsNeeded(num)}
                       className={`py-2 rounded-xl font-bold border transition-all ${
                         slotsNeeded === num
-                          ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                          ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-sm"
                           : "border-slate-200 dark:border-slate-800 text-slate-600 hover:bg-slate-50"
                       }`}
                     >
@@ -515,7 +515,7 @@ export default function ProfileCommunitySection({
                 <select
                   value={matchPosition}
                   onChange={(e) => setMatchPosition(e.target.value as any)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100"
                 >
                   <option value="">Cualquier posición</option>
                   <option value="DRIVE">Drive</option>
@@ -533,7 +533,7 @@ export default function ProfileCommunitySection({
                   value={matchDescription}
                   onChange={(e) => setMatchDescription(e.target.value)}
                   placeholder="Ej: Picadito parejo, buena onda, faltó uno a último momento..."
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium resize-none"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 resize-none"
                 />
               </div>
 
@@ -548,7 +548,7 @@ export default function ProfileCommunitySection({
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="px-4 py-2 rounded-xl bg-violet-600 text-white font-bold shadow-md hover:bg-violet-700 active:scale-95 transition-all flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-[var(--color-primary)] hover:brightness-110 text-white font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5"
                 >
                   {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Publicar en Comunidad

@@ -127,11 +127,7 @@ export default function ChatConversationClient({
         </Link>
 
         <div
-          className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-xs shadow-md ${
-            isGroup
-              ? "bg-gradient-to-br from-fuchsia-500 to-pink-500"
-              : "bg-gradient-to-br from-violet-500 to-indigo-500"
-          }`}
+          className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-xs shadow-md bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)]`}
         >
           {isGroup ? <Users className="w-4 h-4" /> : initial}
         </div>
@@ -183,7 +179,7 @@ export default function ChatConversationClient({
                         px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm
                         ${
                           msg.isMe
-                            ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white rounded-br-md"
+                            ? "bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white rounded-br-md shadow-sm"
                             : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-md"
                         }
                       `}
@@ -225,12 +221,12 @@ export default function ChatConversationClient({
             placeholder="Escribí un mensaje..."
             maxLength={2000}
             disabled={isPending}
-            className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-300 dark:focus:ring-violet-700 transition-all"
+            className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
           />
           <button
             onClick={handleSend}
             disabled={!content.trim() || isPending}
-            className="p-3 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 hover:shadow-xl hover:shadow-violet-500/40"
+            className="p-3 rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white shadow-lg shadow-[var(--color-primary)]/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 hover:brightness-105"
           >
             {isPending ? (
               <Loader2 className="w-5 h-5 animate-spin" />

@@ -105,7 +105,7 @@ export default function NotificationsClient({
         );
       case 'CLUB_ANNOUNCEMENT':
         return (
-          <div className="w-10 h-10 rounded-2xl bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0 shadow-sm">
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] flex items-center justify-center shrink-0 shadow-sm">
             <Megaphone className="w-5 h-5" />
           </div>
         );
@@ -123,7 +123,7 @@ export default function NotificationsClient({
       {/* Header bar */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 p-4 shadow-sm flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
+          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] text-white flex items-center justify-center shadow-md shadow-[var(--color-primary)]/20">
             <Bell className="w-4 h-4" />
           </div>
           <div>
@@ -145,7 +145,7 @@ export default function NotificationsClient({
             {isPending ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <CheckCheck className="w-3.5 h-3.5 text-violet-500" />
+              <CheckCheck className="w-3.5 h-3.5 text-[var(--color-primary)]" />
             )}
             <span className="hidden sm:inline">Marcar todas</span>
           </button>
@@ -158,7 +158,7 @@ export default function NotificationsClient({
           onClick={() => setFilter('all')}
           className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
             filter === 'all'
-              ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30'
+              ? 'bg-[var(--color-primary)] text-white shadow-sm shadow-[var(--color-primary)]/30'
               : 'bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
           }`}
         >
@@ -168,7 +168,7 @@ export default function NotificationsClient({
           onClick={() => setFilter('unread')}
           className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
             filter === 'unread'
-              ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30'
+              ? 'bg-[var(--color-primary)] text-white shadow-sm shadow-[var(--color-primary)]/30'
               : 'bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
           }`}
         >
@@ -198,7 +198,7 @@ export default function NotificationsClient({
               className={`group relative overflow-hidden rounded-2xl border p-4 transition-all duration-200 cursor-pointer flex items-start gap-3.5 ${
                 item.isRead
                   ? 'bg-white/80 dark:bg-slate-900/80 border-slate-200/70 dark:border-slate-800/70 hover:border-slate-300 hover:shadow-sm'
-                  : 'bg-gradient-to-r from-violet-50/70 via-white to-fuchsia-50/40 dark:from-violet-950/30 dark:via-slate-900 dark:to-fuchsia-950/20 border-violet-200/90 dark:border-violet-800/60 shadow-sm'
+                  : 'bg-gradient-to-r from-[var(--color-primary)]/10 via-white dark:via-slate-900 to-[var(--color-secondary)]/10 border-[var(--color-primary)]/30 shadow-sm'
               }`}
             >
               {/* Type icon */}
@@ -211,7 +211,7 @@ export default function NotificationsClient({
                     {item.title}
                   </h4>
                   {!item.isRead && (
-                    <span className="w-2 h-2 rounded-full bg-violet-600 shrink-0 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-[var(--color-primary)] shrink-0 animate-pulse" />
                   )}
                 </div>
 
@@ -238,7 +238,7 @@ export default function NotificationsClient({
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
-                <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-violet-600 group-hover:translate-x-0.5 transition-all" />
+                <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-[var(--color-primary)] group-hover:translate-x-0.5 transition-all" />
               </div>
             </div>
           ))}

@@ -342,7 +342,7 @@ export default function AdminCommunityClient({
           {/* Formulario */}
           <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-violet-50 dark:bg-violet-950/40 text-violet-600">
+              <span className="p-2 rounded-xl bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
                 <Megaphone className="w-5 h-5" />
               </span>
               <div>
@@ -366,7 +366,7 @@ export default function AdminCommunityClient({
                   value={announcementContent}
                   onChange={(e) => setAnnouncementContent(e.target.value)}
                   placeholder="Ej: Estimados socios, el próximo sábado tendremos clínica con profesionales y horario especial de cantina..."
-                  className="w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 font-medium resize-none focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 font-medium text-slate-800 dark:text-slate-100 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                 />
               </div>
 
@@ -426,7 +426,7 @@ export default function AdminCommunityClient({
                   type="checkbox"
                   checked={announcementPinned}
                   onChange={(e) => setAnnouncementPinned(e.target.checked)}
-                  className="w-4 h-4 rounded text-violet-600 focus:ring-violet-500"
+                  className="w-4 h-4 rounded accent-[var(--color-primary)]"
                 />
                 <span>Fijar en el tope del muro comunitario</span>
               </label>
@@ -434,7 +434,7 @@ export default function AdminCommunityClient({
               <button
                 type="submit"
                 disabled={isPending || isUploadingImage || !announcementContent.trim()}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-black shadow-md shadow-violet-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] hover:brightness-105 text-white font-black shadow-md shadow-[var(--color-primary)]/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 Publicar Comunicado
@@ -634,8 +634,8 @@ export default function AdminCommunityClient({
                     onClick={() => handleInspectChat(c.id)}
                     className={`p-3 rounded-2xl cursor-pointer transition-all ${
                       isSelected
-                        ? "bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-850"
+                        ? "bg-[var(--color-primary)]/15 border border-[var(--color-primary)]/40"
+                        : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -671,7 +671,7 @@ export default function AdminCommunityClient({
               </div>
             ) : isLoadingMessages ? (
               <div className="py-20 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
-                <Loader2 className="w-6 h-6 animate-spin text-violet-600" />
+                <Loader2 className="w-6 h-6 animate-spin text-[var(--color-primary)]" />
                 Cargando historial de mensajes...
               </div>
             ) : conversationMessages.length === 0 ? (
@@ -686,7 +686,7 @@ export default function AdminCommunityClient({
                     className={`p-3 rounded-2xl border text-xs flex items-start justify-between gap-3 ${
                       msg.isDeleted
                         ? "bg-rose-50/40 border-rose-200 text-rose-500 italic"
-                        : "bg-slate-50 dark:bg-slate-850 border-slate-100 dark:border-slate-800"
+                        : "bg-slate-50/80 dark:bg-slate-800/60 border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-100"
                     }`}
                   >
                     <div>
