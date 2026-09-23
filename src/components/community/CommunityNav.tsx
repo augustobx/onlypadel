@@ -20,8 +20,10 @@ const navItems = [
 
 export default function CommunityNav({
   unreadNotifications = 0,
+  unreadMessages = 0,
 }: {
   unreadNotifications?: number;
+  unreadMessages?: number;
 }) {
   const pathname = usePathname();
 
@@ -34,6 +36,8 @@ export default function CommunityNav({
               ? pathname === "/comunidad"
               : pathname.startsWith(item.href);
 
+          const isChat = item.href === "/comunidad/chat";
+          const hasChatUnread = isChat && unreadMessages > 0;
           const hasAlert = item.href === "/comunidad/notificaciones" && unreadNotifications > 0;
 
           return (
@@ -59,6 +63,11 @@ export default function CommunityNav({
                 />
                 {hasAlert && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-[var(--card)] animate-pulse" />
+                )}
+                {hasChatUnread && (
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-[var(--card)] animate-pulse shadow-sm">
+                    {unreadMessages > 99 ? "99+" : unreadMessages}
+                  </span>
                 )}
               </div>
               <span

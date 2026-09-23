@@ -141,41 +141,52 @@ export async function getConversations() {
     },
   });
 
-  return conversations.map((conv) => {
-    const myParticipant = conv.participants.find((p) => p.userId === userId);
-    const lastMessage = conv.messages[0] ?? null;
+  const results = await Promise.all(
+    conversations.map(async (conv) => {
+      const myParticipant = conv.participants.find((p) => p.userId === userId);
+      const lastMessage = conv.messages[0] ?? null;
 
-    // Count unread: messages after my lastReadAt
-    const unreadCount = myParticipant?.lastReadAt
-      ? 0 // We'll calculate properly with a count query below
-      : lastMessage
-        ? 1
-        : 0;
+      let unreadCount = 0;
+      if (myParticipant) {
+        unreadCount = await prisma.chatMessage.count({
+          where: {
+            conversationId: conv.id,
+            senderId: { not: userId },
+            isDeleted: false,
+            ...(myParticipant.lastReadAt
+              ? { createdAt: { gt: myParticipant.lastReadAt } }
+              : {}),
+          },
+        });
+      }
 
-    return {
-      id: conv.id,
-      type: conv.type,
-      name:
-        conv.type === "GROUP"
-          ? conv.name
-          : conv.participants
-              .filter((p) => p.userId !== userId)
-              .map((p) => `${p.user.name} ${p.user.lastName ?? ""}`.trim())
-              .join(", "),
-      imageUrl: conv.imageUrl,
-      participants: conv.participants.map((p) => p.user),
-      lastMessage: lastMessage
-        ? {
-            content: lastMessage.content,
-            senderName: lastMessage.sender.name,
-            createdAt: lastMessage.createdAt,
-            isMe: lastMessage.senderId === userId,
-          }
-        : null,
-      unreadCount,
-      updatedAt: conv.updatedAt,
-    };
-  });
+      return {
+        id: conv.id,
+        type: conv.type,
+        name:
+          conv.type === "GROUP"
+            ? conv.name
+            : conv.participants
+                .filter((p) => p.userId !== userId)
+                .map((p) => `${p.user.name} ${p.user.lastName ?? ""}`.trim())
+                .join(", "),
+        imageUrl: conv.imageUrl,
+        participants: conv.participants.map((p) => p.user),
+        lastMessage: lastMessage
+          ? {
+              content: lastMessage.content,
+              senderName: lastMessage.sender.name,
+              createdAt: lastMessage.createdAt,
+              isMe: lastMessage.senderId === userId,
+            }
+          : null,
+        unreadCount,
+        updatedAt: conv.updatedAt,
+      };
+    })
+  );
+
+  return results;
 }
 
 // ─── Get messages for a conversation ─────────────────────
@@ -239,29 +250,30 @@ export async function sendMessage(
   conversationId: string,
   formData: FormData
 ) {
-  const userId = await requireChatUser();
-  const content = (formData.get("content") as string)?.trim();
+  try {
+    const userId = await requireChatUser();
+    const content = (formData.get("content") as string)?.trim();
 
-  if (!content || content.length === 0) {
-    return { success: false, error: "El mensaje no puede estar vacío." };
-  }
-  if (content.length > 2000) {
-    return {
-      success: false,
-      error: "El mensaje no puede superar los 2000 caracteres.",
-    };
-  }
+    if (!content || content.length === 0) {
+      return { success: false, error: "El mensaje no puede estar vacío." };
+    }
+    if (content.length > 2000) {
+      return {
+        success: false,
+        error: "El mensaje no puede superar los 2000 caracteres.",
+      };
+    }
 
-  // Verify participation
-  const participant = await prisma.chatParticipant.findFirst({
-    where: { conversationId, userId },
-  });
-  if (!participant) {
-    return { success: false, error: "No participás en esta conversación." };
-  }
+    // Verify participation
+    const participant = await prisma.chatParticipant.findFirst({
+      where: { conversationId, userId },
+    });
+    if (!participant) {
+      return { success: false, error: "No participás en esta conversación." };
+    }
 
-  const [message] = await prisma.$transaction([
-    prisma.chatMessage.create({
+    // 1. Create chat message
+    const message = await prisma.chatMessage.create({
       data: {
         conversationId,
         senderId: userId,
@@ -278,32 +290,112 @@ export async function sendMessage(
           },
         },
       },
-    }),
-    // Update conversation timestamp
-    prisma.chatConversation.update({
+    });
+
+    // 2. Update conversation timestamp
+    await prisma.chatConversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
-    }),
-    // Mark sender's own read
-    prisma.chatParticipant.update({
+    });
+
+    // 3. Mark sender's own read timestamp
+    await prisma.chatParticipant.update({
       where: { id: participant.id },
       data: { lastReadAt: new Date() },
-    }),
-  ]);
+    });
 
-  revalidatePath(`/comunidad/chat/${conversationId}`);
+    // 4. Send community notifications to other participants
+    try {
+      const otherParticipants = await prisma.chatParticipant.findMany({
+        where: {
+          conversationId,
+          userId: { not: userId },
+        },
+        select: { userId: true },
+      });
 
-  return {
-    success: true,
-    message: {
-      id: message.id,
-      content: message.content,
-      type: message.type,
-      createdAt: message.createdAt,
-      sender: message.sender,
-      isMe: true,
-    },
-  };
+      const senderName = `${message.sender.name || "Jugador"}${message.sender.lastName ? " " + message.sender.lastName : ""}`.trim();
+      const snippet = content.length > 70 ? content.slice(0, 67) + "..." : content;
+
+      for (const other of otherParticipants) {
+        await prisma.communityNotification.create({
+          data: {
+            userId: other.userId,
+            type: "CHAT_MESSAGE",
+            title: `Nuevo mensaje de ${senderName}`,
+            body: snippet,
+            linkUrl: `/comunidad/chat/${conversationId}`,
+          },
+        });
+      }
+    } catch (notifErr) {
+      console.warn("Could not create chat notifications:", notifErr);
+    }
+
+    revalidatePath(`/comunidad/chat/${conversationId}`);
+    revalidatePath("/comunidad/chat");
+    revalidatePath("/comunidad");
+    revalidatePath("/");
+
+    return {
+      success: true,
+      message: {
+        id: message.id,
+        content: message.content,
+        type: message.type,
+        createdAt: message.createdAt,
+        sender: message.sender,
+        isMe: true,
+      },
+    };
+  } catch (err: any) {
+    console.error("Error in sendMessage:", err);
+    return {
+      success: false,
+      error: err?.message || "No se pudo enviar el mensaje.",
+    };
+  }
+}
+
+// ─── Unread messages count ───────────────────────────────
+export async function getUnreadMessagesCount(userId?: string): Promise<number> {
+  try {
+    const currentUserId = userId || (await readUserSessionId());
+    if (!currentUserId) return 0;
+
+    const participations = await prisma.chatParticipant.findMany({
+      where: { userId: currentUserId },
+      select: {
+        conversationId: true,
+        lastReadAt: true,
+      },
+    });
+
+    if (participations.length === 0) return 0;
+
+    const orConditions = participations.map((p) => {
+      const cond: any = {
+        conversationId: p.conversationId,
+        senderId: { not: currentUserId },
+        isDeleted: false,
+      };
+      if (p.lastReadAt) {
+        cond.createdAt = { gt: p.lastReadAt };
+      }
+      return cond;
+    });
+
+    const count = await prisma.chatMessage.count({
+      where: {
+        OR: orConditions,
+      },
+    });
+
+    return count;
+  } catch (err) {
+    console.error("Error in getUnreadMessagesCount:", err);
+    return 0;
+  }
 }
 
 // ─── Get conversation info ──────────────────────────────

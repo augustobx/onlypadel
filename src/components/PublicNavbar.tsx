@@ -17,7 +17,13 @@ type PublicNavbarSettings = {
   communityEnabled?: boolean;
 };
 
-export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavbarSettings | null }) {
+export default function PublicNavbar({
+  sysSettings,
+  unreadMessages = 0,
+}: {
+  sysSettings?: PublicNavbarSettings | null;
+  unreadMessages?: number;
+}) {
   const pathname = usePathname();
   const topbarTitle = sysSettings?.topbarName || "OnlyPadel";
   const logo = sysSettings?.clubLogo || sysSettings?.splashLogo || "";
@@ -86,9 +92,16 @@ export default function PublicNavbar({ sysSettings }: { sysSettings?: PublicNavb
             {sysSettings?.communityEnabled && (
               <Link
                 href="/comunidad"
-                className="flex items-center gap-1.5 rounded-full bg-violet-50 dark:bg-violet-950/60 border border-violet-200 dark:border-violet-800/60 px-3 py-1.5 text-xs sm:text-sm font-bold text-violet-800 dark:text-violet-300 transition-all hover:bg-violet-100 dark:hover:bg-violet-900/60 active:scale-95"
+                className="relative flex items-center gap-1.5 rounded-full bg-violet-50 dark:bg-violet-950/60 border border-violet-200 dark:border-violet-800/60 px-3 py-1.5 text-xs sm:text-sm font-bold text-violet-800 dark:text-violet-300 transition-all hover:bg-violet-100 dark:hover:bg-violet-900/60 active:scale-95"
               >
-                <Users2 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                <div className="relative flex items-center">
+                  <Users2 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-2 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-white dark:border-slate-900 animate-pulse shadow-sm">
+                      {unreadMessages > 99 ? "99+" : unreadMessages}
+                    </span>
+                  )}
+                </div>
                 <span className="hidden sm:inline">Comunidad</span>
               </Link>
             )}

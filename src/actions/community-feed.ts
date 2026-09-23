@@ -248,3 +248,41 @@ export async function deletePost(postId: string) {
   revalidatePath("/comunidad");
   return { success: true };
 }
+
+// ─── Get latest posts for preview ticker/cards ───────────
+export async function getLatestCommunityPosts(limit = 3) {
+  try {
+    const posts = await prisma.post.findMany({
+      where: { isActive: true },
+      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+      take: limit,
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    return posts.map((p) => ({
+      id: p.id,
+      content: p.content,
+      imageUrl: p.imageUrl,
+      type: p.type,
+      isPinned: p.isPinned,
+      createdAt: p.createdAt,
+      authorName:
+        p.type === "CLUB_ANNOUNCEMENT"
+          ? "Club Oficial"
+          : `${p.author.name || "Jugador"} ${p.author.lastName || ""}`.trim(),
+      authorAvatar: p.author.avatarUrl,
+    }));
+  } catch (error) {
+    console.error("Error fetching latest community posts:", error);
+    return [];
+  }
+}

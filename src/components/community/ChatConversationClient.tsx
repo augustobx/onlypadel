@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useState, useRef, useEffect } from "react";
 import { sendMessage, getMessages } from "@/actions/community-chat";
 import { ArrowLeft, SendHorizonal, Loader2, Users } from "lucide-react";
 import Link from "next/link";
@@ -50,7 +50,8 @@ export default function ChatConversationClient({
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [content, setContent] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -80,14 +81,17 @@ export default function ChatConversationClient({
     return () => clearInterval(interval);
   }, [conversationId]);
 
-  const handleSend = () => {
-    if (!content.trim() || isPending) return;
-    const text = content;
+  const handleSend = async () => {
+    if (!content.trim() || isSending) return;
+    const text = content.trim();
     setContent("");
+    setSendError(null);
+    setIsSending(true);
 
+    const tempId = `temp-${Date.now()}`;
     // Optimistic message
     const optimistic: Message = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       content: text,
       type: "TEXT",
       createdAt: new Date(),
@@ -101,18 +105,29 @@ export default function ChatConversationClient({
     };
     setMessages((prev) => [...prev, optimistic]);
 
-    const formData = new FormData();
-    formData.set("content", text);
+    try {
+      const formData = new FormData();
+      formData.set("content", text);
 
-    startTransition(async () => {
       const result = await sendMessage(conversationId, formData);
       if (result.success && result.message) {
         // Replace optimistic with real
         setMessages((prev) =>
-          prev.map((m) => (m.id === optimistic.id ? result.message! : m))
+          prev.map((m) => (m.id === tempId ? result.message! : m))
         );
+      } else {
+        // Rollback optimistic message & restore content
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setContent(text);
+        setSendError(result.error || "No se pudo enviar el mensaje.");
       }
-    });
+    } catch (err: any) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setContent(text);
+      setSendError(err?.message || "Error de conexión al enviar el mensaje.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -204,6 +219,19 @@ export default function ChatConversationClient({
         )}
       </div>
 
+      {/* Error alert if message failed */}
+      {sendError && (
+        <div className="px-4 py-2 bg-rose-500/10 border-t border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-between">
+          <span>{sendError}</span>
+          <button
+            onClick={() => setSendError(null)}
+            className="text-rose-500 hover:underline text-[11px] ml-2 font-bold"
+          >
+            Entendido
+          </button>
+        </div>
+      )}
+
       {/* Message input */}
       <div className="px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="flex items-center gap-2">
@@ -220,15 +248,15 @@ export default function ChatConversationClient({
             }}
             placeholder="Escribí un mensaje..."
             maxLength={2000}
-            disabled={isPending}
-            className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
+            disabled={isSending}
+            className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all disabled:opacity-60"
           />
           <button
             onClick={handleSend}
-            disabled={!content.trim() || isPending}
+            disabled={!content.trim() || isSending}
             className="p-3 rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white shadow-lg shadow-[var(--color-primary)]/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 hover:brightness-105"
           >
-            {isPending ? (
+            {isSending ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <SendHorizonal className="w-5 h-5" />

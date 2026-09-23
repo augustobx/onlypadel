@@ -4,6 +4,7 @@ import { getUserSession } from "@/actions/user-auth";
 import { redirect } from "next/navigation";
 import CommunityNav from "@/components/community/CommunityNav";
 import { getSettings } from "@/actions/settings";
+import { getUnreadMessagesCount } from "@/actions/community-chat";
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -28,10 +29,16 @@ export default async function CommunityLayout({
   }
 
   let unreadNotificationsCount = 0;
+  let unreadMessagesCount = 0;
   try {
-    unreadNotificationsCount = await prisma.communityNotification.count({
-      where: { userId: session.id, isRead: false },
-    });
+    const [notifCount, msgCount] = await Promise.all([
+      prisma.communityNotification.count({
+        where: { userId: session.id, isRead: false },
+      }),
+      getUnreadMessagesCount(session.id),
+    ]);
+    unreadNotificationsCount = notifCount;
+    unreadMessagesCount = msgCount;
   } catch (e) {
     // Non-critical count
   }
@@ -97,7 +104,10 @@ export default async function CommunityLayout({
       </main>
 
       {/* Bottom navigation */}
-      <CommunityNav unreadNotifications={unreadNotificationsCount} />
+      <CommunityNav
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+      />
     </div>
   );
 }

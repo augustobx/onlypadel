@@ -14,6 +14,10 @@ import { getUserSession } from "@/actions/user-auth";
 import { getReadableForeground, getThemeColors } from "@/lib/color";
 import { isPlatformRequest, resolveTenantContext, TenantResolutionError } from "@/lib/tenant-context";
 import { notFound, redirect } from "next/navigation";
+import { getLatestCommunityPosts } from "@/actions/community-feed";
+import { getUnreadMessagesCount } from "@/actions/community-chat";
+import CommunityFeedTicker from "@/components/community/CommunityFeedTicker";
+import { hasTenantFeature } from "@/lib/features";
 
 export default async function HomePage() {
     if (await isPlatformRequest()) {
@@ -57,6 +61,16 @@ export default async function HomePage() {
         timeZone: 'America/Argentina/Buenos_Aires',
         year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date());
+
+    const isCommunityActive = settings?.communityEnabled && (await hasTenantFeature('community').catch(() => false));
+    let unreadMessages = 0;
+    let latestCommunityPosts: any[] = [];
+    if (isCommunityActive) {
+      if (session?.id) {
+        unreadMessages = await getUnreadMessagesCount(session.id);
+      }
+      latestCommunityPosts = await getLatestCommunityPosts(3);
+    }
 
     if (usersModuleEnabled) {
         const cookieStore = await cookies();
@@ -112,7 +126,7 @@ export default async function HomePage() {
             } as React.CSSProperties}
         >
             <div className="relative flex min-h-dvh w-full max-w-md flex-col overflow-hidden bg-[var(--card,#ffffff)] text-[var(--card-foreground,#0f172a)] md:h-[calc(100dvh-4rem)] md:max-h-[820px] md:min-h-0 md:rounded-[2.5rem] md:border md:border-[var(--border,#e2e8f0)] md:shadow-2xl transition-colors duration-300">
-                <PublicNavbar sysSettings={settings} />
+                <PublicNavbar sysSettings={settings} unreadMessages={unreadMessages} />
                 {settings?.tournamentsEnabled && activeTournament && (
                   <div className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-4 py-2 text-white shadow-sm z-30 shrink-0 border-b border-amber-600/30">
                     <Link href={`/torneos/${activeTournament.id}`} className="flex items-center justify-between gap-2 hover:opacity-95 transition-opacity">
@@ -128,21 +142,7 @@ export default async function HomePage() {
                     </Link>
                   </div>
                 )}
-                {settings?.communityEnabled && (
-                  <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-4 py-2 text-white shadow-sm z-30 shrink-0 border-b border-violet-700/30">
-                    <Link href="/comunidad" className="flex items-center justify-between gap-2 hover:opacity-95 transition-opacity">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Users2 className="w-4 h-4 text-violet-200 shrink-0" />
-                        <span className="text-xs font-black tracking-wide truncate">
-                          Comunidad: Buscá compañeros, partidos y novedades
-                        </span>
-                      </div>
-                      <span className="bg-white/20 hover:bg-white/30 text-white px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0 flex items-center gap-1 transition-colors">
-                        Entrar <ChevronRight className="w-3 h-3" />
-                      </span>
-                    </Link>
-                  </div>
-                )}
+                <CommunityFeedTicker posts={latestCommunityPosts} isCommunityActive={!!isCommunityActive} />
                 {appLayout === 'chat' ? (
                   <BookingFlowChat courts={courts} sysSettings={settings} session={session} today={today} />
                 ) : (
