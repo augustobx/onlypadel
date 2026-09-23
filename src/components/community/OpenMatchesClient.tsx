@@ -133,7 +133,7 @@ export default function OpenMatchesClient({
             m.id === matchId
               ? {
                   ...m,
-                  players: m.players.filter((p) => p.userId !== targetUserId),
+                  players: m.players.filter((p) => p.user.id !== targetUserId),
                   slotsNeeded: m.slotsNeeded + 1,
                   status: "OPEN",
                 }
@@ -485,7 +485,7 @@ export default function OpenMatchesClient({
                         <div className="space-y-1.5">
                           {match.players.map((p) => {
                             const pName = `${p.user.name || "Jugador"} ${p.user.lastName || ""}`.trim();
-                            const isMe = p.userId === currentUserId;
+                            const isMe = p.user.id === currentUserId;
 
                             return (
                               <div
@@ -524,7 +524,7 @@ export default function OpenMatchesClient({
                                   {/* Chat directo con el jugador */}
                                   {!isMe && (
                                     <Link
-                                      href={`/comunidad/chat?to=${p.userId}`}
+                                      href={`/comunidad/chat?to=${p.user.id}`}
                                       className="p-1 rounded-lg text-slate-400 hover:text-[var(--color-primary)] hover:bg-slate-200/50 dark:hover:bg-slate-700 transition-colors"
                                       title={`Enviar mensaje a ${pName}`}
                                     >
@@ -536,7 +536,7 @@ export default function OpenMatchesClient({
                                   {match.isCreator && !isMe && (
                                     <button
                                       type="button"
-                                      onClick={() => handleRemovePlayer(match.id, p.userId, pName)}
+                                      onClick={() => handleRemovePlayer(match.id, p.user.id, pName)}
                                       disabled={isPending}
                                       className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white border border-rose-200 dark:border-rose-900/60 transition-all active:scale-95 shadow-xs"
                                       title="Quitar jugador de la convocatoria y liberar cupo"
