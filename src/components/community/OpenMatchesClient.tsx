@@ -17,12 +17,14 @@ import {
   Sparkles,
   HelpCircle,
   ShieldAlert,
+  UserX,
 } from "lucide-react";
 import type { OpenMatchCardData, UserUpcomingBookingOption } from "@/actions/community-matches";
 import {
   joinOpenMatch,
   leaveOpenMatch,
   cancelOpenMatch,
+  removePlayerFromOpenMatch,
   createOpenMatchFromBooking,
 } from "@/actions/community-matches";
 import type { PreferredPosition } from "@prisma/client";
@@ -67,6 +69,7 @@ export default function OpenMatchesClient({
       return;
     }
     setActionError(null);
+    setActionSuccess(null);
     startTransition(async () => {
       const res = await joinOpenMatch(matchId);
       if (res.success) {
@@ -82,6 +85,8 @@ export default function OpenMatchesClient({
               : m
           )
         );
+        setActionSuccess("¡Te anotaste exitosamente al partido!");
+        setTimeout(() => setActionSuccess(null), 3500);
         router.refresh();
       } else {
         setActionError(res.error || "No se pudo unir al turno.");
@@ -91,6 +96,7 @@ export default function OpenMatchesClient({
 
   const handleLeave = (matchId: string) => {
     setActionError(null);
+    setActionSuccess(null);
     startTransition(async () => {
       const res = await leaveOpenMatch(matchId);
       if (res.success) {
@@ -106,6 +112,8 @@ export default function OpenMatchesClient({
               : m
           )
         );
+        setActionSuccess("Te diste de baja del partido.");
+        setTimeout(() => setActionSuccess(null), 3500);
         router.refresh();
       } else {
         setActionError(res.error || "Error al abandonar el turno.");
@@ -113,13 +121,44 @@ export default function OpenMatchesClient({
     });
   };
 
+  const handleRemovePlayer = (matchId: string, targetUserId: string, playerName: string) => {
+    if (!confirm(`¿Deseas dar de baja a ${playerName} de la convocatoria? Se liberará el cupo.`)) return;
+    setActionError(null);
+    setActionSuccess(null);
+    startTransition(async () => {
+      const res = await removePlayerFromOpenMatch(matchId, targetUserId);
+      if (res.success) {
+        setMatches((prev) =>
+          prev.map((m) =>
+            m.id === matchId
+              ? {
+                  ...m,
+                  players: m.players.filter((p) => p.userId !== targetUserId),
+                  slotsNeeded: m.slotsNeeded + 1,
+                  status: "OPEN",
+                }
+              : m
+          )
+        );
+        setActionSuccess(`Jugador ${playerName} removido de la convocatoria.`);
+        setTimeout(() => setActionSuccess(null), 3500);
+        router.refresh();
+      } else {
+        setActionError(res.error || "No se pudo remover al jugador.");
+      }
+    });
+  };
+
   const handleCancel = (matchId: string) => {
     if (!confirm("¿Deseas cancelar esta convocatoria?")) return;
     setActionError(null);
+    setActionSuccess(null);
     startTransition(async () => {
       const res = await cancelOpenMatch(matchId);
       if (res.success) {
         setMatches((prev) => prev.filter((m) => m.id !== matchId));
+        setActionSuccess("Convocatoria cancelada.");
+        setTimeout(() => setActionSuccess(null), 3500);
         router.refresh();
       } else {
         setActionError(res.error || "No se pudo cancelar el turno.");
@@ -430,19 +469,87 @@ export default function OpenMatchesClient({
 
                     {/* Jugadores que ya se sumaron */}
                     {match.players.length > 0 && (
-                      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] text-slate-400 font-semibold">
-                          Sumados:
-                        </span>
-                        {match.players.map((p) => (
-                          <span
-                            key={p.id}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            {p.user.name || "Jugador"}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <Users className="w-3 h-3 text-[var(--color-primary)]" />
+                            Jugadores Anotados ({match.players.length})
                           </span>
-                        ))}
+                          {match.isCreator && (
+                            <span className="text-[10px] text-[var(--color-primary)] font-bold">
+                              Tu convocatoria
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          {match.players.map((p) => {
+                            const pName = `${p.user.name || "Jugador"} ${p.user.lastName || ""}`.trim();
+                            const isMe = p.userId === currentUserId;
+
+                            return (
+                              <div
+                                key={p.id}
+                                className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {p.user.avatarUrl ? (
+                                    <div className="w-6 h-6 rounded-full overflow-hidden relative shrink-0">
+                                      <Image
+                                        src={p.user.avatarUrl}
+                                        alt={pName}
+                                        fill
+                                        unoptimized
+                                        className="object-cover"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center text-[10px] shrink-0">
+                                      {(p.user.name || "?")[0].toUpperCase()}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 flex items-center gap-1.5">
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                                      {pName} {isMe && "(Vos)"}
+                                    </span>
+                                    {p.user.category && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
+                                        Cat. {p.user.category}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0 ml-2">
+                                  {/* Chat directo con el jugador */}
+                                  {!isMe && (
+                                    <Link
+                                      href={`/comunidad/chat?to=${p.userId}`}
+                                      className="p-1 rounded-lg text-slate-400 hover:text-[var(--color-primary)] hover:bg-slate-200/50 dark:hover:bg-slate-700 transition-colors"
+                                      title={`Enviar mensaje a ${pName}`}
+                                    >
+                                      <MessageCircle className="w-3.5 h-3.5" />
+                                    </Link>
+                                  )}
+
+                                  {/* Creador puede eliminar a un anotado */}
+                                  {match.isCreator && !isMe && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemovePlayer(match.id, p.userId, pName)}
+                                      disabled={isPending}
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white border border-rose-200 dark:border-rose-900/60 transition-all active:scale-95 shadow-xs"
+                                      title="Quitar jugador de la convocatoria y liberar cupo"
+                                    >
+                                      <UserX className="w-3 h-3" />
+                                      <span>Quitar</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>

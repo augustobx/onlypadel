@@ -449,13 +449,19 @@ export async function joinOpenMatch(matchId: string) {
         select: { name: true, lastName: true },
       });
       const name = joiningUser ? `${joiningUser.name} ${joiningUser.lastName || ''}`.trim() : 'Un jugador';
+      const dateFormatted = new Intl.DateTimeFormat('es-AR', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        timeZone: 'America/Argentina/Buenos_Aires',
+      }).format(new Date(match.date));
 
       await prisma.communityNotification.create({
         data: {
           userId: match.creatorId,
           type: 'MATCH_JOIN',
           title: '¡Alguien se sumó a tu turno! 🎾',
-          body: `${name} se sumó a tu convocatoria para el ${new Date(match.date).toLocaleDateString('es-AR')} a las ${match.startTime} hs.`,
+          body: `${name} se sumó a tu convocatoria para el ${dateFormatted} a las ${match.startTime} hs en ${match.courtName}.`,
           linkUrl: `/comunidad/turnos`,
         },
       });
@@ -464,6 +470,11 @@ export async function joinOpenMatch(matchId: string) {
     }
 
     revalidatePath('/comunidad/turnos');
+    revalidatePath('/comunidad/notificaciones');
+    revalidatePath('/comunidad');
+    revalidatePath('/perfil');
+    revalidatePath('/');
+
     return { success: true };
   } catch (error) {
     console.error('Error joining open match:', error);
@@ -477,28 +488,145 @@ export async function leaveOpenMatch(matchId: string) {
     const userId = await readUserSessionId();
     if (!userId) return { success: false, error: 'Inicia sesión.' };
 
-    await prisma.openMatchPlayer.deleteMany({
-      where: { matchId, userId },
-    });
-
-    // Si estaba FULL, volver a abrirlo
     const match = await prisma.openMatch.findUnique({
       where: { id: matchId },
       include: { players: true },
     });
 
-    if (match && match.status === 'FULL') {
+    if (!match) return { success: false, error: 'Turno no encontrado.' };
+
+    await prisma.openMatchPlayer.deleteMany({
+      where: { matchId, userId },
+    });
+
+    // Si estaba FULL, volver a abrirlo
+    if (match.status === 'FULL') {
       await prisma.openMatch.update({
         where: { id: matchId },
         data: { status: 'OPEN' },
       });
     }
 
+    // Notificar al organizador que el jugador liberó el cupo
+    try {
+      const leavingUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, lastName: true },
+      });
+      const name = leavingUser ? `${leavingUser.name} ${leavingUser.lastName || ''}`.trim() : 'Un jugador';
+      const dateFormatted = new Intl.DateTimeFormat('es-AR', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        timeZone: 'America/Argentina/Buenos_Aires',
+      }).format(new Date(match.date));
+
+      await prisma.communityNotification.create({
+        data: {
+          userId: match.creatorId,
+          type: 'MATCH_LEAVE',
+          title: 'Cupo liberado en tu turno 🎾',
+          body: `${name} se dio de baja de tu convocatoria para el ${dateFormatted} a las ${match.startTime} hs.`,
+          linkUrl: '/comunidad/turnos',
+        },
+      });
+    } catch (e) {
+      console.error('Error creating leave notification:', e);
+    }
+
     revalidatePath('/comunidad/turnos');
+    revalidatePath('/comunidad/notificaciones');
+    revalidatePath('/comunidad');
+    revalidatePath('/perfil');
+    revalidatePath('/');
+
     return { success: true };
   } catch (error) {
     console.error('Error leaving open match:', error);
     return { success: false, error: 'No se pudo cancelar tu participación.' };
+  }
+}
+
+// ─── Remover jugador anotado (solo para el creador del turno o admin) ───────
+export async function removePlayerFromOpenMatch(matchId: string, targetUserId: string) {
+  try {
+    await requireTenantFeature('community');
+    const userId = await readUserSessionId();
+    if (!userId) return { success: false, error: 'Inicia sesión.' };
+
+    const match = await prisma.openMatch.findUnique({
+      where: { id: matchId },
+      include: {
+        players: {
+          include: {
+            user: { select: { id: true, name: true, lastName: true } },
+          },
+        },
+      },
+    });
+
+    if (!match) return { success: false, error: 'Turno no encontrado.' };
+
+    // Solo el creador o un admin puede remover a un jugador
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (match.creatorId !== userId && currentUser?.role !== 'ADMIN') {
+      return { success: false, error: 'Solo el creador del turno puede remover jugadores.' };
+    }
+
+    const playerToRemove = match.players.find((p) => p.userId === targetUserId);
+    if (!playerToRemove) {
+      return { success: false, error: 'El jugador no se encuentra anotado en este turno.' };
+    }
+
+    // Eliminar jugador de la convocatoria
+    await prisma.openMatchPlayer.deleteMany({
+      where: { matchId, userId: targetUserId },
+    });
+
+    // Si estaba FULL, volver a abrirlo
+    if (match.status === 'FULL') {
+      await prisma.openMatch.update({
+        where: { id: matchId },
+        data: { status: 'OPEN' },
+      });
+    }
+
+    // Notificar al jugador removido
+    try {
+      const dateFormatted = new Intl.DateTimeFormat('es-AR', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        timeZone: 'America/Argentina/Buenos_Aires',
+      }).format(new Date(match.date));
+
+      await prisma.communityNotification.create({
+        data: {
+          userId: targetUserId,
+          type: 'MATCH_LEAVE',
+          title: 'Aviso de convocatoria 🎾',
+          body: `El organizador ha liberado tu cupo para el partido del ${dateFormatted} a las ${match.startTime} hs en ${match.courtName}.`,
+          linkUrl: '/comunidad/turnos',
+        },
+      });
+    } catch (notifErr) {
+      console.warn('Error creating removal notification:', notifErr);
+    }
+
+    revalidatePath('/comunidad/turnos');
+    revalidatePath('/comunidad/notificaciones');
+    revalidatePath('/comunidad');
+    revalidatePath('/perfil');
+    revalidatePath('/');
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error removing player from open match:', error);
+    return { success: false, error: error?.message || 'No se pudo remover al jugador.' };
   }
 }
 
