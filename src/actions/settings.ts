@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-auth";
 import { normalizeHexColor } from "@/lib/color";
 import { hasTenantFeature } from "@/lib/features";
+import { sendEmail } from "@/lib/email";
 
 export async function getSettings() {
     try {
@@ -35,7 +36,8 @@ export async function getSettings() {
                     'announcement_active', 'announcement_badge', 'announcement_title',
                     'announcement_text', 'announcement_link', 'announcement_link_text',
                     'announcement_variant', 'announcement_duration', 'announcement_auto_close',
-                    'current_account_enabled', 'require_login_to_book'
+                    'current_account_enabled', 'require_login_to_book',
+                    'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'resend_api_key'
                 ] }
             }
         });
@@ -83,6 +85,11 @@ export async function getSettings() {
             announcementAutoClose,
             currentAccountEnabled: customMap['current_account_enabled'] !== 'false',
             requireLoginToBook,
+            smtpHost: customMap['smtp_host'] || process.env.SMTP_HOST || '',
+            smtpPort: customMap['smtp_port'] || process.env.SMTP_PORT || '465',
+            smtpUser: customMap['smtp_user'] || process.env.SMTP_USER || '',
+            smtpFrom: customMap['smtp_from'] || process.env.SMTP_FROM || '',
+            resendApiKey: customMap['resend_api_key'] || (process.env.RESEND_API_KEY ? '••••••••' : ''),
             reservationsEnabled: settings.reservationsEnabled && reservations,
             usersModuleEnabled: settings.usersModuleEnabled && users,
             tournamentsEnabled: settings.tournamentsEnabled && tournaments,
@@ -200,7 +207,21 @@ export async function updateSystemSettings(formData: FormData) {
             { key: 'announcement_auto_close', value: String(announcementAutoClose) },
             { key: 'current_account_enabled', value: String(currentAccountEnabled) },
             { key: 'require_login_to_book', value: String(formData.get("requireLoginToBook") === "on") },
+            { key: 'smtp_host', value: ((formData.get("smtpHost") as string) || "").trim() },
+            { key: 'smtp_port', value: ((formData.get("smtpPort") as string) || "465").trim() },
+            { key: 'smtp_user', value: ((formData.get("smtpUser") as string) || "").trim() },
+            { key: 'smtp_from', value: ((formData.get("smtpFrom") as string) || "").trim() },
         ];
+
+        const smtpPass = ((formData.get("smtpPass") as string) || "").trim();
+        if (smtpPass) {
+            customEntries.push({ key: 'smtp_pass', value: smtpPass });
+        }
+
+        const resendApiKey = ((formData.get("resendApiKey") as string) || "").trim();
+        if (resendApiKey && !resendApiKey.startsWith('••••')) {
+            customEntries.push({ key: 'resend_api_key', value: resendApiKey });
+        }
 
         for (const entry of customEntries) {
             const updated = await prisma.setting.updateMany({
@@ -225,5 +246,43 @@ export async function updateSystemSettings(formData: FormData) {
     } catch (error) {
         console.error("Error updating settings:", error);
         return { success: false, error: 'Ocurrió un error al guardar la configuración.' };
+    }
+}
+
+export async function sendTestEmailAction(targetEmail: string) {
+    try {
+        await requireAdmin();
+        const cleanEmail = (targetEmail || "").trim();
+        if (!cleanEmail || !cleanEmail.includes("@")) {
+            return { success: false, error: "Ingresá un correo electrónico válido para la prueba." };
+        }
+
+        const res = await sendEmail({
+            to: cleanEmail,
+            subject: "🎾 Prueba de Envío de Correo - OnlyPadel",
+            html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h1 style="color: #0f172a; font-size: 22px; font-weight: 800; margin: 0;">🎾 OnlyPadel</h1>
+                        <p style="color: #10b981; font-weight: 700; font-size: 14px; margin-top: 4px;">¡Prueba de correo exitosa!</p>
+                    </div>
+                    <p style="color: #334155; font-size: 14px; line-height: 1.6;">
+                        Este mensaje confirma que el servicio de correo electrónico (SMTP / Resend) está correctamente configurado y funcionando en tu club.
+                    </p>
+                    <p style="color: #64748b; font-size: 13px; line-height: 1.5;">
+                        Los correos de recuperación de contraseña y notificaciones ahora llegarán sin inconvenientes a las casillas de tus jugadores.
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;" />
+                    <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
+                        Enviado desde el Panel de Administración de OnlyPadel
+                    </p>
+                </div>
+            `,
+        });
+
+        return res;
+    } catch (err: any) {
+        console.error("Error en sendTestEmailAction:", err);
+        return { success: false, error: err.message || "Error al enviar el correo de prueba." };
     }
 }

@@ -1,5 +1,6 @@
 import tls from 'node:tls';
 import net from 'node:net';
+import { prisma } from '@/lib/prisma';
 
 export type SendEmailOptions = {
   to: string;
@@ -11,12 +12,24 @@ export type SendEmailOptions = {
 /**
  * Envío ligero y nativo de correo electrónico sin dependencias externas.
  * Soporta Resend API, Brevo API o conexión SMTP directa (puerto 465 SSL o 587 STARTTLS).
+ * Lee variables de entorno y si no existen, consulta la configuración guardada en la base de datos.
  */
 export async function sendEmail({ to, subject, html, from }: SendEmailOptions): Promise<{ success: boolean; error?: string }> {
-  const fromAddress = from || process.env.SMTP_FROM || process.env.EMAIL_FROM || 'OnlyPadel <no-reply@onlypadel.local>';
+  // Cargar configuración guardada en base de datos si falta en variables de entorno
+  let customMap: Record<string, string> = {};
+  try {
+    const dbSettings = await prisma.setting.findMany({
+      where: {
+        key: { in: ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'resend_api_key', 'brevo_api_key'] }
+      }
+    });
+    customMap = Object.fromEntries(dbSettings.map(s => [s.key, s.value]));
+  } catch {}
+
+  const fromAddress = from || process.env.SMTP_FROM || customMap['smtp_from'] || process.env.EMAIL_FROM || 'OnlyPadel <no-reply@onlypadel.local>';
   
-  // 1. Resend API si está configurado
-  const resendApiKey = process.env.RESEND_API_KEY;
+  // 1. Resend API si está configurado (en env o en base de datos)
+  const resendApiKey = process.env.RESEND_API_KEY || customMap['resend_api_key'];
   if (resendApiKey) {
     try {
       const res = await fetch('https://api.resend.com/emails', {
@@ -63,11 +76,11 @@ export async function sendEmail({ to, subject, html, from }: SendEmailOptions): 
     }
   }
 
-  // 3. SMTP nativo si SMTP_HOST y credenciales están configuradas
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT) || 465;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  // 3. SMTP nativo si SMTP_HOST y credenciales están configuradas (en env o en base de datos)
+  const smtpHost = process.env.SMTP_HOST || customMap['smtp_host'];
+  const smtpPort = Number(process.env.SMTP_PORT || customMap['smtp_port']) || 465;
+  const smtpUser = process.env.SMTP_USER || customMap['smtp_user'];
+  const smtpPass = process.env.SMTP_PASS || customMap['smtp_pass'];
 
   if (smtpHost && smtpUser && smtpPass) {
     try {
