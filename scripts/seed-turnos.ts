@@ -399,7 +399,7 @@ async function runSeed() {
 
     // 5. TURNO LIBERADO ACTIVO PARA PROBAR EL AVISO EN LA PWA
     const releasedSetting = await prisma.setting.findFirst({
-      where: { key: 'active_released_shifts' },
+      where: { tenantId: tenant.id, key: 'active_released_shifts' },
     });
 
     const sampleReleasedShift = {
@@ -425,9 +425,18 @@ async function runSeed() {
     currentReleased.unshift(sampleReleasedShift);
 
     await prisma.setting.upsert({
-      where: { key: 'active_released_shifts' },
+      where: {
+        tenantId_key: {
+          tenantId: tenant.id,
+          key: 'active_released_shifts',
+        },
+      },
       update: { value: JSON.stringify(currentReleased.slice(0, 5)) },
-      create: { key: 'active_released_shifts', value: JSON.stringify([sampleReleasedShift]) },
+      create: {
+        tenantId: tenant.id,
+        key: 'active_released_shifts',
+        value: JSON.stringify([sampleReleasedShift]),
+      },
     });
     console.log(`  ⚡ Turno liberado publicado para mañana a las 18:00 hs en ${court1.name} (¡probá el banner en la PWA!)`);
   }
