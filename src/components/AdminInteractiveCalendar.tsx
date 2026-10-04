@@ -12,7 +12,7 @@ import {
   Layers, Eye, Filter, Sparkles, RefreshCw, CalendarDays, LayoutGrid
 } from 'lucide-react';
 import { 
-  getAdminCalendarData, getAdminCalendarWeekData, createAdminBooking, cancelAdminBooking 
+  getAdminCalendarData, getAdminCalendarWeekData, createAdminBooking, cancelAdminBooking, rescheduleAdminBooking 
 } from '@/actions/admin-calendar';
 import { getMonthlyStats } from '@/actions/monthly-calendar';
 import { Button } from '@/components/ui/button';
@@ -75,6 +75,24 @@ export default function AdminInteractiveCalendar({
     time: string; 
     endTime: string; 
   } | null>(null);
+
+  // Modal reprogramación states
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState<{
+    bookingId: string;
+    clientName: string;
+    clientPhone: string;
+    currentCourtId: string;
+    currentCourtName: string;
+    currentDateStr: string;
+    currentTime: string;
+    targetCourtId: string;
+    targetDateStr: string;
+    targetTime: string;
+  } | null>(null);
+  const [rescheduleSlots, setRescheduleSlots] = useState<{ time: string; endTime: string; status: string }[]>([]);
+  const [loadingRescheduleSlots, setLoadingRescheduleSlots] = useState(false);
+  const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
   
   const [formData, setFormData] = useState<{
     clientName: string;
@@ -230,10 +248,78 @@ export default function AdminInteractiveCalendar({
   };
 
   const handleCancelBooking = async (id: string) => {
-    if (confirm('¿Estás seguro de cancelar este turno? Si es un turno fijo, solo se liberará esta fecha puntual.')) {
-      const res = await cancelAdminBooking(id);
+    if (confirm('¿Estás seguro de cancelar este turno? Si es un turno fijo o confirmado, se publicará un aviso en la PWA avisando que se liberó.')) {
+      const res = await cancelAdminBooking(id, true);
       if (res.success) loadData();
     }
+  };
+
+  const openRescheduleModal = async (
+    bookingId: string, 
+    courtId: string, 
+    courtName: string, 
+    dateStr: string, 
+    time: string, 
+    clientName: string, 
+    clientPhone?: string
+  ) => {
+    const initialData = {
+      bookingId,
+      clientName: clientName || 'Turno',
+      clientPhone: clientPhone || '',
+      currentCourtId: courtId,
+      currentCourtName: courtName,
+      currentDateStr: dateStr,
+      currentTime: time,
+      targetCourtId: courtId,
+      targetDateStr: dateStr,
+      targetTime: '',
+    };
+    setRescheduleData(initialData);
+    setRescheduleModalOpen(true);
+    fetchRescheduleSlots(courtId, dateStr, bookingId);
+  };
+
+  const fetchRescheduleSlots = async (courtId: string, dateStr: string, currentBookingId?: string) => {
+    setLoadingRescheduleSlots(true);
+    try {
+      const res = await getAdminCalendarData(courtId, dateStr);
+      if (res.success && res.data) {
+        const courtMatch = res.data.find((c: any) => c.court.id === courtId);
+        if (courtMatch) {
+          setRescheduleSlots(courtMatch.slots.map((s: any) => ({
+            time: s.time,
+            endTime: s.endTime,
+            status: s.booking?.id === currentBookingId ? 'FREE' : s.status,
+          })));
+        }
+      }
+    } catch {}
+    setLoadingRescheduleSlots(false);
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!rescheduleData || !rescheduleData.targetTime) {
+      alert('Por favor seleccioná el nuevo horario de destino.');
+      return;
+    }
+
+    setRescheduleSubmitting(true);
+    const res = await rescheduleAdminBooking({
+      bookingId: rescheduleData.bookingId,
+      newCourtId: rescheduleData.targetCourtId,
+      newDateStr: rescheduleData.targetDateStr,
+      newStartTimeStr: rescheduleData.targetTime,
+    });
+
+    if (res.success) {
+      alert(res.message || 'Turno reprogramado exitosamente.');
+      setRescheduleModalOpen(false);
+      loadData();
+    } else {
+      alert(res.error || 'No se pudo reprogramar el turno.');
+    }
+    setRescheduleSubmitting(false);
   };
 
   // Status color helpers
@@ -457,15 +543,34 @@ export default function AdminInteractiveCalendar({
                             {getSlotBadge(slot.status, slot.booking)}
                             {isOccupied ? (
                               slot.booking?.id && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleCancelBooking(slot.booking.id)}
-                                  className="h-7 w-7 text-slate-400 hover:text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/50 rounded-lg"
-                                  title="Cancelar turno"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openRescheduleModal(
+                                      slot.booking.id,
+                                      court.id,
+                                      court.name,
+                                      formattedCurrentDate,
+                                      slot.time,
+                                      slot.booking.user?.name || '',
+                                      slot.booking.user?.phone || ''
+                                    )}
+                                    className="h-7 w-7 text-slate-400 hover:text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-950/50 rounded-lg"
+                                    title="Reprogramar turno"
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleCancelBooking(slot.booking.id)}
+                                    className="h-7 w-7 text-slate-400 hover:text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/50 rounded-lg"
+                                    title="Cancelar turno"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
                               )
                             ) : (
                               <Button
@@ -982,6 +1087,143 @@ export default function AdminInteractiveCalendar({
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE REPROGRAMACIÓN DE TURNOS */}
+      {rescheduleModalOpen && rescheduleData && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                  <CalendarDays className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">Reprogramar Turno</h3>
+                  <p className="text-xs text-slate-400">Mover reserva a otra cancha, día u horario</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRescheduleModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Detalle Actual */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/60 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-bold">Jugador:</span>
+                <span className="font-black text-slate-800 dark:text-slate-200">{rescheduleData.clientName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-bold">Turno Actual:</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">
+                  {rescheduleData.currentCourtName} • {rescheduleData.currentDateStr} • {rescheduleData.currentTime} hs
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {/* Cancha de destino */}
+              <div>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Cancha de Destino
+                </Label>
+                <select
+                  value={rescheduleData.targetCourtId}
+                  onChange={(e) => {
+                    const newCourtId = e.target.value;
+                    setRescheduleData(prev => prev ? ({ ...prev, targetCourtId: newCourtId, targetTime: '' }) : null);
+                    fetchRescheduleSlots(newCourtId, rescheduleData.targetDateStr, rescheduleData.bookingId);
+                  }}
+                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-200"
+                >
+                  {courts.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Fecha de destino */}
+              <div>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Fecha de Destino
+                </Label>
+                <input
+                  type="date"
+                  value={rescheduleData.targetDateStr}
+                  onChange={(e) => {
+                    const newDateStr = e.target.value;
+                    setRescheduleData(prev => prev ? ({ ...prev, targetDateStr: newDateStr, targetTime: '' }) : null);
+                    fetchRescheduleSlots(rescheduleData.targetCourtId, newDateStr, rescheduleData.bookingId);
+                  }}
+                  className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-200"
+                />
+              </div>
+
+              {/* Horarios disponibles */}
+              <div>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Horario de Destino
+                </Label>
+                {loadingRescheduleSlots ? (
+                  <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-blue-500" /> Consultando horarios libres...
+                  </div>
+                ) : rescheduleSlots.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                    No hay turnos disponibles para esta fecha.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-48 overflow-y-auto p-1">
+                    {rescheduleSlots.map((s, idx) => {
+                      const isFree = s.status === 'FREE';
+                      const isSelected = rescheduleData.targetTime === s.time;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          disabled={!isFree}
+                          onClick={() => setRescheduleData(prev => prev ? ({ ...prev, targetTime: s.time }) : null)}
+                          className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all border ${
+                            isSelected
+                              ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-500/20 shadow-sm'
+                              : isFree
+                              ? 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-blue-500 hover:text-blue-600'
+                              : 'bg-slate-100 dark:bg-slate-800/40 text-slate-400 border-transparent cursor-not-allowed opacity-40'
+                          }`}
+                        >
+                          {s.time} hs
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRescheduleModalOpen(false)}
+                className="flex-1 rounded-xl"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={rescheduleSubmitting || !rescheduleData.targetTime}
+                onClick={handleConfirmReschedule}
+                className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md shadow-blue-600/20"
+              >
+                {rescheduleSubmitting ? 'Reprogramando...' : 'Confirmar Cambio'}
+              </Button>
+            </div>
           </div>
         </div>
       )}

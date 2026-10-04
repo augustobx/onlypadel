@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { addMinutes, format, parse, startOfDay, endOfDay, addWeeks } from 'date-fns';
 import { requireAdmin } from '@/lib/admin-auth';
 import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
+import { publishReleasedShift } from '@/actions/released-shifts';
 
 export async function getAdminCalendarData(courtId: string, dateStr: string) {
     try {
@@ -319,16 +320,152 @@ export async function createAdminBooking(data: {
     }
 }
 
-export async function cancelAdminBooking(bookingId: string) {
+export async function cancelAdminBooking(bookingId: string, notifyReleased: boolean = true) {
     try {
         await requireAdmin();
+        const booking = await prisma.booking.findUnique({
+            where: { id: bookingId },
+            include: { court: true }
+        });
+
+        if (!booking) {
+            return { success: false, error: 'Reserva no encontrada.' };
+        }
+
         await prisma.booking.update({
             where: { id: bookingId },
             data: { status: 'CANCELLED', slotKey: null }
         });
+
+        // Si se pide notificar y el turno es futuro, publicar aviso de turno liberado en la PWA
+        if (notifyReleased && booking.court && booking.startTime > new Date()) {
+            const start = new Date(booking.startTime);
+            const hrs = String(start.getHours()).padStart(2, '0');
+            const mins = String(start.getMinutes()).padStart(2, '0');
+            const y = start.getFullYear();
+            const m = String(start.getMonth() + 1).padStart(2, '0');
+            const d = String(start.getDate()).padStart(2, '0');
+            const dateStr = `${y}-${m}-${d}`;
+
+            await publishReleasedShift({
+                courtId: booking.courtId,
+                courtName: booking.court.name,
+                dateStr,
+                time: `${hrs}:${mins}`,
+                reason: booking.fixedBookingId ? 'Abono fijo liberado' : 'Turno liberado',
+            }).catch(() => {});
+        }
+
         revalidatePath('/admin/calendar');
+        revalidatePath('/admin/history');
+        revalidatePath('/admin/abonos');
+        revalidatePath('/');
         return { success: true };
     } catch (error: any) {
         return { success: false, error: 'Error al cancelar.' };
+    }
+}
+
+export async function rescheduleAdminBooking(data: {
+    bookingId: string;
+    newCourtId: string;
+    newDateStr: string;      // "YYYY-MM-DD"
+    newStartTimeStr: string; // "HH:mm"
+    newEndTimeStr?: string;  // "HH:mm"
+}) {
+    try {
+        await requireAdmin();
+        const booking = await prisma.booking.findUnique({
+            where: { id: data.bookingId },
+            include: { court: true, user: true }
+        });
+
+        if (!booking) {
+            return { success: false, error: 'Reserva no encontrada.' };
+        }
+
+        const newCourt = await prisma.court.findUnique({ where: { id: data.newCourtId } });
+        if (!newCourt) {
+            return { success: false, error: 'Cancha de destino no encontrada.' };
+        }
+
+        // Horarios en zona horaria local (-03:00)
+        const newStartTime = new Date(`${data.newDateStr}T${data.newStartTimeStr}:00-03:00`);
+        let newEndTime: Date;
+
+        if (data.newEndTimeStr) {
+            newEndTime = new Date(`${data.newDateStr}T${data.newEndTimeStr}:00-03:00`);
+            if (newEndTime <= newStartTime) {
+                newEndTime.setDate(newEndTime.getDate() + 1);
+            }
+        } else {
+            const origDuration = booking.endTime.getTime() - booking.startTime.getTime();
+            newEndTime = new Date(newStartTime.getTime() + (origDuration > 0 ? origDuration : 90 * 60000));
+        }
+
+        // 1. Validar colisión con otras reservas activas en esa cancha
+        const collision = await prisma.booking.findFirst({
+            where: {
+                id: { not: booking.id },
+                courtId: data.newCourtId,
+                status: { in: ['PENDING', 'CONFIRMED', 'FIXED', 'BLOCKED'] },
+                startTime: { lt: newEndTime },
+                endTime: { gt: newStartTime },
+            }
+        });
+
+        if (collision) {
+            return { success: false, error: 'El horario seleccionado ya se encuentra ocupado en esa cancha.' };
+        }
+
+        // 2. Validar colisión con bloqueos
+        const block = await prisma.courtBlock.findFirst({
+            where: {
+                courtId: data.newCourtId,
+                startTime: { lt: newEndTime },
+                endTime: { gt: newStartTime },
+            }
+        });
+
+        if (block) {
+            return { success: false, error: 'La cancha está bloqueada en ese horario.' };
+        }
+
+        const newSlotKey = `${data.newCourtId}:${newStartTime.toISOString()}`;
+
+        const oldStart = new Date(booking.startTime);
+        const oldDateFormatted = `${String(oldStart.getDate()).padStart(2, '0')}/${String(oldStart.getMonth() + 1).padStart(2, '0')}`;
+        const oldTimeFormatted = `${String(oldStart.getHours()).padStart(2, '0')}:${String(oldStart.getMinutes()).padStart(2, '0')}`;
+
+        const [ny, nm, nd] = data.newDateStr.split('-');
+        const newDateFormatted = `${nd}/${nm}`;
+        const newTimeFormatted = data.newStartTimeStr;
+
+        const audit = `[Reprogramado del ${oldDateFormatted} ${oldTimeFormatted}hs al ${newDateFormatted} ${newTimeFormatted}hs por Admin]`;
+        const updatedDesc = booking.description ? `${booking.description} ${audit}` : audit;
+
+        await prisma.booking.update({
+            where: { id: booking.id },
+            data: {
+                courtId: data.newCourtId,
+                startTime: newStartTime,
+                endTime: newEndTime,
+                slotKey: newSlotKey,
+                description: updatedDesc,
+            }
+        });
+
+        revalidatePath('/admin/calendar');
+        revalidatePath('/admin/history');
+        revalidatePath('/mis-turnos');
+        revalidatePath('/');
+
+        return {
+            success: true,
+            message: `Turno reprogramado con éxito a ${newCourt.name} para el ${newDateFormatted} a las ${newTimeFormatted} hs.`
+        };
+    } catch (error: any) {
+        console.error('Error in rescheduleAdminBooking:', error);
+        return { success: false, error: error.message || 'Error al reprogramar el turno.' };
     }
 }

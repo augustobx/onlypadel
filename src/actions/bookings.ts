@@ -304,3 +304,43 @@ export async function createBooking(data: {
     return { success: false, error: 'Ocurrió un error al procesar la reserva.' };
   }
 }
+
+export async function getConfirmedBookingDetails(bookingId: string) {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { court: true, user: true },
+    });
+
+    if (!booking) {
+      return { success: false, error: 'Reserva no encontrada.' };
+    }
+
+    const start = new Date(booking.startTime);
+    const hrs = String(start.getHours()).padStart(2, '0');
+    const mins = String(start.getMinutes()).padStart(2, '0');
+    const slotTime = `${hrs}:${mins}`;
+
+    const dateFormatted = start.toLocaleDateString('es-AR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+
+    return {
+      success: true,
+      data: {
+        bookingId: booking.id,
+        courtName: booking.court?.name || 'Cancha Principal',
+        dateFormatted,
+        slotTime,
+        playerName: booking.user?.name ? `${booking.user.name} ${booking.user.lastName || ''}`.trim() : 'Jugador',
+        status: booking.status,
+        totalAmount: Number(booking.totalAmount),
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching confirmed booking details:', error);
+    return { success: false, error: 'Error al obtener datos del turno.' };
+  }
+}

@@ -54,9 +54,9 @@ export async function createPaymentPreference(bookingId: string) {
         },
         // CORRECCIÓN: Evitamos el 404 redirigiendo a la raíz de la app con un parámetro de estado.
         back_urls: {
-          success: `${appUrl}?status=success`,
-          failure: `${appUrl}?status=failure`,
-          pending: `${appUrl}?status=pending`,
+          success: `${appUrl}?status=success&booking_id=${booking.id}`,
+          failure: `${appUrl}?status=failure&booking_id=${booking.id}`,
+          pending: `${appUrl}?status=pending&booking_id=${booking.id}`,
         },
         auto_return: 'approved',
         external_reference: booking.id,

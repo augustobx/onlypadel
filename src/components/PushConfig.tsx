@@ -44,11 +44,25 @@ export default function PushConfig() {
   }, []);
 
   const handleSubscribe = async () => {
-    if (!swRegistration) return alert('Service worker no está listo.');
-    if (!publicVapidKey) return alert('Llaves VAPID no configuradas en .env');
+    if (!swRegistration) return alert('El Service Worker no está listo todavía. Por favor recargá la página.');
 
     setLoading(true);
     try {
+      // Obtener la clave pública VAPID dinámicamente si no vino por env
+      let key = publicVapidKey;
+      if (!key) {
+        const keyRes = await fetch('/api/push/public-key').then(r => r.json()).catch(() => null);
+        if (keyRes?.publicKey) {
+          key = keyRes.publicKey;
+        }
+      }
+
+      if (!key) {
+        alert('No se pudo obtener la clave de notificaciones del servidor.');
+        setLoading(false);
+        return;
+      }
+
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         alert('Debes permitir las notificaciones en tu navegador.');
@@ -58,7 +72,7 @@ export default function PushConfig() {
 
       const subscription = await swRegistration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+        applicationServerKey: urlBase64ToUint8Array(key)
       });
 
       // Save to DB

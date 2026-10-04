@@ -47,21 +47,26 @@ export default function LoginUsuarioPage() {
 
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                            <IdCard className="w-4 h-4 text-slate-400" /> DNI
+                            <IdCard className="w-4 h-4 text-slate-400" /> DNI, Teléfono o Email
                         </label>
                         <input
                             type="text"
-                            name="dni"
+                            name="identifier"
                             required
-                            placeholder="Tu DNI"
+                            placeholder="Tu DNI, teléfono o email"
                             className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         />
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                            <Lock className="w-4 h-4 text-slate-400" /> Contraseña
-                        </label>
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                <Lock className="w-4 h-4 text-slate-400" /> Contraseña
+                            </label>
+                            <Link href="/recuperar-clave" className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                                ¿Olvidaste tu clave?
+                            </Link>
+                        </div>
                         <input
                             type="password"
                             name="password"

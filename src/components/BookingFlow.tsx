@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard, Share2, Download, ExternalLink, Sparkles, Check, Users, MessageCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, CheckCircle2, User, Phone, Lock, Loader2, CreditCard, Share2, Download, ExternalLink, Sparkles, Check, Users, MessageCircle, Zap, LogIn, UserPlus, KeyRound, ShieldAlert } from 'lucide-react';
 import { getAvailableSlots } from '@/actions/public-bookings';
-import { createBooking } from '@/actions/bookings';
+import { createBooking, getConfirmedBookingDetails } from '@/actions/bookings';
 import { createPaymentPreference } from '@/actions/payments';
 import { createOpenMatchFromBooking } from '@/actions/community-matches';
 import { clearBookingRequestKey, getOrCreateBookingRequestKey } from '@/lib/booking-request';
 import { getReadableForeground, normalizeHexColor } from '@/lib/color';
 import { getGoogleCalendarUrl, downloadIcsFile } from '@/lib/calendar-export';
 import { shareBooking } from '@/lib/share-booking';
+import { getActiveReleasedShifts, removeReleasedShift, type ReleasedShift } from '@/actions/released-shifts';
+import { loginUser, registerUser, getUserSession } from '@/actions/user-auth';
 
 interface SlotData {
   time: string;
@@ -55,12 +57,16 @@ interface PublicSettings {
   courtPhone?: string | null;
   apiPhone?: string | null;
   autoWhatsapp?: boolean;
+  requireLoginToBook?: boolean;
 }
 
 interface UserSession {
+  id?: string;
   name?: string | null;
   lastName?: string | null;
   phone?: string | null;
+  dni?: string | null;
+  email?: string | null;
 }
 
 const BOOKING_DRAFT_KEY = 'onlypadel.booking-draft.v1';
@@ -105,6 +111,23 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
   const [error, setError] = useState<string>('');
   const [draftReady, setDraftReady] = useState(false);
 
+  // ESTADO DE USUARIO Y LOGIN OBLIGATORIO
+  const [userSession, setUserSession] = useState<UserSession | null>(session || null);
+  const [releasedShifts, setReleasedShifts] = useState<ReleasedShift[]>([]);
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+  const [authIdentifier, setAuthIdentifier] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authRegisterData, setAuthRegisterData] = useState({
+    name: '',
+    lastName: '',
+    dni: '',
+    phone: '',
+    email: '',
+    password: '',
+  });
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
   // ESTADO: Solo Nombre y Teléfono (Sin email)
   const [formData, setFormData] = useState({ 
     name: session ? `${session.name || ''} ${session.lastName || ''}`.trim() : '', 
@@ -131,9 +154,20 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
   const [communitySuccess, setCommunitySuccess] = useState(false);
   const [communityError, setCommunityError] = useState('');
 
-  // Escuchar retornos de Mercado Pago (?status=success, etc.)
+  // Escuchar retornos de Mercado Pago (?status=success, etc.) y cargar turnos liberados
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    // 1. Cargar turnos liberados activos
+    const loadReleased = () => {
+      getActiveReleasedShifts().then((shifts) => {
+        setReleasedShifts(shifts);
+      }).catch(() => {});
+    };
+    loadReleased();
+    const releasedTimer = setInterval(loadReleased, 30000);
+
+    // 2. Recuperar último comprobante guardado localmente
     try {
       const savedConfirmed = window.sessionStorage.getItem('last_confirmed_booking');
       if (savedConfirmed) {
@@ -141,8 +175,22 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
       }
     } catch {}
 
+    // 3. Revisar parámetros de retorno (Mercado Pago o redirecciones)
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status') || params.get('collection_status');
+    const bookingIdParam = params.get('booking_id') || params.get('external_reference');
+
+    if (bookingIdParam) {
+      getConfirmedBookingDetails(bookingIdParam).then(res => {
+        if (res.success && res.data) {
+          setConfirmedDetails(res.data);
+          try {
+            window.sessionStorage.setItem('last_confirmed_booking', JSON.stringify(res.data));
+          } catch {}
+        }
+      }).catch(() => {});
+    }
+
     if (status === 'success' || status === 'approved') {
       setPaymentFeedback('approved');
       setStep(3);
@@ -156,6 +204,8 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
       setStep(3);
       window.history.replaceState({}, '', window.location.pathname);
     }
+
+    return () => clearInterval(releasedTimer);
   }, []);
 
   useEffect(() => {
@@ -263,8 +313,80 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     if (step === 1 && selectedCourt && selectedSlot) setStep(2);
   };
 
+  const handleInlineLogin = async () => {
+    if (!authIdentifier.trim() || !authPassword.trim()) {
+      setAuthError('Ingresá tu DNI, teléfono o email y tu contraseña.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const fd = new FormData();
+      fd.set('identifier', authIdentifier.trim());
+      fd.set('password', authPassword.trim());
+      const res = await loginUser(fd);
+      if (res.success) {
+        const sess = await getUserSession();
+        if (sess) {
+          setUserSession(sess);
+          setFormData({
+            name: `${sess.name || ''} ${sess.lastName || ''}`.trim(),
+            phone: sess.phone || '',
+          });
+        }
+      } else {
+        setAuthError(res.error || 'Credenciales incorrectas');
+      }
+    } catch {
+      setAuthError('Error de conexión al iniciar sesión');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleInlineRegister = async () => {
+    if (!authRegisterData.name.trim() || !authRegisterData.lastName.trim() || !authRegisterData.dni.trim() || !authRegisterData.phone.trim() || !authRegisterData.password.trim()) {
+      setAuthError('Por favor completá todos los campos obligatorios.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const fd = new FormData();
+      fd.set('name', authRegisterData.name.trim());
+      fd.set('lastName', authRegisterData.lastName.trim());
+      fd.set('dni', authRegisterData.dni.trim());
+      fd.set('phone', authRegisterData.phone.trim());
+      fd.set('email', authRegisterData.email.trim());
+      fd.set('password', authRegisterData.password.trim());
+      const res = await registerUser(fd);
+      if (res.success) {
+        const sess = await getUserSession();
+        if (sess) {
+          setUserSession(sess);
+          setFormData({
+            name: `${sess.name || ''} ${sess.lastName || ''}`.trim(),
+            phone: sess.phone || '',
+          });
+        }
+      } else {
+        setAuthError(res.error || 'No se pudo crear la cuenta');
+      }
+    } catch {
+      setAuthError('Error de conexión al registrar cuenta');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleFinalSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    if (sysSettings?.requireLoginToBook && !userSession) {
+      setError('Es obligatorio iniciar sesión o tener una cuenta registrada para confirmar este turno.');
+      return;
+    }
+
     if (!formData.name || !formData.phone) return;
 
     setSubmitting(true);
@@ -295,6 +417,9 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
       retryWhenOnlineRef.current = false;
       completedRef.current = true;
       window.sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+
+      // Si este horario estaba publicado como turno liberado, quitarlo de la lista pública
+      removeReleasedShift(selectedCourt, dateStr, selectedSlot).catch(() => {});
 
       // Guardar datos exactos para el resumen de éxito con bookingId
       const details = {
@@ -463,6 +588,58 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
         {/* PASO 1 */}
         {step === 1 && (
           <div className="space-y-7 animate-in fade-in slide-in-from-bottom-4 duration-500 pt-4">
+
+            {/* AVISO DE TURNOS LIBERADOS */}
+            {releasedShifts.length > 0 && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-amber-500/15 to-emerald-500/15 border-2 border-emerald-500/40 dark:border-emerald-500/30 shadow-lg relative overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" /> ¡Se liberó un turno!
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                    ¡Aprovechalo ya!
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {releasedShifts.map((shift) => (
+                    <div
+                      key={shift.id}
+                      className="flex items-center justify-between bg-white/90 dark:bg-slate-900/90 p-3 rounded-xl border border-emerald-500/20 shadow-sm backdrop-blur-sm"
+                    >
+                      <div className="min-w-0 flex-1 pr-2">
+                        <p className="font-black text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
+                          <span>{shift.courtName}</span>
+                          <span className="text-emerald-500 font-bold">•</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-black">{shift.timeStr} hs</span>
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                          📅 {shift.dateStr.split('-').reverse().join('/')} {shift.reason ? `• ${shift.reason}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(new Date(`${shift.dateStr}T12:00:00`));
+                          setSelectedCourt(shift.courtId);
+                          setSelectedSlot(shift.timeStr);
+                          setStep(2);
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1 shrink-0"
+                      >
+                        Reservar <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Fechas */}
             <div className="space-y-3">
@@ -659,37 +836,210 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
               </div>
             )}
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Nombre y Apellido</label>
-                <div className="relative">
-                  <User className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Juan Pérez"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
-                  />
+            {/* SI SE REQUIERE LOGIN OBLIGATORIO Y EL USUARIO NO TIENE SESIÓN INICIADA */}
+            {sysSettings?.requireLoginToBook && !userSession ? (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
+                <div className="text-center space-y-1">
+                  <div className="inline-flex p-2.5 bg-amber-500/10 text-amber-600 rounded-2xl mb-1">
+                    <Lock className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">Identificación obligatoria</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Este club requiere que inicies sesión o te registres para confirmar tu turno.
+                  </p>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Teléfono de Contacto</label>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
-                  <input
-                    type="tel"
-                    required
-                    placeholder="Ej: 11 1234 5678"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
-                  />
+                {/* Selector de Pestaña */}
+                <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl text-xs font-black">
+                  <button
+                    type="button"
+                    onClick={() => { setAuthTab('login'); setAuthError(''); }}
+                    className={`py-2 rounded-xl transition-all ${authTab === 'login' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
+                  >
+                    Ya tengo cuenta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthTab('register'); setAuthError(''); }}
+                    className={`py-2 rounded-xl transition-all ${authTab === 'register' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
+                  >
+                    Crear cuenta
+                  </button>
+                </div>
+
+                {authError && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold border border-rose-200 dark:border-rose-900">
+                    {authError}
+                  </div>
+                )}
+
+                {authTab === 'login' ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">DNI, Teléfono o Email</label>
+                      <input
+                        type="text"
+                        value={authIdentifier}
+                        onChange={(e) => setAuthIdentifier(e.target.value)}
+                        placeholder="Ej: 11 1234 5678 o 38123456"
+                        className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Contraseña</label>
+                        <a href="/recuperar-clave" target="_blank" className="text-[11px] font-bold text-[var(--color-primary)] hover:underline">¿Olvidaste tu clave?</a>
+                      </div>
+                      <input
+                        type="password"
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={authLoading || !authIdentifier || !authPassword}
+                      onClick={handleInlineLogin}
+                      className="w-full py-3.5 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-xl font-black text-sm shadow-md hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {authLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                      Ingresar y continuar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nombre</label>
+                        <input
+                          type="text"
+                          value={authRegisterData.name}
+                          onChange={(e) => setAuthRegisterData({ ...authRegisterData, name: e.target.value })}
+                          placeholder="Juan"
+                          className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Apellido</label>
+                        <input
+                          type="text"
+                          value={authRegisterData.lastName}
+                          onChange={(e) => setAuthRegisterData({ ...authRegisterData, lastName: e.target.value })}
+                          placeholder="Pérez"
+                          className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">DNI</label>
+                        <input
+                          type="text"
+                          value={authRegisterData.dni}
+                          onChange={(e) => setAuthRegisterData({ ...authRegisterData, dni: e.target.value })}
+                          placeholder="38123456"
+                          className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">WhatsApp / Cel</label>
+                        <input
+                          type="tel"
+                          value={authRegisterData.phone}
+                          onChange={(e) => setAuthRegisterData({ ...authRegisterData, phone: e.target.value })}
+                          placeholder="11 1234 5678"
+                          className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Email (opcional)</label>
+                      <input
+                        type="email"
+                        value={authRegisterData.email}
+                        onChange={(e) => setAuthRegisterData({ ...authRegisterData, email: e.target.value })}
+                        placeholder="juan@ejemplo.com"
+                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Contraseña</label>
+                      <input
+                        type="password"
+                        value={authRegisterData.password}
+                        onChange={(e) => setAuthRegisterData({ ...authRegisterData, password: e.target.value })}
+                        placeholder="Mínimo 6 caracteres"
+                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={authLoading || !authRegisterData.name || !authRegisterData.lastName || !authRegisterData.dni || !authRegisterData.phone || !authRegisterData.password}
+                      onClick={handleInlineRegister}
+                      className="w-full py-3.5 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-xl font-black text-sm shadow-md hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                    >
+                      {authLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                      Registrarme y continuar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {userSession && (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 p-3 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center font-bold text-xs">
+                        ✓
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-emerald-900 dark:text-emerald-200">
+                          {formData.name}
+                        </p>
+                        <p className="text-[11px] font-semibold text-emerald-700/80 dark:text-emerald-400">
+                          Tel: {formData.phone}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded-full">
+                      Identificado
+                    </span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Nombre y Apellido</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Juan Pérez"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Teléfono de Contacto</label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+                    <input
+                      type="tel"
+                      required
+                      placeholder="Ej: 11 1234 5678"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {clientRequireDeposit && (
               <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 p-3 rounded-xl text-sm text-amber-800 dark:text-amber-200 font-medium flex items-start">
@@ -702,13 +1052,25 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
 
         {/* --- PASO 3: ESPERANDO PAGO / ÉXITO --- */}
         {step === 3 && (() => {
+          if (!confirmedDetails && !selectedSlot) {
+            return (
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                <Loader2 className="w-10 h-10 animate-spin text-[var(--color-primary)] mb-3" />
+                <p className="text-slate-800 dark:text-slate-200 font-black text-base">Cargando comprobante de tu reserva...</p>
+                <p className="text-xs text-slate-500 font-medium mt-1">Estamos recuperando la información confirmada por Mercado Pago.</p>
+              </div>
+            );
+          }
+
           const displayCourtName = confirmedDetails?.courtName || courts.find(c => c.id === selectedCourt)?.name || 'Cancha Principal';
-          const displayDateFormatted = confirmedDetails?.dateFormatted || selectedDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-          const displaySlotTime = confirmedDetails?.slotTime || selectedSlot || '18:00';
-          const bookingCode = `#OP-${(displaySlotTime.replace(':', '') || 'PAD')}${selectedDate.getDate()}`;
+          const displayDateFormatted = confirmedDetails?.dateFormatted || (selectedSlot ? selectedDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : '');
+          const displaySlotTime = confirmedDetails?.slotTime || selectedSlot || '';
+          const bookingCode = confirmedDetails?.bookingId
+            ? `#OP-${confirmedDetails.bookingId.slice(-4).toUpperCase()}`
+            : `#OP-${(displaySlotTime.replace(':', '') || 'PAD')}${selectedDate.getDate()}`;
 
           // Armado de fechas para exportar a Calendarios
-          const [hrs, mins] = displaySlotTime.split(':').map(Number);
+          const [hrs, mins] = displaySlotTime ? displaySlotTime.split(':').map(Number) : [18, 0];
           const startEvent = new Date(selectedDate);
           if (!isNaN(hrs)) startEvent.setHours(hrs, mins || 0, 0, 0);
           const endEvent = new Date(startEvent);
@@ -912,13 +1274,18 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
           ) : (
             <button
               onClick={handleFinalSubmit}
-              disabled={submitting || formData.name.trim().length < 2 || formData.phone.trim().length < 6}
+              disabled={submitting || (sysSettings?.requireLoginToBook && !userSession) || formData.name.trim().length < 2 || formData.phone.trim().length < 6}
               className="w-full flex items-center justify-center bg-slate-900 dark:bg-[var(--color-primary)] text-white font-bold text-lg py-4 rounded-2xl shadow-xl transition-all hover:bg-black dark:hover:bg-[var(--color-primary)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Procesando...
+                </>
+              ) : (sysSettings?.requireLoginToBook && !userSession) ? (
+                <>
+                  <Lock className="w-5 h-5 mr-2" />
+                  Identificate arriba para continuar
                 </>
               ) : clientRequireDeposit ? (
                 <>

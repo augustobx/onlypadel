@@ -3,9 +3,10 @@
 import { useState, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { User as UserIcon, Edit, ShieldBan, CheckCircle2, Search, ArrowLeft, CalendarDays, KeyRound, UserPlus, X, AlertCircle, ShieldCheck } from "lucide-react";
+import { User as UserIcon, Edit, ShieldBan, CheckCircle2, Search, ArrowLeft, CalendarDays, KeyRound, UserPlus, X, AlertCircle, ShieldCheck, Sparkles, PhoneCall, RefreshCw, GitMerge, Check, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { updateUserAdmin, checkUserDniAdmin, createUserAdmin } from "@/actions/admin-users";
+import { updateUserAdmin, checkUserDniAdmin, createUserAdmin, findDuplicateUsersAdmin, mergeUserAccountsAdmin, batchNormalizeAllPhonesAdmin } from "@/actions/admin-users";
+import { formatPhoneDisplay } from "@/lib/phone";
 import { useRouter } from "next/navigation";
 
 type UserData = {
@@ -32,6 +33,13 @@ export default function UsuariosClient({ initialUsers }: { initialUsers: UserDat
     const [searchTerm, setSearchTerm] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("ALL");
     const [statusFilter, setStatusFilter] = useState("ALL");
+
+    // Modal Duplicados
+    const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
+    const [duplicateGroups, setDuplicateGroups] = useState<any[]>([]);
+    const [isLoadingDuplicates, setIsLoadingDuplicates] = useState(false);
+    const [isMerging, setIsMerging] = useState(false);
+    const [isNormalizingPhones, setIsNormalizingPhones] = useState(false);
 
     // Modal Crear Usuario
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -188,6 +196,46 @@ export default function UsuariosClient({ initialUsers }: { initialUsers: UserDat
         setExistingUserFound(null);
         setCreateError(null);
         setCreateFormData({ name: "", lastName: "", phone: "", email: "", category: "", password: "" });
+    };
+
+    const handleOpenDuplicatesModal = async () => {
+        setIsDuplicatesModalOpen(true);
+        setIsLoadingDuplicates(true);
+        const res = await findDuplicateUsersAdmin();
+        if (res.success && res.data) {
+            setDuplicateGroups(res.data);
+        }
+        setIsLoadingDuplicates(false);
+    };
+
+    const handleMergeAccounts = async (targetUserId: string, sourceUserId: string) => {
+        if (!confirm('¿Estás seguro de unificar estas dos cuentas? Todas las reservas, abonos y datos se moverán a la cuenta seleccionada.')) return;
+        setIsMerging(true);
+        const res = await mergeUserAccountsAdmin(targetUserId, sourceUserId);
+        if (res.success) {
+            alert('¡Cuentas unificadas con éxito!');
+            router.refresh();
+            const updated = await findDuplicateUsersAdmin();
+            if (updated.success && updated.data) {
+                setDuplicateGroups(updated.data);
+            }
+        } else {
+            alert(res.error || 'Error al unificar cuentas.');
+        }
+        setIsMerging(false);
+    };
+
+    const handleBatchNormalizePhones = async () => {
+        if (!confirm('¿Normalizar y estandarizar los números de teléfono de todos los jugadores registrados?')) return;
+        setIsNormalizingPhones(true);
+        const res = await batchNormalizeAllPhonesAdmin();
+        if (res.success) {
+            alert(`¡Teléfonos normalizados correctamente! Se estandarizaron ${res.updatedCount} números.`);
+            router.refresh();
+        } else {
+            alert(res.error || 'Error al normalizar teléfonos.');
+        }
+        setIsNormalizingPhones(false);
     };
 
     const filteredUsers = useMemo(() => {
@@ -369,12 +417,30 @@ export default function UsuariosClient({ initialUsers }: { initialUsers: UserDat
                         <UserIcon className="w-5 h-5 text-emerald-500" /> 
                         <CardTitle className="text-xl font-bold">Padrón de Jugadores ({filteredUsers.length})</CardTitle>
                     </div>
-                    <button
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 text-sm"
-                    >
-                        <UserPlus className="w-4 h-4" /> Crear Jugador
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={handleBatchNormalizePhones}
+                            disabled={isNormalizingPhones}
+                            className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold px-3 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 text-xs"
+                            title="Limpia y estandariza los números de teléfono para que no haya inconsistencias"
+                        >
+                            <PhoneCall className={`w-3.5 h-3.5 text-blue-500 ${isNormalizingPhones ? 'animate-spin' : ''}`} />
+                            {isNormalizingPhones ? 'Estandarizando...' : 'Estandarizar Teléfonos'}
+                        </button>
+                        <button
+                            onClick={handleOpenDuplicatesModal}
+                            className="inline-flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/40 dark:border-amber-700/40 font-bold px-3 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 text-xs"
+                            title="Detectar cuentas con mismo teléfono, email o DNI para fusionarlas"
+                        >
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Unificar Duplicados
+                        </button>
+                        <button
+                            onClick={() => setIsCreateModalOpen(true)}
+                            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 text-sm"
+                        >
+                            <UserPlus className="w-4 h-4" /> Crear Jugador
+                        </button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -452,7 +518,9 @@ export default function UsuariosClient({ initialUsers }: { initialUsers: UserDat
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="font-medium text-slate-700 dark:text-slate-300 text-sm">{user.phone || '-'}</span>
+                                                <span className="font-medium text-slate-700 dark:text-slate-300 text-sm">
+                                                    {formatPhoneDisplay(user.phone) || '-'}
+                                                </span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-center">
@@ -693,6 +761,109 @@ export default function UsuariosClient({ initialUsers }: { initialUsers: UserDat
                                 </div>
                             </form>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL DE UNIFICACIÓN DE CUENTAS DUPLICADAS */}
+            {isDuplicatesModalOpen && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <span className="p-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                                    <GitMerge className="w-5 h-5" />
+                                </span>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white">Unificar Cuentas Duplicadas</h3>
+                                    <p className="text-xs text-slate-400">Detecta coincidencias por teléfono, email o DNI para fusionar en una única cuenta oficial.</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsDuplicatesModalOpen(false)}
+                                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                            {isLoadingDuplicates ? (
+                                <div className="py-16 flex flex-col items-center justify-center space-y-3 text-slate-400">
+                                    <Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" />
+                                    <p className="text-xs font-bold">Escaneando padrón de jugadores...</p>
+                                </div>
+                            ) : duplicateGroups.length === 0 ? (
+                                <div className="py-16 text-center space-y-3">
+                                    <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+                                    <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">¡Todo en orden!</h4>
+                                    <p className="text-xs text-slate-500 max-w-sm mx-auto">No se encontraron cuentas duplicadas. Los teléfonos y usuarios están unificados correctamente.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl text-xs text-amber-800 dark:text-amber-200 font-medium">
+                                        💡 Se encontraron <strong>{duplicateGroups.length}</strong> grupos de duplicados. Seleccioná qué cuenta querés conservar como <strong>Principal</strong>; todas las reservas, abonos y datos se transferirán automáticamente a ella.
+                                    </div>
+
+                                    {duplicateGroups.map((group, gIdx) => (
+                                        <div key={gIdx} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-3">
+                                            <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                                                <span>Coincidencia por {group.criterion === 'phone' ? 'Teléfono' : group.criterion === 'email' ? 'Email' : 'DNI'}: <strong className="text-slate-800 dark:text-slate-200 font-mono">{group.matchKey}</strong></span>
+                                                <Badge variant="outline" className="text-[10px] font-black">{group.users.length} Cuentas</Badge>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {group.users.map((u: any, uIdx: number) => {
+                                                    const otherUsers = group.users.filter((other: any) => other.id !== u.id);
+                                                    return (
+                                                        <div key={u.id} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col justify-between space-y-2">
+                                                            <div>
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                                                                        {u.name} {u.lastName || ''}
+                                                                    </span>
+                                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                                                        {u.bookingsCount} turnos
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-[11px] text-slate-500 space-y-0.5 mt-1">
+                                                                    <div>DNI: <span className="font-mono text-slate-700 dark:text-slate-300">{u.dni || 'Sin DNI'}</span></div>
+                                                                    <div>Tel: <span className="font-mono text-slate-700 dark:text-slate-300">{formatPhoneDisplay(u.phone) || '-'}</span></div>
+                                                                    <div className="truncate">Email: <span className="text-slate-700 dark:text-slate-300">{u.email || '-'}</span></div>
+                                                                    <div>Clave: {u.hasPassword ? <span className="text-emerald-500 font-bold">Activa</span> : <span className="text-slate-400">Sin clave</span>}</div>
+                                                                </div>
+                                                            </div>
+
+                                                            <button
+                                                                disabled={isMerging}
+                                                                onClick={() => {
+                                                                    // Unificar todas las otras cuentas de este grupo en esta cuenta
+                                                                    if (otherUsers.length > 0) {
+                                                                        handleMergeAccounts(u.id, otherUsers[0].id);
+                                                                    }
+                                                                }}
+                                                                className="w-full mt-2 py-1.5 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-700 hover:text-white dark:text-emerald-300 text-xs font-black transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                                                            >
+                                                                <Check className="w-3.5 h-3.5" /> Conservar esta cuenta
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end shrink-0">
+                            <button
+                                onClick={() => setIsDuplicatesModalOpen(false)}
+                                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -35,7 +35,7 @@ export async function getSettings() {
                     'announcement_active', 'announcement_badge', 'announcement_title',
                     'announcement_text', 'announcement_link', 'announcement_link_text',
                     'announcement_variant', 'announcement_duration', 'announcement_auto_close',
-                    'current_account_enabled'
+                    'current_account_enabled', 'require_login_to_book'
                 ] }
             }
         });
@@ -60,6 +60,7 @@ export async function getSettings() {
         const announcementAutoClose = customMap['announcement_auto_close'] !== undefined
             ? customMap['announcement_auto_close'] === 'true'
             : true;
+        const requireLoginToBook = customMap['require_login_to_book'] === 'true';
 
         const [reservations, users, tournaments, rankings, playerCategories, whatsapp, communityFeature] = await Promise.all([
             hasTenantFeature('reservations'), hasTenantFeature('users'), hasTenantFeature('tournaments'),
@@ -81,6 +82,7 @@ export async function getSettings() {
             announcementDuration,
             announcementAutoClose,
             currentAccountEnabled: customMap['current_account_enabled'] !== 'false',
+            requireLoginToBook,
             reservationsEnabled: settings.reservationsEnabled && reservations,
             usersModuleEnabled: settings.usersModuleEnabled && users,
             tournamentsEnabled: settings.tournamentsEnabled && tournaments,
@@ -197,6 +199,7 @@ export async function updateSystemSettings(formData: FormData) {
             { key: 'announcement_duration', value: String(announcementDuration) },
             { key: 'announcement_auto_close', value: String(announcementAutoClose) },
             { key: 'current_account_enabled', value: String(currentAccountEnabled) },
+            { key: 'require_login_to_book', value: String(formData.get("requireLoginToBook") === "on") },
         ];
 
         for (const entry of customEntries) {

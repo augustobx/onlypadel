@@ -57,6 +57,7 @@ interface PublicSettings {
   contactPhone?: string | null;
   courtPhone?: string | null;
   apiPhone?: string | null;
+  requireLoginToBook?: boolean;
 }
 
 interface UserSession {
@@ -151,6 +152,16 @@ export default function BookingFlowChat({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, typing, inputMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status') || params.get('collection_status');
+    if (status === 'success' || status === 'approved') {
+      addBotMessage({ text: '¡Excelente! Tu reserva y pago de seña quedaron confirmados con éxito.', kind: 'success' });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -315,6 +326,12 @@ export default function BookingFlowChat({
 
   const handleBookingSubmit = async (event?: React.FormEvent) => {
     event?.preventDefault();
+
+    if (sysSettings?.requireLoginToBook && !session) {
+      setFormError('Es obligatorio contar con una cuenta de usuario para confirmar tu reserva en este club.');
+      return;
+    }
+
     if (!selectedCourt || !selectedDate || !selectedSlot || formData.name.trim().length < 2 || formData.phone.trim().length < 6) {
       setFormError('Completá un nombre y un teléfono válidos.');
       return;
@@ -474,9 +491,17 @@ export default function BookingFlowChat({
                     </div>
                     <label className="block text-xs font-black text-slate-600 dark:text-slate-300">Nombre completo<input required minLength={2} disabled={!!session} value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="mt-1.5 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 disabled:opacity-70 dark:border-slate-700 dark:bg-slate-950 dark:text-white" autoComplete="name" /></label>
                     <label className="block text-xs font-black text-slate-600 dark:text-slate-300">WhatsApp<input required minLength={6} type="tel" value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} className="mt-1.5 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white" autoComplete="tel" inputMode="tel" /></label>
+                    {sysSettings?.requireLoginToBook && !session && (
+                      <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
+                        <p className="font-bold">🔒 Para confirmar este turno es obligatorio iniciar sesión o tener una cuenta.</p>
+                        <a href="/login-usuario?returnTo=/" className="inline-block px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-lg text-xs transition-colors">
+                          Iniciar sesión o registrarme
+                        </a>
+                      </div>
+                    )}
                     {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{formError}</p>}
                     {clientRequireDeposit && <p className="flex gap-2 rounded-xl bg-amber-50 p-3 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><CreditCard className="h-4 w-4 shrink-0" /> Al confirmar, el turno queda pendiente hasta acreditar la seña.</p>}
-                    <button type="submit" disabled={busy} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 text-sm font-black text-[var(--color-primary-foreground)] disabled:opacity-60">{busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Verificando turno…</> : <>Confirmar reserva <ArrowRight className="h-4 w-4" /></>}</button>
+                    <button type="submit" disabled={busy || Boolean(sysSettings?.requireLoginToBook && !session)} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 text-sm font-black text-[var(--color-primary-foreground)] disabled:opacity-60">{busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Verificando turno…</> : sysSettings?.requireLoginToBook && !session ? <>Iniciar sesión para reservar</> : <>Confirmar reserva <ArrowRight className="h-4 w-4" /></>}</button>
                     <button type="button" disabled={busy} onClick={restartBooking} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"><RotateCcw className="h-4 w-4" /> Cambiar fecha u horario</button>
                   </form>
                 )}

@@ -34,6 +34,7 @@ export type ExtendedSettings = SystemSetting & {
   communityFeedEnabled?: boolean;
   communityMatchesEnabled?: boolean;
   communityChatEnabled?: boolean;
+  requireLoginToBook?: boolean;
 };
 
 const THEMES = [
@@ -955,6 +956,17 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                 </div>
                                 <label className="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="usersModuleEnabled" name="usersModuleEnabled" defaultChecked={initialSettings.usersModuleEnabled} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:transition-all peer-checked:bg-[var(--color-primary)]"></div>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+                                <div>
+                                    <Label htmlFor="requireLoginToBook" className="text-sm font-bold text-slate-900 dark:text-white">Login y Registro Obligatorio para Reservar</Label>
+                                    <p className="text-xs text-slate-500">Exige a los clientes iniciar sesión o registrarse antes de confirmar una reserva. Si está desactivado, pueden reservar como invitados con nombre y teléfono.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="requireLoginToBook" name="requireLoginToBook" defaultChecked={Boolean(initialSettings.requireLoginToBook)} className="sr-only peer" />
                                     <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:transition-all peer-checked:bg-[var(--color-primary)]"></div>
                                 </label>
                             </div>
