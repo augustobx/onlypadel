@@ -617,7 +617,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                         <p className="font-black text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
                           <span>{shift.courtName}</span>
                           <span className="text-emerald-500 font-bold">•</span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-black">{shift.timeStr} hs</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-black">{shift.timeStr || shift.time} hs</span>
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
                           📅 {shift.dateStr.split('-').reverse().join('/')} {shift.reason ? `• ${shift.reason}` : ''}
@@ -628,7 +628,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                         onClick={() => {
                           setSelectedDate(new Date(`${shift.dateStr}T12:00:00`));
                           setSelectedCourt(shift.courtId);
-                          setSelectedSlot(shift.timeStr);
+                          setSelectedSlot(shift.timeStr || shift.time);
                           setStep(2);
                         }}
                         className="px-3.5 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1 shrink-0"

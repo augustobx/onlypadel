@@ -10,6 +10,7 @@ export interface ReleasedShift {
   courtName: string;
   dateStr: string;   // "YYYY-MM-DD"
   time: string;      // "HH:mm"
+  timeStr?: string;  // "HH:mm" (alias)
   endTime?: string;  // "HH:mm"
   releasedAt: string; // ISO date string
   reason?: string;
@@ -54,6 +55,7 @@ export async function publishReleasedShift(shift: {
       courtName: shift.courtName,
       dateStr: shift.dateStr,
       time: shift.time,
+      timeStr: shift.time,
       endTime: shift.endTime,
       releasedAt: new Date().toISOString(),
       reason: shift.reason || 'Turno liberado',
