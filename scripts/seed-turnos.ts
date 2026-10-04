@@ -81,7 +81,7 @@ async function runSeed() {
       where: { tenantId: tenant.id, id: { startsWith: PREFIX } },
     });
     await prisma.courtBlock.deleteMany({
-      where: { id: { startsWith: `${PREFIX}${tenant.slug}-` } },
+      where: { tenantId: tenant.id, id: { startsWith: PREFIX } },
     });
 
     // Obtener canchas del tenant
@@ -391,6 +391,7 @@ async function runSeed() {
           startTime: makeDateTime(blk.offset, blk.start),
           endTime: makeDateTime(blk.offset, blk.end),
           reason: blk.reason,
+          tenantId: tenant.id,
         },
       });
     }
