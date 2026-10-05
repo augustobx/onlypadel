@@ -142,6 +142,7 @@ export function createFirstRoundSlots<T extends { id: string }>(teams: T[]) {
 }
 
 export type RankingStats = {
+  rank?: number | null;
   points: number;
   matchesWon: number;
   setsWon: number;
@@ -151,9 +152,72 @@ export type RankingStats = {
 };
 
 export function compareStandings(a: RankingStats, b: RankingStats) {
+  // Si el admin definió un orden explícito (1°, 2°, 3°...), tiene prioridad absoluta
+  if (a.rank != null && b.rank != null) {
+    return a.rank - b.rank;
+  }
+  if (a.rank != null && b.rank == null) return -1;
+  if (a.rank == null && b.rank != null) return 1;
+
   return b.points - a.points ||
     b.matchesWon - a.matchesWon ||
     (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) ||
     (b.gamesWon - b.gamesLost) - (a.gamesWon - a.gamesLost) ||
     b.gamesWon - a.gamesWon;
+}
+
+export type GroupTieInfo = {
+  isTied: boolean;
+  type: 'NONE' | 'TRIPLE_TIE' | 'FIRST_PLACE_TIE' | 'SECOND_PLACE_TIE' | 'FULL_TIE';
+  message: string;
+};
+
+/**
+ * Detecta si una zona tiene empates de puntos relevantes para la clasificación a playoffs
+ */
+export function detectGroupTie(placements: RankingStats[]): GroupTieInfo {
+  if (!placements || placements.length < 2) {
+    return { isTied: false, type: 'NONE', message: '' };
+  }
+
+  // Si ya tiene rank manual asignado por el admin a las parejas, el empate fue resuelto
+  const hasManualRanks = placements.filter(p => p.rank != null).length >= 2;
+  if (hasManualRanks) {
+    return { isTied: false, type: 'NONE', message: 'Desempate resuelto por Mesa de Control' };
+  }
+
+  // Ordenar por criterios automáticos estándar
+  const sorted = [...placements].sort(compareStandings);
+  const p1 = sorted[0]?.points ?? 0;
+  const p2 = sorted[1]?.points ?? 0;
+  const p3 = sorted[2]?.points ?? -1;
+
+  // Caso 1: Triple empate (o más) en puntos
+  if (sorted.length >= 3 && p1 === p2 && p2 === p3) {
+    return {
+      isTied: true,
+      type: 'TRIPLE_TIE',
+      message: `Triple empate: 3 parejas igualadas con ${p1} puntos. La Mesa de Control debe definir los clasificados.`
+    };
+  }
+
+  // Caso 2: Empate en el 2° puesto (define quién pasa a playoffs junto al 1°)
+  if (sorted.length >= 3 && p2 === p3 && p1 > p2) {
+    return {
+      isTied: true,
+      type: 'SECOND_PLACE_TIE',
+      message: `Empate en el 2° puesto: 2 parejas igualadas con ${p2} puntos compiten por clasificar.`
+    };
+  }
+
+  // Caso 3: Empate en el 1° puesto (ambas parejas tienen mismos puntos en la cima)
+  if (p1 === p2) {
+    return {
+      isTied: true,
+      type: 'FIRST_PLACE_TIE',
+      message: `Empate en el 1° puesto: 2 parejas igualadas con ${p1} puntos compiten por el liderato de zona.`
+    };
+  }
+
+  return { isTied: false, type: 'NONE', message: '' };
 }

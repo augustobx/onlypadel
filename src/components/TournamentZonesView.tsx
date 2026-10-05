@@ -497,6 +497,16 @@ export default function TournamentZonesView({
                         </div>
                         
                         <div className="flex items-center gap-1.5">
+                          {gt.rank === 1 && (
+                            <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                              🥇 1° Clasificado
+                            </span>
+                          )}
+                          {gt.rank === 2 && (
+                            <span className="bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                              🥈 2° Clasificado
+                            </span>
+                          )}
                           <Badge variant="secondary" className="font-mono text-[10px]">{gt.points || 0} pts</Badge>
                           {otherGroups.length > 0 && (
                             <button

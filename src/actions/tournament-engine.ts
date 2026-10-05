@@ -178,22 +178,25 @@ async function buildKnockout(
     const previous = rounds[round - 2];
     const current: string[] = [];
     for (let index = 0; index < previous.length / 2; index++) {
-      const match = await tx.tournamentMatch.create({
-        data: { categoryId, round, matchOrder: index + 1, roundName: roundNames[round] },
-      });
       const feeder1Id = previous[index * 2];
       const feeder2Id = previous[index * 2 + 1];
-      await tx.tournamentMatch.updateMany({
-        where: { id: { in: [feeder1Id, feeder2Id] } },
-        data: { nextMatchId: match.id },
-      });
       const feeders = await tx.tournamentMatch.findMany({
         where: { id: { in: [feeder1Id, feeder2Id] } },
         orderBy: { matchOrder: 'asc' },
       });
-      await tx.tournamentMatch.update({
-        where: { id: match.id },
-        data: { team1Id: feeders[0]?.winnerId || null, team2Id: feeders[1]?.winnerId || null },
+      const match = await tx.tournamentMatch.create({
+        data: {
+          categoryId,
+          round,
+          matchOrder: index + 1,
+          roundName: roundNames[round],
+          team1Id: feeders[0]?.winnerId || null,
+          team2Id: feeders[1]?.winnerId || null,
+        },
+      });
+      await tx.tournamentMatch.updateMany({
+        where: { id: { in: [feeder1Id, feeder2Id] } },
+        data: { nextMatchId: match.id },
       });
       current.push(match.id);
     }
@@ -817,6 +820,35 @@ export async function generateKnockoutFromZones(categoryId: string) {
       return { success: false, error: 'Todos los partidos de zona deben estar completados.' };
     }
 
+    // Verificar si hay empates de puntos no resueltos en las zonas
+    for (const group of category.groups) {
+      const realPlacements = group.teams.filter(
+        (placement) => placement.team.player1.phone !== 'DUMMY_PLAZA'
+      );
+      if (realPlacements.length >= 2) {
+        const hasManualRanks = realPlacements.filter(p => p.rank != null).length >= 2;
+        if (!hasManualRanks) {
+          const sorted = [...realPlacements].sort(compareStandings);
+          const p1 = sorted[0]?.points ?? 0;
+          const p2 = sorted[1]?.points ?? 0;
+          const p3 = sorted[2]?.points ?? -1;
+
+          if (sorted.length >= 3 && p1 === p2 && p2 === p3) {
+            return {
+              success: false,
+              error: `La ${group.name} tiene un triple empate de puntos (${p1} pts). Definí los clasificados en la Mesa de Control antes de armar el cuadro.`
+            };
+          }
+          if (sorted.length >= 3 && p2 === p3 && p1 > p2) {
+            return {
+              success: false,
+              error: `La ${group.name} tiene un empate en el 2° puesto (${p2} pts). Definí el 2° clasificado en la Mesa de Control antes de armar el cuadro.`
+            };
+          }
+        }
+      }
+    }
+
     const rankedGroups = category.groups.map((group) => group.teams
       .filter((placement) => placement.team.player1.phone !== 'DUMMY_PLAZA')
       .sort(compareStandings));
@@ -838,8 +870,8 @@ export async function generateKnockoutFromZones(categoryId: string) {
     revalidateTournamentPaths();
     return { success: true, message: `Cuadro de ${result.bracketSize} generado desde las posiciones de zona.` };
   } catch (error) {
-    console.error(error);
-    return { success: false, error: 'Error generando llaves desde zonas' };
+    console.error('generateKnockoutFromZones error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Error generando llaves desde zonas' };
   }
 }
 
@@ -1585,3 +1617,64 @@ export async function createDirectTeamInGroup(params: {
     return { success: false, error: 'Error al registrar la pareja en la zona' };
   }
 }
+
+// ============================================================
+// DEFINICIÓN / DESEMPATE MANUAL DE CLASIFICADOS DE ZONA
+// ============================================================
+export async function saveGroupQualifiers(groupId: string, rankedTeamIds: string[]) {
+  try {
+    await requireAdmin();
+    if (!groupId || !Array.isArray(rankedTeamIds) || rankedTeamIds.length < 2) {
+      return { success: false, error: 'Debés seleccionar al menos el 1° y 2° clasificado.' };
+    }
+
+    const placements = await prisma.tournamentGroupTeam.findMany({
+      where: { groupId }
+    });
+
+    if (!placements.length) {
+      return { success: false, error: 'Zona no encontrada.' };
+    }
+
+    // Actualizar el ranking manual de cada equipo elegido (1°, 2°, ...)
+    for (let i = 0; i < rankedTeamIds.length; i++) {
+      const teamId = rankedTeamIds[i];
+      await prisma.tournamentGroupTeam.updateMany({
+        where: { groupId, teamId },
+        data: { rank: i + 1 }
+      });
+    }
+
+    // A los equipos no elegidos en los primeros puestos, asignarles las posiciones siguientes
+    const unranked = placements.filter(p => !rankedTeamIds.includes(p.teamId));
+    for (let j = 0; j < unranked.length; j++) {
+      await prisma.tournamentGroupTeam.updateMany({
+        where: { groupId, teamId: unranked[j].teamId },
+        data: { rank: rankedTeamIds.length + j + 1 }
+      });
+    }
+
+    revalidateTournamentPaths();
+    return { success: true, message: 'Clasificados de la zona guardados con éxito.' };
+  } catch (error) {
+    console.error('saveGroupQualifiers error:', error);
+    return { success: false, error: 'Error al guardar los clasificados de la zona.' };
+  }
+}
+
+export async function resetGroupQualifiers(groupId: string) {
+  try {
+    await requireAdmin();
+    await prisma.tournamentGroupTeam.updateMany({
+      where: { groupId },
+      data: { rank: null }
+    });
+
+    revalidateTournamentPaths();
+    return { success: true, message: 'Criterio de desempate automático restablecido.' };
+  } catch (error) {
+    console.error('resetGroupQualifiers error:', error);
+    return { success: false, error: 'Error al restablecer orden de la zona.' };
+  }
+}
+

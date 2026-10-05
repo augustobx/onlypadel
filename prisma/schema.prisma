@@ -663,6 +663,7 @@ model TournamentGroupTeam {
   team     TournamentTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade, map: "TournamentGroupTeam_teamId_fkey")
   tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "TournamentGroupTeam_tenantId_fkey")
 
+  rank          Int?
   points        Int @default(0)
   matchesPlayed Int @default(0)
   matchesWon    Int @default(0)

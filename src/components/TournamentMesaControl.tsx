@@ -6,12 +6,39 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { updateMatchScore, setMatchInProgress, resetMatchResult, updateMatchAssignment } from '@/actions/tournament-engine';
+import { 
+  updateMatchScore, 
+  setMatchInProgress, 
+  resetMatchResult, 
+  updateMatchAssignment,
+  saveGroupQualifiers,
+  resetGroupQualifiers
+} from '@/actions/tournament-engine';
 import { getCourts } from '@/actions/courts';
 import { useRouter } from 'next/navigation';
-import { Play, CheckCircle2, Clock, ChevronDown, RotateCcw, MapPin, Sparkles, Trophy } from 'lucide-react';
+import { 
+  Play, 
+  CheckCircle2, 
+  Clock, 
+  ChevronDown, 
+  RotateCcw, 
+  MapPin, 
+  Sparkles, 
+  Trophy, 
+  Scale, 
+  AlertTriangle, 
+  Award, 
+  Check 
+} from 'lucide-react';
 import type { CourtView, TournamentMatchView, TournamentView } from '@/lib/tournaments/types';
-import { mirrorScore, validateScore, findTiedSet, resolveTiedSetScore } from '@/lib/tournaments/rules';
+import { 
+  mirrorScore, 
+  validateScore, 
+  findTiedSet, 
+  resolveTiedSetScore, 
+  compareStandings, 
+  detectGroupTie 
+} from '@/lib/tournaments/rules';
 
 export default function TournamentMesaControl({ tournament }: { tournament: TournamentView }) {
   const [loading, setLoading] = useState<string | null>(null);
@@ -19,6 +46,11 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
   const [courts, setCourts] = useState<CourtView[]>([]);
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+
+  // Estados para Desempate y Clasificados de Zonas
+  const [qualifiersSelection, setQualifiersSelection] = useState<Record<string, { firstId: string; secondId: string }>>({});
+  const [savingGroup, setSavingGroup] = useState<string | null>(null);
+  const [showAllGroups, setShowAllGroups] = useState<boolean>(false);
 
   // Estados para Modal de Desempate por Tiebreak
   const [tiebreakModal, setTiebreakModal] = useState<{
@@ -66,6 +98,88 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
 
   const toggleZone = (zoneName: string) => {
     setCollapsedZones(prev => ({ ...prev, [zoneName]: !prev[zoneName] }));
+  };
+
+  // Zonas de todas las categorías para desempate y definición de clasificados
+  const categoryGroups = (tournament.categories || []).flatMap((cat) =>
+    (cat.groups || []).map((grp) => {
+      const realPlacements = (grp.teams || []).filter(
+        (p) => p.team?.player1?.phone !== 'DUMMY_PLAZA'
+      );
+      const sortedPlacements = [...realPlacements].sort(compareStandings);
+      const grpMatches = matches.filter((m) => m.groupId === grp.id);
+      const completedMatchesCount = grpMatches.filter((m) => m.status === 'COMPLETED').length;
+      const isCompleted = grpMatches.length > 0 && completedMatchesCount === grpMatches.length;
+      const tieInfo = detectGroupTie(sortedPlacements);
+      const hasManualRank = realPlacements.filter((p) => p.rank != null).length >= 2;
+
+      return {
+        categoryId: cat.id,
+        categoryName: cat.name,
+        group: grp,
+        realPlacements,
+        sortedPlacements,
+        grpMatches,
+        completedMatchesCount,
+        isCompleted,
+        tieInfo,
+        hasManualRank,
+      };
+    })
+  );
+
+  const tiedGroups = categoryGroups.filter(
+    (cg) => cg.tieInfo.isTied || cg.hasManualRank
+  );
+
+  const handleSelectQualifier = (groupId: string, firstId: string, secondId: string) => {
+    setQualifiersSelection(prev => ({
+      ...prev,
+      [groupId]: { firstId, secondId }
+    }));
+  };
+
+  const handleSaveQualifiers = async (groupId: string, defaultFirstId: string, defaultSecondId: string) => {
+    const sel = qualifiersSelection[groupId] || { firstId: defaultFirstId, secondId: defaultSecondId };
+    const firstId = sel.firstId || defaultFirstId;
+    const secondId = sel.secondId || defaultSecondId;
+
+    if (!firstId || !secondId) {
+      setFeedback({ type: 'error', message: 'Debés seleccionar el 1° y 2° clasificado.' });
+      return;
+    }
+    if (firstId === secondId) {
+      setFeedback({ type: 'error', message: 'El 1° y 2° clasificado no pueden ser la misma pareja.' });
+      return;
+    }
+
+    setSavingGroup(groupId);
+    const res = await saveGroupQualifiers(groupId, [firstId, secondId]);
+    if (res.success) {
+      setFeedback({ type: 'success', message: res.message || 'Clasificados guardados correctamente.' });
+    } else {
+      setFeedback({ type: 'error', message: res.error || 'Error al guardar clasificados.' });
+    }
+    setSavingGroup(null);
+    router.refresh();
+  };
+
+  const handleResetQualifiers = async (groupId: string) => {
+    if (!confirm('¿Restablecer el orden automático de esta zona según las estadísticas?')) return;
+    setSavingGroup(groupId);
+    const res = await resetGroupQualifiers(groupId);
+    if (res.success) {
+      setFeedback({ type: 'success', message: res.message || 'Orden automático restablecido.' });
+      setQualifiersSelection(prev => {
+        const copy = { ...prev };
+        delete copy[groupId];
+        return copy;
+      });
+    } else {
+      setFeedback({ type: 'error', message: res.error || 'Error al restablecer orden.' });
+    }
+    setSavingGroup(null);
+    router.refresh();
   };
 
   const handleStartMatch = async (matchId: string) => {
@@ -237,6 +351,253 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
           {feedback.message}
         </div>
       )}
+
+      {/* SECCIÓN: DESEMPATE DE ZONAS Y DEFINICIÓN DE CLASIFICADOS */}
+      {categoryGroups.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div>
+              <h3 className="font-black text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                <Scale className="w-5 h-5 text-amber-500" />
+                Desempate de Zonas y Definición de Clasificados
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Elegí qué parejas pasan a las llaves eliminatorias (1° y 2° puesto). Esencial en zonas con triple empate de puntos o igualdad de partidos.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {tiedGroups.some(g => g.tieInfo.isTied) && (
+                <Badge className="bg-amber-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm">
+                  <AlertTriangle className="w-3 h-3" />
+                  {tiedGroups.filter(g => g.tieInfo.isTied).length} zona(s) con empate
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllGroups(prev => !prev)}
+                className="text-xs font-semibold"
+              >
+                {showAllGroups ? 'Mostrar solo zonas con desempate' : `Ver todas las zonas (${categoryGroups.length})`}
+              </Button>
+            </div>
+          </div>
+
+          {!showAllGroups && tiedGroups.length === 0 ? (
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>No hay zonas con empates de puntos pendientes en este momento. Todas las zonas están ordenadas automáticamente o definidas por Mesa de Control.</span>
+              </div>
+              <button onClick={() => setShowAllGroups(true)} className="underline font-bold hover:text-emerald-900 shrink-0">
+                Ver todas las zonas ({categoryGroups.length})
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {(showAllGroups ? categoryGroups : tiedGroups).map((cg) => {
+                const grpId = cg.group.id;
+                const sorted = cg.sortedPlacements;
+                const sel = qualifiersSelection[grpId] || {};
+                const defaultFirstId = sorted[0]?.teamId || '';
+                const defaultSecondId = sorted[1]?.teamId || '';
+                const currentFirstId = sel.firstId !== undefined ? sel.firstId : defaultFirstId;
+                const currentSecondId = sel.secondId !== undefined ? sel.secondId : defaultSecondId;
+
+                return (
+                  <div
+                    key={grpId}
+                    className={`rounded-xl border p-4 transition-all shadow-sm ${
+                      cg.tieInfo.isTied
+                        ? 'border-amber-300 bg-amber-50/20 dark:border-amber-800/60 dark:bg-amber-950/20'
+                        : cg.hasManualRank
+                        ? 'border-emerald-300 bg-emerald-50/15 dark:border-emerald-800/60 dark:bg-emerald-950/20'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40'
+                    }`}
+                  >
+                    {/* Header de la zona */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase text-slate-400">{cg.categoryName}</span>
+                        <h4 className="font-black text-slate-800 dark:text-white text-base">
+                          {cg.group.name}
+                        </h4>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {cg.tieInfo.isTied && (
+                          <Badge className="bg-amber-500 text-white font-bold text-xs flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> Empate Detectado
+                          </Badge>
+                        )}
+                        {cg.hasManualRank && (
+                          <Badge className="bg-emerald-600 text-white font-bold text-xs flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Clasificados Confirmados
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-xs">
+                          {cg.completedMatchesCount}/{cg.grpMatches.length} partidos jugados
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Alerta de empate si aplica */}
+                    {cg.tieInfo.isTied && (
+                      <div className="mb-3 p-3 bg-amber-100 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 rounded-lg text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2 font-medium">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{cg.tieInfo.message}</span>
+                      </div>
+                    )}
+
+                    {/* Tabla de posiciones de la zona */}
+                    <div className="overflow-x-auto mb-4">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-400 font-bold uppercase">
+                            <th className="py-1.5 px-2">#</th>
+                            <th className="py-1.5 px-2">Pareja</th>
+                            <th className="py-1.5 px-2 text-center">Pts</th>
+                            <th className="py-1.5 px-2 text-center">PJ</th>
+                            <th className="py-1.5 px-2 text-center">PG</th>
+                            <th className="py-1.5 px-2 text-center">PP</th>
+                            <th className="py-1.5 px-2 text-center">Sets (DIF)</th>
+                            <th className="py-1.5 px-2 text-center">Games (DIF)</th>
+                            <th className="py-1.5 px-2 text-right">Pase a Cuadro</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {sorted.map((p, idx) => {
+                            const is1st = p.teamId === currentFirstId;
+                            const is2nd = p.teamId === currentSecondId;
+                            const setDiff = p.setsWon - p.setsLost;
+                            const gameDiff = p.gamesWon - p.gamesLost;
+
+                            return (
+                              <tr
+                                key={p.teamId}
+                                className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                                  is1st
+                                    ? 'bg-emerald-50/50 dark:bg-emerald-950/30 font-semibold'
+                                    : is2nd
+                                    ? 'bg-blue-50/40 dark:bg-blue-950/20 font-semibold'
+                                    : ''
+                                }`}
+                              >
+                                <td className="py-2 px-2 font-bold font-mono">
+                                  {is1st ? '🥇 1°' : is2nd ? '🥈 2°' : `${idx + 1}°`}
+                                </td>
+                                <td className="py-2 px-2">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                                    {p.team?.name || 'Pareja'}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-2 text-center font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                                  {p.points}
+                                </td>
+                                <td className="py-2 px-2 text-center font-mono text-slate-500">{p.matchesPlayed}</td>
+                                <td className="py-2 px-2 text-center font-mono text-slate-700 dark:text-slate-300">{p.matchesWon}</td>
+                                <td className="py-2 px-2 text-center font-mono text-slate-500">{p.matchesLost}</td>
+                                <td className="py-2 px-2 text-center font-mono text-slate-600 dark:text-slate-400">
+                                  {p.setsWon}-{p.setsLost} ({setDiff >= 0 ? `+${setDiff}` : setDiff})
+                                </td>
+                                <td className="py-2 px-2 text-center font-mono text-slate-600 dark:text-slate-400">
+                                  {p.gamesWon}-{p.gamesLost} ({gameDiff >= 0 ? `+${gameDiff}` : gameDiff})
+                                </td>
+                                <td className="py-2 px-2 text-right">
+                                  {is1st ? (
+                                    <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                                      Clasifica 1°
+                                    </span>
+                                  ) : is2nd ? (
+                                    <span className="bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                                      Clasifica 2°
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-[10px]">Eliminado</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* SELECTORES DE CLASIFICADOS */}
+                    <div className="bg-slate-100 dark:bg-slate-800/70 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                            🥇 1° Clasificado (Líder de Zona):
+                          </label>
+                          <select
+                            value={currentFirstId}
+                            onChange={(e) => handleSelectQualifier(grpId, e.target.value, currentSecondId)}
+                            className="w-full h-8 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
+                          >
+                            {sorted.map((p) => (
+                              <option key={p.teamId} value={p.teamId}>
+                                {p.team?.name} ({p.points} pts)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                            🥈 2° Clasificado (Segundo de Zona):
+                          </label>
+                          <select
+                            value={currentSecondId}
+                            onChange={(e) => handleSelectQualifier(grpId, currentFirstId, e.target.value)}
+                            className="w-full h-8 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
+                          >
+                            {sorted.map((p) => (
+                              <option key={p.teamId} value={p.teamId} disabled={p.teamId === currentFirstId}>
+                                {p.team?.name} ({p.points} pts){p.teamId === currentFirstId ? ' (Ya seleccionado como 1°)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <span className="text-[11px] text-slate-500">
+                          {cg.hasManualRank
+                            ? '✅ Posiciones guardadas para el armado de cuadro.'
+                            : 'Seleccioná las parejas y hacé clic en "Confirmar Clasificados".'}
+                        </span>
+                        <div className="flex gap-2">
+                          {cg.hasManualRank && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleResetQualifiers(grpId)}
+                              disabled={savingGroup === grpId}
+                              className="h-7 text-xs text-slate-600 dark:text-slate-300"
+                            >
+                              <RotateCcw className="w-3 h-3 mr-1" /> Restablecer Automático
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveQualifiers(grpId, defaultFirstId, defaultSecondId)}
+                            disabled={savingGroup === grpId || currentFirstId === currentSecondId}
+                            className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                          >
+                            <Award className="w-3.5 h-3.5 mr-1" />
+                            {savingGroup === grpId ? 'Guardando...' : 'Confirmar Clasificados'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* PARTIDOS ACTIVOS */}
       {pendingMatches.length > 0 && (
         <div>

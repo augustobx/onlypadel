@@ -35,6 +35,7 @@ export type TournamentMatchView = {
 export type TournamentPlacementView = {
   id: string;
   teamId: string;
+  rank?: number | null;
   points: number;
   matchesPlayed: number;
   matchesWon: number;
