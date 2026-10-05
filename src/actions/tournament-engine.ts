@@ -924,11 +924,18 @@ export async function moveTeamToGroup(categoryId: string, placementId: string, t
 
       const fromGroupId = placement.groupId;
 
-      // Actualizar el grupo del equipo
-      await tx.tournamentGroupTeam.update({
-        where: { id: placementId },
-        data: { groupId: targetGroupId }
+      // Verificar si ya existía algún registro en targetGroupId para este teamId
+      const targetPlacements = await tx.tournamentGroupTeam.findMany({
+        where: { groupId: targetGroupId, teamId: placement.teamId }
       });
+      if (targetPlacements.length > 0) {
+        await tx.tournamentGroupTeam.delete({ where: { id: placementId } });
+      } else {
+        await tx.tournamentGroupTeam.update({
+          where: { id: placementId },
+          data: { groupId: targetGroupId }
+        });
+      }
 
       // Regenerar partidos para los dos grupos afectados
       for (const gId of [fromGroupId, targetGroupId]) {
@@ -1153,6 +1160,26 @@ export async function syncCategoryZonesWithTeams(categoryId: string) {
         }
       }
 
+      // 2b. Garantizar unicidad: Si alguna pareja quedó en más de un grupo, mantener solo la primera aparición
+      const seenGroupTeams = new Set<string>();
+      for (const group of category.groups) {
+        for (const placement of group.teams) {
+          if (placement.team.player1.phone !== 'DUMMY_PLAZA') {
+            if (seenGroupTeams.has(placement.teamId)) {
+              await tx.tournamentGroupTeam.delete({ where: { id: placement.id } });
+              await tx.tournamentMatch.deleteMany({
+                where: {
+                  groupId: group.id,
+                  OR: [{ team1Id: placement.teamId }, { team2Id: placement.teamId }]
+                }
+              });
+            } else {
+              seenGroupTeams.add(placement.teamId);
+            }
+          }
+        }
+      }
+
       // 3. Encontrar parejas reales que no están asignadas a ninguna zona
       const assignedTeamIds = new Set<string>();
       const currentPlacements = await tx.tournamentGroupTeam.findMany({
@@ -1270,64 +1297,88 @@ export async function addTeamToSpecificGroup(categoryId: string, groupId: string
   try {
     await requireAdmin();
     await prisma.$transaction(async (tx) => {
-      // Verificar si ya está en algún grupo de la categoría
-      const existing = await tx.tournamentGroupTeam.findFirst({
+      // 1. Grupos anteriores donde estaba asignado este equipo en la categoría
+      const previousPlacements = await tx.tournamentGroupTeam.findMany({
         where: { group: { categoryId }, teamId }
       });
-      if (existing) {
-        if (existing.groupId === groupId) return;
-        await tx.tournamentGroupTeam.update({
-          where: { id: existing.id },
-          data: { groupId }
+      const previousGroupIds = previousPlacements
+        .map(p => p.groupId)
+        .filter(gId => gId !== groupId);
+
+      // Si ya está asignado ÚNICAMENTE a este grupo, no hacer nada
+      if (previousPlacements.some(p => p.groupId === groupId) && previousGroupIds.length === 0) {
+        return;
+      }
+
+      // Eliminar el equipo de todos los grupos viejos
+      if (previousGroupIds.length > 0) {
+        await tx.tournamentGroupTeam.deleteMany({
+          where: { groupId: { in: previousGroupIds }, teamId }
         });
-      } else {
+        await tx.tournamentMatch.deleteMany({
+          where: {
+            groupId: { in: previousGroupIds },
+            OR: [{ team1Id: teamId }, { team2Id: teamId }]
+          }
+        });
+      }
+
+      // Asegurar que existe el placement en el nuevo grupo
+      const existingInTarget = await tx.tournamentGroupTeam.findFirst({
+        where: { groupId, teamId }
+      });
+      if (!existingInTarget) {
         await tx.tournamentGroupTeam.create({
           data: { groupId, teamId }
         });
       }
 
-      // Reconstruir partidos del grupo
-      const placements = await tx.tournamentGroupTeam.findMany({
-        where: { groupId },
-        include: { team: true }
-      });
-      const existingMatches = await tx.tournamentMatch.findMany({
-        where: { groupId },
-        orderBy: { matchOrder: 'asc' }
-      });
-      await tx.tournamentMatch.deleteMany({ where: { groupId } });
-
-      const teams = placements.map(gp => gp.team);
-      const tArr: ({ id: string } | null)[] = [...teams];
-      if (tArr.length % 2 !== 0) tArr.push(null);
-      const n = tArr.length;
-      const matches: { t1: { id: string }; t2: { id: string }; round: number }[] = [];
-      for (let round = 0; round < n - 1; round++) {
-        for (let i = 0; i < n / 2; i++) {
-          const t1 = tArr[i];
-          const t2 = tArr[n - 1 - i];
-          if (t1 && t2) matches.push({ t1, t2, round: round + 1 });
-        }
-        tArr.splice(1, 0, tArr.pop()!);
-      }
-      let matchIndex = 0;
-      for (const m of matches) {
-        const prev = existingMatches[matchIndex];
-        await tx.tournamentMatch.create({
-          data: {
-            categoryId,
-            groupId,
-            round: m.round,
-            matchOrder: matchIndex + 1,
-            team1Id: m.t1.id,
-            team2Id: m.t2.id,
-            roundName: `Zona - Fecha ${m.round}`,
-            startTime: prev?.startTime || null,
-            courtId: prev?.courtId || null,
-            status: 'SCHEDULED'
-          }
+      // Reconstruir partidos para todos los grupos afectados (anteriores + nuevo)
+      const allAffectedGroupIds = Array.from(new Set([...previousGroupIds, groupId]));
+      for (const gId of allAffectedGroupIds) {
+        const placements = await tx.tournamentGroupTeam.findMany({
+          where: { groupId: gId },
+          include: { team: true }
         });
-        matchIndex++;
+        const existingMatches = await tx.tournamentMatch.findMany({
+          where: { groupId: gId },
+          orderBy: { matchOrder: 'asc' }
+        });
+        await tx.tournamentMatch.deleteMany({ where: { groupId: gId } });
+
+        const teams = placements.map(gp => gp.team);
+        const tArr: ({ id: string } | null)[] = [...teams];
+        if (tArr.length % 2 !== 0) tArr.push(null);
+        const n = tArr.length;
+        const matches: { t1: { id: string }; t2: { id: string }; round: number }[] = [];
+        for (let round = 0; round < n - 1; round++) {
+          for (let i = 0; i < n / 2; i++) {
+            const t1 = tArr[i];
+            const t2 = tArr[n - 1 - i];
+            if (t1 && t2) matches.push({ t1, t2, round: round + 1 });
+          }
+          tArr.splice(1, 0, tArr.pop()!);
+        }
+
+        let matchIndex = 0;
+        for (const m of matches) {
+          const prev = existingMatches[matchIndex];
+          await tx.tournamentMatch.create({
+            data: {
+              categoryId,
+              groupId: gId,
+              round: m.round,
+              matchOrder: matchIndex + 1,
+              team1Id: m.t1.id,
+              team2Id: m.t2.id,
+              roundName: `Zona - Fecha ${m.round}`,
+              startTime: prev?.startTime || null,
+              courtId: prev?.courtId || null,
+              status: 'SCHEDULED'
+            }
+          });
+          matchIndex++;
+        }
       }
     });
 
@@ -1440,6 +1491,25 @@ export async function createDirectTeamInGroup(params: {
       });
     } else if (!u2.category) {
       await prisma.user.update({ where: { id: u2.id }, data: { category: p2Cat } });
+    }
+
+    // Verificar que ninguno de los dos jugadores esté ya inscripto en otra pareja de esta categoría
+    const existingPlayerTeam = await prisma.tournamentTeam.findFirst({
+      where: {
+        categoryId,
+        NOT: { player1: { phone: 'DUMMY_PLAZA' } },
+        OR: [
+          { player1Id: u1.id },
+          { player2Id: u1.id },
+          { player1Id: u2.id },
+          { player2Id: u2.id },
+          { phone1: { in: [p1Phone, p2Phone] } },
+          { phone2: { in: [p1Phone, p2Phone] } },
+        ]
+      }
+    });
+    if (existingPlayerTeam) {
+      return { success: false, error: 'Uno o ambos jugadores ya están inscriptos en otra pareja de esta categoría.' };
     }
 
     const computedTeamName = teamName?.trim() || `${p1Name} / ${p2Name}`;
