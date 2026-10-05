@@ -1,5 +1,6 @@
 import { getTournaments } from "@/actions/tournaments";
 import TournamentFormModal from "@/components/TournamentFormModal";
+import TournamentWizardModal from "@/components/TournamentWizardModal";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,9 +23,15 @@ export default async function TournamentsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Gestión de Torneos</h1>
-        <TournamentFormModal />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Gestión de Torneos</h1>
+          <p className="text-xs text-slate-500 mt-1">Crea y administra torneos, zonas, horarios y llaves eliminatorias.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <TournamentWizardModal />
+          <TournamentFormModal />
+        </div>
       </div>
 
       <Card>

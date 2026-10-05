@@ -6,6 +6,8 @@ import { getAdminSession } from '@/lib/admin-auth';
 import { getUserSession } from '@/actions/user-auth';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
+import { validatePairCategory } from '@/lib/tournaments/category-rules';
 
 const registrationSchema = z.object({
   teamId: z.string().optional().nullable().or(z.literal('')),
@@ -19,6 +21,8 @@ const registrationSchema = z.object({
   player2Dni: z.string().trim().max(30).optional().nullable().or(z.literal('')),
   player2Phone: z.string().trim().max(30).optional().nullable().or(z.literal('')),
   player2UserId: z.string().optional().nullable().or(z.literal('')),
+  player2Category: z.string().optional().nullable().or(z.literal('')),
+  preferredGroupId: z.string().optional().nullable().or(z.literal('')),
 }).refine((data) => Boolean((data.player2UserId && data.player2UserId.length > 0) || (data.player2Phone && data.player2Phone.trim().length >= 6)), {
   message: 'Ingresá el teléfono del segundo jugador',
 }).refine((data) => !data.player2Phone || data.player2Phone.trim().length === 0 || normalizePhoneForWhatsApp(data.player1Phone) !== normalizePhoneForWhatsApp(data.player2Phone), {
@@ -50,7 +54,7 @@ export async function getTournamentDetails(id: string) {
           include: {
             teams: { include: { player1: true, player2: true } },
             matches: {
-              include: { team1: true, team2: true, winner: true },
+              include: { team1: true, team2: true, winner: true, court: true },
               orderBy: [{ round: 'desc' }, { matchOrder: 'asc' }]
             },
             groups: {
@@ -64,13 +68,44 @@ export async function getTournamentDetails(id: string) {
       }
     });
     if (tournament) {
+      const userSession = await getUserSession();
+      const currentUserId = userSession?.id;
+
       for (const category of tournament.categories) {
+        // Regla de privacidad: si las zonas aún NO están publicadas (isZonesPublished = false)
+        // los nombres de parejas rivales NO se revelan al público ni al inscribirse.
+        const hideRivalNames = !category.isZonesPublished;
+
         for (const team of category.teams) {
-          if (team.player1.phone !== 'DUMMY_PLAZA') team.player1.phone = null;
+          if (team.player1.phone !== 'DUMMY_PLAZA') {
+            team.player1.phone = null;
+            if (team.player2) team.player2.phone = null;
+          }
+          if (hideRivalNames && team.player1.phone !== 'DUMMY_PLAZA') {
+            const isOwnTeam = currentUserId && (team.player1Id === currentUserId || team.player2Id === currentUserId);
+            if (!isOwnTeam) {
+              team.name = 'Plaza Reservada';
+              if (team.player1) { team.player1.name = 'Jugador'; team.player1.lastName = 'Inscripto'; }
+              if (team.player2) { team.player2.name = 'Jugador'; team.player2.lastName = 'Inscripto'; }
+            }
+          }
         }
+
         for (const group of category.groups) {
           for (const placement of group.teams) {
-            if (placement.team.player1.phone !== 'DUMMY_PLAZA') placement.team.player1.phone = null;
+            const isDummy = placement.team.player1.phone === 'DUMMY_PLAZA';
+            if (!isDummy) {
+              placement.team.player1.phone = null;
+              if (placement.team.player2) placement.team.player2.phone = null;
+            }
+            if (hideRivalNames && !isDummy) {
+              const isOwnTeam = currentUserId && (placement.team.player1Id === currentUserId || placement.team.player2Id === currentUserId);
+              if (!isOwnTeam) {
+                placement.team.name = 'Plaza Reservada';
+                if (placement.team.player1) { placement.team.player1.name = 'Jugador'; placement.team.player1.lastName = 'Inscripto'; }
+                if (placement.team.player2) { placement.team.player2.name = 'Jugador'; placement.team.player2.lastName = 'Inscripto'; }
+              }
+            }
           }
         }
       }
@@ -181,7 +216,8 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
             dni: p1Dni,
             phone: phone1,
             role: 'PLAYER',
-            password: null,
+            password: await bcrypt.hash('12345678', 10),
+            category: '8va',
           }
         });
       } else {
@@ -214,7 +250,6 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
         });
       }
       if (!p2) {
-        // Crear usuario automático con clave en blanco para que quede en el sistema
         p2 = await tx.user.create({
           data: {
             name: data.player2Name,
@@ -222,7 +257,8 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
             dni: p2Dni,
             phone: phone2 || null,
             role: 'PLAYER',
-            password: null,
+            category: data.player2Category || category.baseCategory || '8va',
+            password: await bcrypt.hash('12345678', 10),
           }
         });
       } else {
@@ -230,8 +266,39 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
         if (p2Dni && !p2.dni) updates.dni = p2Dni;
         if (data.player2LastName && !p2.lastName) updates.lastName = data.player2LastName;
         if (phone2 && !p2.phone) updates.phone = phone2;
+        if (data.player2Category && !p2.category) updates.category = data.player2Category;
         if (Object.keys(updates).length > 0) {
           p2 = await tx.user.update({ where: { id: p2.id }, data: updates });
+        }
+      }
+
+      // --- CONTROL ESTRICTO DE CATEGORÍAS ---
+      const p1Category = p1.category || '8va';
+      const p2Category = p2.category || data.player2Category || '8va';
+
+      const validation = validatePairCategory(
+        category.categoryType || 'CATEGORIA_UNICA',
+        category.baseCategory || category.name,
+        category.targetSum,
+        p1Category,
+        p2Category
+      );
+
+      if (!validation.valid) {
+        throw new Error(`CATEGORY_INVALID:${validation.error || 'Nivel de categoría no permitido'}`);
+      }
+
+      // Si seleccionó una zona preferida y no tenía placeholder directo
+      if (!placeholder && data.preferredGroupId) {
+        const freeSlot = await tx.tournamentGroupTeam.findFirst({
+          where: {
+            groupId: data.preferredGroupId,
+            team: { player1: { phone: 'DUMMY_PLAZA' } }
+          },
+          include: { team: true }
+        });
+        if (freeSlot) {
+          placeholder = freeSlot.team;
         }
       }
 
@@ -259,6 +326,7 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
   } catch (error) {
     console.error(error);
     if (error instanceof Error) {
+      if (error.message.startsWith('CATEGORY_INVALID:')) return { success: false, error: error.message.replace('CATEGORY_INVALID:', '') };
       if (error.message === 'PLAYER_ALREADY_REGISTERED') return { success: false, error: 'Uno de los jugadores ya está inscripto en esta categoría' };
       if (error.message === 'INVALID_SLOT') return { success: false, error: 'La plaza seleccionada ya no está disponible' };
       if (error.message === 'TOURNAMENT_FULL') return { success: false, error: 'Se alcanzó el cupo máximo de parejas' };
@@ -292,6 +360,7 @@ export async function searchRegisteredUsers(query: string) {
         lastName: true,
         dni: true,
         phone: true,
+        category: true,
       },
       take: 8
     });

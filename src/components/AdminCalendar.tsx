@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AdminPlayerPicker, { AdminPlayer } from './AdminPlayerPicker';
 
 export default function AdminCalendar({ courts, initialDate, highlightBookingId, hideToolbar = false }: { courts: any[], initialDate?: string, highlightBookingId?: string, hideToolbar?: boolean }) {
     const [selectedCourt, setSelectedCourt] = useState('ALL');
@@ -20,6 +21,7 @@ export default function AdminCalendar({ courts, initialDate, highlightBookingId,
     const [submitting, setSubmitting] = useState(false);
     const [slotData, setSlotData] = useState<{ courtId: string, courtName: string, time: string, endTime: string } | null>(null);
     const [formData, setFormData] = useState({ clientName: '', clientPhone: '', type: 'RESERVA' as 'RESERVA' | 'BLOQUEO' | 'FIJO' });
+    const [selectedPlayer, setSelectedPlayer] = useState<AdminPlayer | null>(null);
 
     const loadData = async () => {
         setLoading(true);
@@ -57,12 +59,19 @@ export default function AdminCalendar({ courts, initialDate, highlightBookingId,
     const openModal = (courtId: string, courtName: string, time: string, endTime: string) => {
         setSlotData({ courtId, courtName, time, endTime });
         setFormData({ clientName: '', clientPhone: '', type: 'RESERVA' });
+        setSelectedPlayer(null);
         setModalOpen(true);
     };
 
     const handleManualSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!slotData) return;
+
+        if (formData.type !== 'BLOQUEO' && !selectedPlayer) {
+            alert('Debes buscar o registrar un cliente con cuenta en el sistema.');
+            return;
+        }
+
         setSubmitting(true);
 
         const res = await createAdminBooking({
@@ -71,12 +80,14 @@ export default function AdminCalendar({ courts, initialDate, highlightBookingId,
             startTimeStr: slotData.time,
             endTimeStr: slotData.endTime,
             type: formData.type,
-            clientName: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? formData.clientName : undefined,
-            clientPhone: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? formData.clientPhone : undefined,
+            userId: selectedPlayer?.id,
+            clientName: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? `${selectedPlayer?.name || ''} ${selectedPlayer?.lastName || ''}`.trim() : undefined,
+            clientPhone: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? selectedPlayer?.phone || undefined : undefined,
         });
 
         if (res.success) {
             setModalOpen(false);
+            setSelectedPlayer(null);
             loadData();
         } else {
             alert(res.error);
@@ -268,14 +279,18 @@ export default function AdminCalendar({ courts, initialDate, highlightBookingId,
 
                             {(formData.type === 'RESERVA' || formData.type === 'FIJO') && (
                                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 mt-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="clientName">Nombre / Equipo</Label>
-                                        <Input id="clientName" required placeholder="Ej: Juan Pérez / Los Pibes" value={formData.clientName} onChange={e => setFormData({ ...formData, clientName: e.target.value })} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="clientPhone">WhatsApp (Opcional)</Label>
-                                        <Input id="clientPhone" placeholder="Ej: 3329..." value={formData.clientPhone} onChange={e => setFormData({ ...formData, clientPhone: e.target.value })} />
-                                    </div>
+                                    <AdminPlayerPicker
+                                        selectedPlayer={selectedPlayer}
+                                        onSelect={(p) => {
+                                            setSelectedPlayer(p);
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                clientName: p ? `${p.name} ${p.lastName || ''}`.trim() : '',
+                                                clientPhone: p?.phone || ''
+                                            }));
+                                        }}
+                                        required
+                                    />
                                 </div>
                             )}
 

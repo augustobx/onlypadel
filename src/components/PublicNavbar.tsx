@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { BadgeCheck, BarChart3, CalendarDays, CalendarSearch, Trophy, User, Users2 } from 'lucide-react';
+import CategoryRequiredModal from '@/components/CategoryRequiredModal';
 
 type PublicNavbarSettings = {
   topbarName?: string | null;
@@ -31,6 +32,7 @@ export default function PublicNavbar({
 
   return (
     <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 md:rounded-t-[2.5rem] relative z-20">
+      <CategoryRequiredModal />
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">

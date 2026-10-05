@@ -600,6 +600,9 @@ model TournamentCategory {
   level            Int?
   format           TournamentFormat?
   isZonesPublished Boolean           @default(false)
+  categoryType     String            @default("CATEGORIA_UNICA") @db.VarChar(30)
+  baseCategory     String?           @db.VarChar(20)
+  targetSum        Int?
   teams            TournamentTeam[]
   matches          TournamentMatch[]
   groups           TournamentGroup[]
@@ -621,9 +624,10 @@ model TournamentTeam {
   player2    User?              @relation("Player2", fields: [player2Id], references: [id], map: "TournamentTeam_player2Id_fkey")
   isPaid     Boolean            @default(false)
 
-  phone1    String?
-  phone2    String?
-  paymentId String?
+  phone1           String?
+  phone2           String?
+  paymentId        String?
+  preferredGroupId String?            @db.VarChar(191)
 
   matchesAsTeam1  TournamentMatch[]     @relation("MatchTeam1")
   matchesAsTeam2  TournamentMatch[]     @relation("MatchTeam2")

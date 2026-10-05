@@ -14,6 +14,7 @@ import TournamentTeamsModal from './TournamentTeamsModal';
 import TournamentZonesGeneratorModal from './TournamentZonesGeneratorModal';
 import TournamentZonesView from './TournamentZonesView';
 import TournamentBracketView from './TournamentBracketView';
+import TournamentWizardModal from './TournamentWizardModal';
 import { Trash2, Zap, Users, Settings, LayoutGrid, Trophy, PlayCircle, MonitorPlay, Bot, Edit2, Check, X, Clock } from 'lucide-react';
 import type { TournamentView } from '@/lib/tournaments/types';
 
@@ -203,8 +204,29 @@ export default function TournamentManager({ tournament }: { tournament: Tourname
                 </div>
               )}
 
-              <div className="mt-8 p-5 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Añadir nueva categoría</p>
+              <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-2xl border border-emerald-200 dark:border-emerald-800">
+                <div>
+                  <h4 className="font-bold text-sm text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Asistente Inteligente de Categoría
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Genera zonas, plazas y horarios automáticos para una nueva categoría en este torneo.
+                  </p>
+                </div>
+                <TournamentWizardModal 
+                  tournamentId={tournament.id} 
+                  tournamentName={tournament.name}
+                  triggerButton={
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 whitespace-nowrap shadow-sm">
+                      <Zap className="w-4 h-4 text-yellow-300" /> + Crear con Asistente
+                    </Button>
+                  }
+                />
+              </div>
+
+              <div className="mt-4 p-5 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">O añadir categoría manualmente</p>
                 <div className="flex gap-3">
                   <Input
                     placeholder="Ej: 5ta Libre, 7ma Masculina, Mixto..."

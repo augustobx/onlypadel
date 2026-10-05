@@ -37,6 +37,8 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
     player2Dni: '',
     player2Phone: '',
     player2UserId: '',
+    player2Category: '8va',
+    preferredGroupId: '',
   });
 
   const [selectedTeamId, setSelectedTeamId] = useState('');
@@ -73,6 +75,7 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
       player2Dni: user.dni || '',
       player2Phone: user.phone || '',
       player2UserId: user.id,
+      player2Category: (user as any).category || '8va',
     }));
     setP2SearchQuery('');
     setShowP2Dropdown(false);
@@ -234,12 +237,19 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
                           }`}
                         >
                           <div className="flex justify-between items-start mb-3">
-                            <p className={`font-bold text-lg ${isLibre ? 'text-white' : 'text-slate-500 line-through'}`}>{t.name}</p>
+                            <div>
+                              <p className={`font-black text-sm ${isLibre ? 'text-white' : 'text-slate-400'}`}>
+                                {isLibre ? '⚡ Horario Disponible' : '🔒 Horario / Plaza Reservada'}
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                {isLibre ? 'Podés reservar este cupo para tu pareja' : 'Este turno ya fue tomado por otra pareja'}
+                              </p>
+                            </div>
                             {!isLibre && (
-                              <span className="text-xs font-bold text-red-400 bg-red-400/10 px-2 py-1 rounded-md uppercase tracking-wider">Ocupada</span>
+                              <span className="text-[10px] font-bold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">Ocupado</span>
                             )}
                             {isLibre && selectedTeamId === t.id && (
-                              <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md uppercase tracking-wider">Tu Elección</span>
+                              <span className="text-[10px] font-black text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Tu Elección</span>
                             )}
                           </div>
                           
@@ -265,15 +275,16 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
                               variant={selectedTeamId === t.id ? 'default' : 'secondary'}
                               className={`w-full font-bold ${
                                 selectedTeamId === t.id 
-                                ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
+                                ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-md' 
                                 : 'bg-slate-700 hover:bg-slate-600 text-white'
                               }`}
                               onClick={() => {
                                 setSelectedTeamId(t.id);
+                                setFormData(prev => ({ ...prev, preferredGroupId: group.id }));
                                 setTimeout(() => playersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
                               }}
                             >
-                              {selectedTeamId === t.id ? 'Plaza Seleccionada ✓' : 'Elegir esta Plaza'}
+                              {selectedTeamId === t.id ? '✓ Horario Elegido' : 'Elegir este Horario'}
                             </Button>
                           )}
                         </div>
@@ -371,6 +382,9 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
                   <div className="font-bold text-white text-sm flex items-center gap-1.5">
                     <Check className="w-4 h-4 text-blue-400" />
                     {selectedP2User.name} {selectedP2User.lastName}
+                    <span className="ml-1 text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                      🏆 {(selectedP2User as any).category || '8va'}
+                    </span>
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5">
                     {selectedP2User.dni ? `DNI: ${selectedP2User.dni}` : ''} {selectedP2User.phone ? `• Tel: ${selectedP2User.phone}` : ''}
@@ -478,6 +492,24 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
                         placeholder="3329..."
                       />
                     </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-slate-300 text-[11px] font-bold">Categoría de Juego *</Label>
+                    <select
+                      value={formData.player2Category}
+                      onChange={e => setFormData({ ...formData, player2Category: e.target.value })}
+                      className="w-full h-9 rounded-lg bg-slate-700/50 border border-slate-600 text-white text-xs px-2.5 font-bold outline-none"
+                      required
+                    >
+                      <option value="8va">8va (Iniciación / Principiante)</option>
+                      <option value="7ma">7ma (Intermedio Inicial)</option>
+                      <option value="6ta">6ta (Intermedio)</option>
+                      <option value="5ta">5ta (Intermedio Alto)</option>
+                      <option value="4ta">4ta (Avanzado)</option>
+                      <option value="3ra">3ra (Competitivo)</option>
+                      <option value="2da">2da (Semi-Profesional)</option>
+                      <option value="1ra">1ra (Profesional / Elite)</option>
+                    </select>
                   </div>
                 </div>
               </div>

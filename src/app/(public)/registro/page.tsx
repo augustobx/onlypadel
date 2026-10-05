@@ -79,6 +79,29 @@ export default function RegistroPage() {
 
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <span className="text-amber-500">🏆</span> Categoría de Juego <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            name="category"
+                            required
+                            defaultValue=""
+                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="" disabled>Selecciona tu categoría oficial...</option>
+                            <option value="8va">8va (Iniciación / Principiante)</option>
+                            <option value="7ma">7ma (Intermedio Inicial)</option>
+                            <option value="6ta">6ta (Intermedio)</option>
+                            <option value="5ta">5ta (Intermedio Alto)</option>
+                            <option value="4ta">4ta (Avanzado)</option>
+                            <option value="3ra">3ra (Competitivo)</option>
+                            <option value="2da">2da (Semi-Profesional)</option>
+                            <option value="1ra">1ra (Profesional / Elite)</option>
+                        </select>
+                        <p className="text-[11px] text-slate-400">La categoría es obligatoria para tu perfil y participación en torneos oficiales.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                             <Lock className="w-4 h-4 text-slate-400" /> Contraseña
                         </label>
                         <input type="password" name="password" required placeholder="Crea una contraseña" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />

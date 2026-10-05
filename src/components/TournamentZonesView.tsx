@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { 
   Clock, Edit2, ArrowRightLeft, Globe, EyeOff, Check, X, 
-  ChevronUp, ChevronDown, RefreshCw, UserPlus, AlertTriangle, Users 
+  ChevronUp, ChevronDown, RefreshCw, UserPlus, AlertTriangle, Users, Trash2, Plus 
 } from 'lucide-react';
 import { 
   togglePublishZones, 
@@ -17,9 +17,12 @@ import {
   reorderTeamsInGroup,
   syncCategoryZonesWithTeams,
   addTeamToSpecificGroup,
+  createDirectTeamInGroup,
+  deleteTeam,
   updateMatchTimeAndCourt 
 } from '@/actions/tournament-engine';
 import { getCourts } from '@/actions/courts';
+import { VALID_CATEGORIES } from '@/lib/tournaments/category-rules';
 import TournamentZonesGeneratorModal from './TournamentZonesGeneratorModal';
 import type { TournamentCategoryView, TournamentGroupView, CourtView } from '@/lib/tournaments/types';
 import { format } from 'date-fns';
@@ -45,9 +48,19 @@ export default function TournamentZonesView({
   const [movingPlacement, setMovingPlacement] = useState<{ id: string; teamName: string; currentGroupId: string } | null>(null);
   const [targetGroupId, setTargetGroupId] = useState('');
 
-  // Estados para asignar equipo específico a una zona
+  // Estados para asignar o crear equipo específico en una zona
   const [assigningGroup, setAssigningGroup] = useState<TournamentGroupView | null>(null);
+  const [addTeamMode, setAddTeamMode] = useState<'unassigned' | 'direct'>('direct');
   const [selectedUnassignedTeamId, setSelectedUnassignedTeamId] = useState<string>('');
+  const [directTeamData, setDirectTeamData] = useState({
+    teamName: '',
+    p1Name: '',
+    p1Phone: '',
+    p1Cat: (category.baseCategory as string) || '7ma',
+    p2Name: '',
+    p2Phone: '',
+    p2Cat: (category.baseCategory as string) || '7ma',
+  });
 
   // Estados para editar partido
   const [editingMatch, setEditingMatch] = useState<{
@@ -176,6 +189,55 @@ export default function TournamentZonesView({
       onRefresh();
     } else {
       alert(res.error || 'Error al asignar pareja a la zona');
+    }
+    setLoading(null);
+  };
+
+  // 6b. Crear pareja directa en la zona
+  const handleCreateDirectTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assigningGroup) return;
+    setLoading('create_direct_team');
+    const res = await createDirectTeamInGroup({
+      categoryId: category.id,
+      groupId: assigningGroup.id,
+      teamName: directTeamData.teamName || undefined,
+      player1Name: directTeamData.p1Name,
+      player1Phone: directTeamData.p1Phone,
+      player1Category: directTeamData.p1Cat,
+      player2Name: directTeamData.p2Name,
+      player2Phone: directTeamData.p2Phone,
+      player2Category: directTeamData.p2Cat,
+    });
+    if (res.success) {
+      setAssigningGroup(null);
+      setDirectTeamData({
+        teamName: '',
+        p1Name: '',
+        p1Phone: '',
+        p1Cat: (category.baseCategory as string) || '7ma',
+        p2Name: '',
+        p2Phone: '',
+        p2Cat: (category.baseCategory as string) || '7ma',
+      });
+      setFeedback({ text: '¡Pareja registrada exitosamente en la zona y fixture actualizado!', type: 'success' });
+      onRefresh();
+    } else {
+      alert(res.error || 'Error al crear la pareja en la zona');
+    }
+    setLoading(null);
+  };
+
+  // 6c. Eliminar pareja de la zona
+  const handleDeleteTeam = async (teamId: string, teamName: string) => {
+    if (!confirm(`¿Eliminar a la pareja "${teamName}"? Se actualizará el fixture de la zona.`)) return;
+    setLoading(`del_${teamId}`);
+    const res = await deleteTeam(teamId);
+    if (res.success) {
+      setFeedback({ text: `Pareja "${teamName}" eliminada correctamente.`, type: 'success' });
+      onRefresh();
+    } else {
+      alert(res.error || 'Error al eliminar pareja');
     }
     setLoading(null);
   };
@@ -375,18 +437,17 @@ export default function TournamentZonesView({
 
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold text-slate-400">{g.teams.length} parejas</span>
-                    {unassignedTeams.length > 0 && (
-                      <button
-                        onClick={() => {
-                          setAssigningGroup(g);
-                          setSelectedUnassignedTeamId(unassignedTeams[0].id);
-                        }}
-                        className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-lg flex items-center gap-1 hover:bg-emerald-100"
-                        title="Asignar pareja inscripta a esta zona"
-                      >
-                        <UserPlus className="w-3 h-3" /> + Pareja
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        setAssigningGroup(g);
+                        setSelectedUnassignedTeamId(unassignedTeams[0]?.id || '');
+                        setAddTeamMode(unassignedTeams.length > 0 ? 'unassigned' : 'direct');
+                      }}
+                      className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-lg flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                      title="Agregar pareja a esta zona"
+                    >
+                      <UserPlus className="w-3 h-3" /> + Pareja
+                    </button>
                   </div>
                 </div>
 
@@ -401,7 +462,7 @@ export default function TournamentZonesView({
                     const otherGroups = category.groups.filter(x => x.id !== g.id);
                     return (
                       <div key={gt.id} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 px-3 py-2 rounded-xl text-xs border border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-2 max-w-[55%]">
+                        <div className="flex items-center gap-2 max-w-[50%]">
                           {/* BOTONES SUBIR Y BAJAR POSICIÓN */}
                           <div className="flex flex-col gap-0.5">
                             <button
@@ -427,7 +488,7 @@ export default function TournamentZonesView({
                           </span>
                         </div>
                         
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <Badge variant="secondary" className="font-mono text-[10px]">{gt.points || 0} pts</Badge>
                           {otherGroups.length > 0 && (
                             <button
@@ -441,6 +502,14 @@ export default function TournamentZonesView({
                               <ArrowRightLeft className="w-3 h-3" /> Mover
                             </button>
                           )}
+                          <button
+                            onClick={() => handleDeleteTeam(gt.teamId, gt.team?.name || 'Pareja')}
+                            disabled={loading === `del_${gt.teamId}`}
+                            className="inline-flex items-center text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 p-1.5 rounded-lg transition-colors border border-red-200 dark:border-red-800/60"
+                            title="Eliminar pareja de la zona"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     );
@@ -552,43 +621,176 @@ export default function TournamentZonesView({
         </Dialog>
       )}
 
-      {/* MODAL ASIGNAR PAREJA A ZONA ESPECÍFICA */}
+      {/* MODAL AGREGAR / ASIGNAR PAREJA A ZONA */}
       {assigningGroup && (
         <Dialog open={Boolean(assigningGroup)} onOpenChange={() => setAssigningGroup(null)}>
-          <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+          <DialogContent className="max-w-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
             <DialogHeader>
-              <DialogTitle className="text-lg font-bold">Asignar Pareja a {assigningGroup.name}</DialogTitle>
+              <DialogTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-emerald-500" />
+                Agregar Pareja a {assigningGroup.name}
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500">Seleccionar Pareja Inscripta</Label>
-                <select
-                  value={selectedUnassignedTeamId}
-                  onChange={e => setSelectedUnassignedTeamId(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl bg-slate-50 dark:bg-slate-800 text-sm font-bold"
-                >
-                  {unassignedTeams.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name || `${t.player1?.name} / ${t.player2?.name || ''}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border">
-                Al incorporar esta pareja a la zona, el fixture y cruces de <strong>{assigningGroup.name}</strong> se regenerarán automáticamente.
-              </p>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setAssigningGroup(null)}>Cancelar</Button>
-                <Button 
-                  size="sm" 
-                  onClick={handleAddTeamToGroup} 
-                  disabled={loading === 'add_team_group' || !selectedUnassignedTeamId}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                >
-                  {loading === 'add_team_group' ? 'Asignando...' : 'Asignar a Zona'}
-                </Button>
-              </div>
+
+            {/* TABS DE MODO */}
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAddTeamMode('direct')}
+                className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                  addTeamMode === 'direct'
+                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+                }`}
+              >
+                + Crear Nueva Pareja
+              </button>
+              <button
+                type="button"
+                disabled={unassignedTeams.length === 0}
+                onClick={() => setAddTeamMode('unassigned')}
+                className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                  addTeamMode === 'unassigned'
+                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    : unassignedTeams.length === 0
+                      ? 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
+                      : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+                }`}
+              >
+                Inscriptos Libres ({unassignedTeams.length})
+              </button>
             </div>
+
+            {addTeamMode === 'unassigned' ? (
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500">Seleccionar Pareja Inscripta</Label>
+                  <select
+                    value={selectedUnassignedTeamId}
+                    onChange={e => setSelectedUnassignedTeamId(e.target.value)}
+                    className="w-full p-2.5 border rounded-xl bg-slate-50 dark:bg-slate-800 text-sm font-bold"
+                  >
+                    {unassignedTeams.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name || `${t.player1?.name} / ${t.player2?.name || ''}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border">
+                  Al incorporar esta pareja a la zona, el fixture y cruces de <strong>{assigningGroup.name}</strong> se regenerarán automáticamente.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" size="sm" onClick={() => setAssigningGroup(null)}>Cancelar</Button>
+                  <Button 
+                    size="sm" 
+                    onClick={handleAddTeamToGroup} 
+                    disabled={loading === 'add_team_group' || !selectedUnassignedTeamId}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  >
+                    {loading === 'add_team_group' ? 'Asignando...' : 'Asignar a Zona'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateDirectTeam} className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-500">Nombre de la Pareja (Opcional)</Label>
+                  <Input
+                    placeholder="Ej: González / Pérez"
+                    value={directTeamData.teamName}
+                    onChange={e => setDirectTeamData(prev => ({ ...prev, teamName: e.target.value }))}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                {/* JUGADOR 1 */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                  <p className="text-[11px] font-black uppercase text-emerald-600 dark:text-emerald-400">Jugador 1</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-slate-400">Nombre Completo</Label>
+                      <Input
+                        required
+                        placeholder="Nombre y Apellido"
+                        value={directTeamData.p1Name}
+                        onChange={e => setDirectTeamData(prev => ({ ...prev, p1Name: e.target.value }))}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-slate-400">Teléfono WhatsApp</Label>
+                      <Input
+                        required
+                        placeholder="Ej: 3794123456"
+                        value={directTeamData.p1Phone}
+                        onChange={e => setDirectTeamData(prev => ({ ...prev, p1Phone: e.target.value }))}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-400">Categoría Obligatoria</Label>
+                    <select
+                      value={directTeamData.p1Cat}
+                      onChange={e => setDirectTeamData(prev => ({ ...prev, p1Cat: e.target.value }))}
+                      className="w-full h-8 px-2 text-xs rounded-lg border bg-white dark:bg-slate-900 font-bold"
+                    >
+                      {VALID_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* JUGADOR 2 */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                  <p className="text-[11px] font-black uppercase text-emerald-600 dark:text-emerald-400">Jugador 2</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-slate-400">Nombre Completo</Label>
+                      <Input
+                        required
+                        placeholder="Nombre y Apellido"
+                        value={directTeamData.p2Name}
+                        onChange={e => setDirectTeamData(prev => ({ ...prev, p2Name: e.target.value }))}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-slate-400">Teléfono WhatsApp</Label>
+                      <Input
+                        required
+                        placeholder="Ej: 3794987654"
+                        value={directTeamData.p2Phone}
+                        onChange={e => setDirectTeamData(prev => ({ ...prev, p2Phone: e.target.value }))}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-400">Categoría Obligatoria</Label>
+                    <select
+                      value={directTeamData.p2Cat}
+                      onChange={e => setDirectTeamData(prev => ({ ...prev, p2Cat: e.target.value }))}
+                      className="w-full h-8 px-2 text-xs rounded-lg border bg-white dark:bg-slate-900 font-bold"
+                    >
+                      {VALID_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setAssigningGroup(null)}>Cancelar</Button>
+                  <Button 
+                    type="submit" 
+                    size="sm" 
+                    disabled={loading === 'create_direct_team'}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  >
+                    {loading === 'create_direct_team' ? 'Guardando...' : 'Crear Pareja en Zona'}
+                  </Button>
+                </div>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
       )}

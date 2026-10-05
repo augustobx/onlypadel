@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AdminPlayerPicker, { AdminPlayer } from './AdminPlayerPicker';
 
 export type CalendarViewMode = 'day' | 'week' | 'month';
 
@@ -121,6 +122,9 @@ export default function AdminInteractiveCalendar({
     amountPaid: 0,
   });
 
+  const [selectedPlayer, setSelectedPlayer] = useState<AdminPlayer | null>(null);
+  const [fastSelectedPlayer, setFastSelectedPlayer] = useState<AdminPlayer | null>(null);
+
   const formattedCurrentDate = useMemo(() => format(currentDate, 'yyyy-MM-dd'), [currentDate]);
 
   // Load Data based on active view
@@ -183,12 +187,19 @@ export default function AdminInteractiveCalendar({
   const openNewBookingModal = (courtId: string, courtName: string, dateStr: string, time: string, endTime: string) => {
     setSlotData({ courtId, courtName, dateStr, time, endTime });
     setFormData({ clientName: '', clientPhone: '', type: 'RESERVA', paymentMethod: 'CASH', amountPaid: 0 });
+    setSelectedPlayer(null);
     setModalOpen(true);
   };
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!slotData) return;
+
+    if (formData.type !== 'BLOQUEO' && !selectedPlayer) {
+      alert('Debes buscar o registrar un cliente con cuenta en el sistema. No se permite cargar turnos con clientes anónimos.');
+      return;
+    }
+
     setSubmitting(true);
 
     const res = await createAdminBooking({
@@ -197,14 +208,16 @@ export default function AdminInteractiveCalendar({
       startTimeStr: slotData.time,
       endTimeStr: slotData.endTime,
       type: formData.type,
-      clientName: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? formData.clientName : undefined,
-      clientPhone: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? formData.clientPhone : undefined,
+      userId: selectedPlayer?.id,
+      clientName: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? `${selectedPlayer?.name || ''} ${selectedPlayer?.lastName || ''}`.trim() : formData.clientName,
+      clientPhone: (formData.type === 'RESERVA' || formData.type === 'FIJO') ? selectedPlayer?.phone || undefined : undefined,
       paymentMethod: formData.type === 'RESERVA' ? formData.paymentMethod : undefined,
       amountPaid: formData.type === 'RESERVA' ? Number(formData.amountPaid) || 0 : undefined,
     });
 
     if (res.success) {
       setModalOpen(false);
+      setSelectedPlayer(null);
       loadData();
     } else {
       alert(res.error || 'No se pudo guardar la reserva.');
@@ -214,7 +227,13 @@ export default function AdminInteractiveCalendar({
 
   const handleFastBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fastForm.courtId || !fastForm.clientName) return;
+    if (!fastForm.courtId) return;
+
+    if (!fastSelectedPlayer) {
+      alert('Debes buscar o registrar un cliente en el sistema antes de confirmar el turno.');
+      return;
+    }
+
     setSubmitting(true);
 
     const [hrs, mins] = fastForm.startTimeStr.split(':').map(Number);
@@ -231,8 +250,9 @@ export default function AdminInteractiveCalendar({
       startTimeStr: fastForm.startTimeStr,
       endTimeStr,
       type: 'RESERVA',
-      clientName: fastForm.clientName.trim(),
-      clientPhone: fastForm.clientPhone.trim() || undefined,
+      userId: fastSelectedPlayer.id,
+      clientName: `${fastSelectedPlayer.name} ${fastSelectedPlayer.lastName || ''}`.trim(),
+      clientPhone: fastSelectedPlayer.phone || undefined,
       paymentMethod: fastForm.paymentMethod,
       amountPaid: Number(fastForm.amountPaid) || 0,
       notes: 'Mostrador Rápido',
@@ -240,6 +260,7 @@ export default function AdminInteractiveCalendar({
 
     if (res.success) {
       setFastBookingOpen(false);
+      setFastSelectedPlayer(null);
       setFastForm(prev => ({ ...prev, clientName: '', clientPhone: '', amountPaid: 0 }));
       loadData();
     } else {
@@ -957,31 +978,18 @@ export default function AdminInteractiveCalendar({
 
               {formData.type !== 'BLOQUEO' ? (
                 <>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="clientName" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Nombre del Jugador / Cliente
-                    </Label>
-                    <Input
-                      id="clientName"
-                      required
-                      placeholder="Ej: Juan Pérez"
-                      value={formData.clientName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, clientName: e.target.value }))}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="clientPhone" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Teléfono WhatsApp (Opcional)
-                    </Label>
-                    <Input
-                      id="clientPhone"
-                      placeholder="Ej: 549..."
-                      value={formData.clientPhone}
-                      onChange={(e) => setFormData(prev => ({ ...prev, clientPhone: e.target.value }))}
-                      className="rounded-xl"
-                    />
-                  </div>
+                  <AdminPlayerPicker
+                    selectedPlayer={selectedPlayer}
+                    onSelect={(p) => {
+                      setSelectedPlayer(p);
+                      setFormData(prev => ({
+                        ...prev,
+                        clientName: p ? `${p.name} ${p.lastName || ''}`.trim() : '',
+                        clientPhone: p?.phone || ''
+                      }));
+                    }}
+                    required
+                  />
                   {formData.type === 'RESERVA' && (
                     <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">
                       <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
@@ -1138,27 +1146,18 @@ export default function AdminInteractiveCalendar({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Nombre del Jugador</Label>
-                <Input
-                  required
-                  placeholder="Ej: Martínez / Los Pérez"
-                  value={fastForm.clientName}
-                  onChange={(e) => setFastForm(prev => ({ ...prev, clientName: e.target.value }))}
-                  className="rounded-xl font-bold"
-                  autoFocus
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Teléfono (Opcional)</Label>
-                <Input
-                  placeholder="Ej: 11 2345 6789"
-                  value={fastForm.clientPhone}
-                  onChange={(e) => setFastForm(prev => ({ ...prev, clientPhone: e.target.value }))}
-                  className="rounded-xl text-xs"
-                />
-              </div>
+              <AdminPlayerPicker
+                selectedPlayer={fastSelectedPlayer}
+                onSelect={(p) => {
+                  setFastSelectedPlayer(p);
+                  setFastForm(prev => ({
+                    ...prev,
+                    clientName: p ? `${p.name} ${p.lastName || ''}`.trim() : '',
+                    clientPhone: p?.phone || ''
+                  }));
+                }}
+                required
+              />
 
               {/* Cobro */}
               <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">

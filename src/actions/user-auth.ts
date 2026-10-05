@@ -8,6 +8,8 @@ import { clearUserSession, createUserSession, readUserSessionId } from "@/lib/us
 import { requireTenantFeature } from "@/lib/features";
 import { normalizePhoneNumber } from "@/lib/phone";
 
+import { VALID_CATEGORIES } from "@/lib/tournaments/category-rules";
+
 export async function registerUser(formData: FormData) {
     await requireTenantFeature('users');
     const name = (formData.get("name") as string || "").trim();
@@ -16,9 +18,14 @@ export async function registerUser(formData: FormData) {
     const rawPhone = (formData.get("phone") as string || "").trim();
     const email = (formData.get("email") as string || "").trim().toLowerCase();
     const password = (formData.get("password") as string || "").trim();
+    const category = (formData.get("category") as string || "").trim();
 
     if (!name || !lastName || !dni || !rawPhone || !password) {
         return { success: false, error: "Todos los campos obligatorios deben estar completos." };
+    }
+
+    if (!category || !(VALID_CATEGORIES as readonly string[]).includes(category)) {
+        return { success: false, error: "Debes seleccionar tu categoría de juego obligatoria (8va a 1ra)." };
     }
 
     const cleanDni = dni.replace(/\D/g, '') || dni;
@@ -78,6 +85,7 @@ export async function registerUser(formData: FormData) {
                     dni: cleanDni || existingGuestUser.dni,
                     phone: cleanPhone || existingGuestUser.phone,
                     email: email || existingGuestUser.email,
+                    category,
                     password: hashedPassword,
                     isActive: true,
                 }
@@ -95,6 +103,7 @@ export async function registerUser(formData: FormData) {
                 dni: cleanDni,
                 phone: cleanPhone,
                 email: email || null,
+                category,
                 password: hashedPassword,
                 role: "PLAYER",
                 isActive: true,
@@ -108,6 +117,33 @@ export async function registerUser(formData: FormData) {
     } catch (error) {
         console.error("Register error:", error);
         return { success: false, error: "Error interno del servidor." };
+    }
+}
+
+export async function updateUserCategory(category: string) {
+    try {
+        const trimmed = (category || "").trim();
+        if (!(VALID_CATEGORIES as readonly string[]).includes(trimmed)) {
+            return { success: false, error: "Categoría no válida. Selecciona entre 8va y 1ra." };
+        }
+
+        const userId = await readUserSessionId();
+        if (!userId) {
+            return { success: false, error: "Debes iniciar sesión para actualizar tu categoría." };
+        }
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: { category: trimmed }
+        });
+
+        revalidatePath("/");
+        revalidatePath("/perfil");
+        revalidatePath("/torneos");
+        return { success: true };
+    } catch (error) {
+        console.error("updateUserCategory error:", error);
+        return { success: false, error: "No se pudo actualizar la categoría." };
     }
 }
 

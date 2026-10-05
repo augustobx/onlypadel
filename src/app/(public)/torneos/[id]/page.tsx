@@ -1,7 +1,8 @@
 import { getTournamentDetails } from "@/actions/public-tournaments";
 import Link from "next/link";
-import { ArrowLeft, Users, Calendar, Trophy, Clock, LayoutGrid } from "lucide-react";
+import { ArrowLeft, Users, Calendar, Trophy, Clock, LayoutGrid, Radio, MapPin, Zap } from "lucide-react";
 import TournamentBracket from "@/components/TournamentBracket";
+import AutoRefresh from "@/components/AutoRefresh";
 
 export default async function PublicTournamentDetail(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -32,8 +33,25 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
     'COMPLETED': 'bg-blue-500',
   };
 
+  // Partidos en vivo (IN_PROGRESS)
+  const liveMatches = (tournament.categories || []).flatMap(cat => 
+    (cat.matches || [])
+      .filter(m => m.status === 'IN_PROGRESS')
+      .map(m => ({ ...m, categoryName: cat.name, isZonesPublished: cat.isZonesPublished }))
+  );
+
+  // Próximos partidos programados (SCHEDULED con horario)
+  const upcomingMatches = (tournament.categories || []).flatMap(cat => 
+    (cat.matches || [])
+      .filter(m => m.status === 'SCHEDULED' && m.startTime)
+      .map(m => ({ ...m, categoryName: cat.name, isZonesPublished: cat.isZonesPublished }))
+  ).sort((a, b) => new Date(a.startTime!).getTime() - new Date(b.startTime!).getTime());
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white">
+      {/* Auto-refresco en vivo cada 15 segundos */}
+      <AutoRefresh intervalMs={15000} />
+
       {/* HERO */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/10 to-emerald-600/20 blur-3xl"></div>
@@ -98,6 +116,84 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
           </div>
         </div>
       </div>
+
+      {/* SECCIÓN EN VIVO / TIEMPO REAL */}
+      {(liveMatches.length > 0 || (tournament.status === 'ONGOING' && upcomingMatches.length > 0)) && (
+        <div className="max-w-5xl mx-auto px-4 pb-8 space-y-6">
+          {/* PARTIDOS EN CANCHA AHORA */}
+          {liveMatches.length > 0 && (
+            <div className="bg-gradient-to-r from-red-950/40 via-red-900/30 to-slate-900 border border-red-500/30 rounded-3xl p-6 shadow-xl backdrop-blur-md">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-3.5 w-3.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500"></span>
+                  </span>
+                  <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+                    🎾 En Cancha Ahora — En Vivo
+                  </h2>
+                </div>
+                <span className="text-xs text-red-300 font-mono font-bold animate-pulse">
+                  ACTUALIZACIÓN EN TIEMPO REAL
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {liveMatches.map((m: any) => (
+                  <div key={m.id} className="bg-slate-900/90 border border-red-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {m.court?.name || 'Cancha Asignada'}
+                      </span>
+                      <span className="text-slate-400 font-bold">{m.categoryName} • {m.roundName || 'Partido'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between font-black text-sm text-slate-100">
+                      <div className="truncate max-w-[40%]">{m.team1?.name || '?'}</div>
+                      <div className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-xl font-mono text-base text-red-400 font-black">
+                        {m.scoreTeam1 || 0} - {m.scoreTeam2 || 0}
+                      </div>
+                      <div className="truncate max-w-[40%] text-right">{m.team2?.name || '?'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* PRÓXIMOS TURNOS / PARTIDOS */}
+          {upcomingMatches.length > 0 && (
+            <div className="bg-slate-800/40 border border-slate-700/50 rounded-3xl p-6 backdrop-blur-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-sm text-slate-300 flex items-center gap-2 uppercase tracking-wider">
+                  <Clock className="w-4 h-4 text-emerald-400" /> Próximos Partidos Programados
+                </h3>
+                <span className="text-xs text-slate-500">Orden cronológico</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {upcomingMatches.slice(0, 6).map((m: any) => (
+                  <div key={m.id} className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="font-bold text-emerald-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(m.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
+                      </span>
+                      <span className="text-[10px] text-slate-400">{m.court?.name || 'Cancha'}</span>
+                    </div>
+                    <div className="font-bold text-slate-200 truncate">
+                      {m.team1?.name || '?'} vs {m.team2?.name || '?'}
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate">
+                      {m.categoryName} • {m.roundName || 'Fecha'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* CATEGORIAS */}
       <div className="max-w-5xl mx-auto px-4 pb-12 space-y-12">
@@ -167,9 +263,14 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
                                   'bg-slate-900/30'
                                 }`}>
                                   {m.startTime && (
-                                    <span className="text-slate-500 font-mono w-12 shrink-0 flex items-center gap-0.5">
-                                      <Clock className="w-2.5 h-2.5" />
+                                    <span className="text-slate-500 font-mono shrink-0 flex items-center gap-1 mr-2">
+                                      <Clock className="w-2.5 h-2.5 text-emerald-400" />
                                       {new Date(m.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                                      {m.court?.name && (
+                                        <span className="text-[10px] text-slate-400 bg-slate-800/80 px-1.5 py-0.2 rounded font-sans">
+                                          {m.court.name}
+                                        </span>
+                                      )}
                                     </span>
                                   )}
                                   <span className={`flex-1 truncate ${m.winnerId === m.team1Id && m.winnerId ? 'font-bold text-emerald-400' : 'text-slate-300'}`}>

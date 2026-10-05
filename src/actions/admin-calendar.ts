@@ -7,6 +7,9 @@ import { addMinutes, format, parse, startOfDay, endOfDay, addWeeks } from 'date-
 import { requireAdmin } from '@/lib/admin-auth';
 import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
 import { publishReleasedShift } from '@/actions/released-shifts';
+import bcrypt from 'bcryptjs';
+import { normalizePhoneNumber } from '@/lib/phone';
+import { VALID_CATEGORIES } from '@/lib/tournaments/category-rules';
 
 export async function getAdminCalendarData(courtId: string, dateStr: string) {
     try {
@@ -217,6 +220,136 @@ export async function getAdminCalendarWeekData(courtId: string, weekStartStr: st
     }
 }
 
+// Buscar clientes registrados para asignación de turnos
+export async function searchAdminPlayers(query: string) {
+    try {
+        await requireAdmin();
+        const trimmed = (query || '').trim();
+        if (!trimmed || trimmed.length < 2) return { success: true, data: [] };
+
+        const cleanPhone = normalizePhoneNumber(trimmed);
+        const cleanDni = trimmed.replace(/\D/g, '');
+
+        const users = await prisma.user.findMany({
+            where: {
+                role: 'PLAYER',
+                isActive: true,
+                OR: [
+                    { name: { contains: trimmed } },
+                    { lastName: { contains: trimmed } },
+                    ...(cleanDni ? [{ dni: { contains: cleanDni } }] : []),
+                    ...(cleanPhone ? [{ phone: { contains: cleanPhone } }] : []),
+                    { phone: { contains: trimmed } },
+                ]
+            },
+            take: 15,
+            select: {
+                id: true,
+                name: true,
+                lastName: true,
+                phone: true,
+                dni: true,
+                category: true,
+            },
+            orderBy: { name: 'asc' }
+        });
+
+        return { success: true, data: users };
+    } catch (error) {
+        console.error('searchAdminPlayers error:', error);
+        return { success: false, error: 'Error al buscar clientes.' };
+    }
+}
+
+// Registrar nuevo cliente desde el panel admin con clave temporal 12345678 y categoría obligatoria
+export async function registerPlayerFromAdmin(data: {
+    name: string;
+    lastName?: string;
+    phone: string;
+    dni?: string;
+    category: string;
+}) {
+    try {
+        await requireAdmin();
+        const name = (data.name || '').trim();
+        const lastName = (data.lastName || '').trim();
+        const rawPhone = (data.phone || '').trim();
+        const dni = (data.dni || '').trim();
+        const category = (data.category || '').trim();
+
+        if (!name) return { success: false, error: 'El nombre del cliente es obligatorio.' };
+        if (!rawPhone) return { success: false, error: 'El teléfono WhatsApp es obligatorio.' };
+        if (!category || !(VALID_CATEGORIES as readonly string[]).includes(category)) {
+            return { success: false, error: 'La categoría es obligatoria para registrar al cliente (8va a 1ra).' };
+        }
+
+        const cleanPhone = normalizePhoneNumber(rawPhone);
+        const cleanDni = dni.replace(/\D/g, '') || null;
+
+        // Verificar si ya existe usuario con ese teléfono o DNI
+        const existing = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { phone: cleanPhone },
+                    { phone: rawPhone },
+                    ...(cleanDni ? [{ dni: cleanDni }] : []),
+                ]
+            }
+        });
+
+        if (existing) {
+            // Actualizar sus datos si faltaban
+            const updated = await prisma.user.update({
+                where: { id: existing.id },
+                data: {
+                    name,
+                    lastName: lastName || existing.lastName,
+                    category: category || existing.category,
+                    dni: cleanDni || existing.dni,
+                    phone: cleanPhone || existing.phone,
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    lastName: true,
+                    phone: true,
+                    dni: true,
+                    category: true,
+                }
+            });
+            return { success: true, data: updated, isExisting: true };
+        }
+
+        // Cuenta nueva generada automáticamente con clave 12345678
+        const hashedPassword = await bcrypt.hash('12345678', 10);
+        const user = await prisma.user.create({
+            data: {
+                name,
+                lastName: lastName || null,
+                phone: cleanPhone,
+                dni: cleanDni,
+                category,
+                password: hashedPassword,
+                role: 'PLAYER',
+                isActive: true,
+            },
+            select: {
+                id: true,
+                name: true,
+                lastName: true,
+                phone: true,
+                dni: true,
+                category: true,
+            }
+        });
+
+        return { success: true, data: user, isExisting: false };
+    } catch (error) {
+        console.error('registerPlayerFromAdmin error:', error);
+        return { success: false, error: 'Error al registrar el cliente.' };
+    }
+}
+
 // Crear reserva administrativa (Simple, Bloqueo o Fijo)
 export async function createAdminBooking(data: {
     courtId: string;
@@ -224,6 +357,7 @@ export async function createAdminBooking(data: {
     startTimeStr: string;
     endTimeStr: string;
     type: 'RESERVA' | 'BLOQUEO' | 'FIJO';
+    userId?: string;
     clientName?: string;
     clientPhone?: string;
     paymentMethod?: 'CASH' | 'TRANSFER' | 'MERCADOPAGO' | 'PENDING';
@@ -246,23 +380,31 @@ export async function createAdminBooking(data: {
         }
         const tenantId = court.tenantId;
 
-        // Creamos o buscamos el usuario local para asociar la reserva
-        let user = await prisma.user.findFirst({ where: { tenantId, phone: data.clientPhone || 'ADMIN_LOCAL' } });
-        if (!user) {
-            user = await prisma.user.create({
-                data: {
-                    tenantId,
-                    name: data.clientName || (data.type === 'BLOQUEO' ? 'Cancha Bloqueada' : 'Turno Local'),
-                    phone: data.clientPhone || 'ADMIN_LOCAL',
-                    email: `${Date.now()}@local.onlypadel`,
-                    role: 'PLAYER'
-                }
-            });
-        } else if (data.clientName) {
-            user = await prisma.user.update({
-                where: { id: user.id },
-                data: { name: data.clientName }
-            });
+        // Validar y asociar cliente: Nada se puede cargar con clientes hardcodeados o ficticios
+        let user = null;
+        if (data.type !== 'BLOQUEO') {
+            if (data.userId) {
+                user = await prisma.user.findFirst({ where: { id: data.userId, tenantId } });
+            }
+            if (!user && data.clientPhone) {
+                const cleanPhone = normalizePhoneNumber(data.clientPhone);
+                user = await prisma.user.findFirst({
+                    where: {
+                        tenantId,
+                        OR: [
+                            { phone: cleanPhone },
+                            { phone: data.clientPhone }
+                        ]
+                    }
+                });
+            }
+
+            if (!user) {
+                return { 
+                    success: false, 
+                    error: 'Debes buscar o registrar un cliente real en el sistema. Los turnos no se pueden cargar con clientes anónimos o hardcodeados.' 
+                };
+            }
         }
 
         // Si es FIJO, generamos por 6 meses (24 semanas). Si es normal, solo 1 semana.
@@ -312,7 +454,7 @@ export async function createAdminBooking(data: {
                         data: {
                             tenantId,
                             courtId: data.courtId,
-                            userId: user!.id,
+                            userId: user ? user.id : null,
                             startTime,
                             endTime,
                             status: status as any,

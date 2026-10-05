@@ -124,6 +124,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
     phone: '',
     email: '',
     password: '',
+    category: '8va',
   });
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -345,8 +346,8 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
   };
 
   const handleInlineRegister = async () => {
-    if (!authRegisterData.name.trim() || !authRegisterData.lastName.trim() || !authRegisterData.dni.trim() || !authRegisterData.phone.trim() || !authRegisterData.password.trim()) {
-      setAuthError('Por favor completá todos los campos obligatorios.');
+    if (!authRegisterData.name.trim() || !authRegisterData.lastName.trim() || !authRegisterData.dni.trim() || !authRegisterData.phone.trim() || !authRegisterData.password.trim() || !authRegisterData.category.trim()) {
+      setAuthError('Por favor completá todos los campos obligatorios, incluyendo tu categoría de juego.');
       return;
     }
     setAuthLoading(true);
@@ -359,6 +360,7 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
       fd.set('phone', authRegisterData.phone.trim());
       fd.set('email', authRegisterData.email.trim());
       fd.set('password', authRegisterData.password.trim());
+      fd.set('category', authRegisterData.category.trim());
       const res = await registerUser(fd);
       if (res.success) {
         const sess = await getUserSession();
@@ -963,6 +965,23 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
                         placeholder="juan@ejemplo.com"
                         className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Categoría de Juego *</label>
+                      <select
+                        value={authRegisterData.category}
+                        onChange={(e) => setAuthRegisterData({ ...authRegisterData, category: e.target.value })}
+                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold outline-none"
+                      >
+                        <option value="8va">8va (Iniciación / Principiante)</option>
+                        <option value="7ma">7ma (Intermedio Inicial)</option>
+                        <option value="6ta">6ta (Intermedio)</option>
+                        <option value="5ta">5ta (Intermedio Alto)</option>
+                        <option value="4ta">4ta (Avanzado)</option>
+                        <option value="3ra">3ra (Competitivo)</option>
+                        <option value="2da">2da (Semi-Profesional)</option>
+                        <option value="1ra">1ra (Profesional / Elite)</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Contraseña</label>

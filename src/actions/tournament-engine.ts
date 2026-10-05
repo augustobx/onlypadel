@@ -5,7 +5,10 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/admin-auth';
 import type { TournamentFormat } from '@prisma/client';
 import { randomInt } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { compareStandings, createFirstRoundSlots, parseScore, validateScore } from '@/lib/tournaments/rules';
+import { validatePairCategory } from '@/lib/tournaments/category-rules';
+import { normalizePhoneForWhatsApp } from '@/lib/whatsapp/notifications';
 
 // ============================================================
 // HELPERS
@@ -1278,5 +1281,182 @@ export async function addTeamToSpecificGroup(categoryId: string, groupId: string
   } catch (error) {
     console.error('addTeamToSpecificGroup error:', error);
     return { success: false, error: 'Error al asignar la pareja a la zona' };
+  }
+}
+
+// ============================================================
+// AGREGAR PAREJA DIRECTA A UNA ZONA (CREACIÓN + ASIGNACIÓN)
+// ============================================================
+export async function createDirectTeamInGroup(params: {
+  categoryId: string;
+  groupId: string;
+  teamName?: string;
+  player1Name: string;
+  player1Phone: string;
+  player1Category: string;
+  player2Name: string;
+  player2Phone: string;
+  player2Category: string;
+}) {
+  try {
+    await requireAdmin();
+    const {
+      categoryId,
+      groupId,
+      teamName,
+      player1Name,
+      player1Phone,
+      player1Category,
+      player2Name,
+      player2Phone,
+      player2Category,
+    } = params;
+
+    const p1Name = player1Name?.trim();
+    const p1Phone = normalizePhoneForWhatsApp(player1Phone);
+    const p1Cat = player1Category?.trim();
+
+    const p2Name = player2Name?.trim();
+    const p2Phone = normalizePhoneForWhatsApp(player2Phone);
+    const p2Cat = player2Category?.trim();
+
+    if (!p1Name || !p1Phone || !p1Cat) {
+      return { success: false, error: 'Datos incompletos para el Jugador 1' };
+    }
+    if (!p2Name || !p2Phone || !p2Cat) {
+      return { success: false, error: 'Datos incompletos para el Jugador 2' };
+    }
+    if (p1Phone === p2Phone) {
+      return { success: false, error: 'Los jugadores deben tener números de teléfono diferentes' };
+    }
+
+    // Buscar categoría para validar reglas
+    const category = await prisma.tournamentCategory.findUnique({
+      where: { id: categoryId },
+      include: { tournament: true }
+    });
+    if (!category) return { success: false, error: 'Categoría no encontrada' };
+
+    // Validar categorías de la pareja según reglas de torneo
+    const validation = validatePairCategory(
+      category.categoryType || 'CATEGORIA_UNICA',
+      category.baseCategory,
+      category.targetSum,
+      p1Cat,
+      p2Cat
+    );
+    if (!validation.valid) {
+      return { success: false, error: validation.error || 'La pareja no cumple los requisitos de categoría' };
+    }
+
+    const defaultPasswordHash = await bcrypt.hash('12345678', 10);
+
+    // Buscar o crear Jugador 1 con clave temporal 12345678
+    let u1 = await prisma.user.findFirst({
+      where: { OR: [{ phone: p1Phone }, { phone: player1Phone.trim() }] }
+    });
+    if (!u1) {
+      u1 = await prisma.user.create({
+        data: {
+          name: p1Name,
+          phone: p1Phone,
+          category: p1Cat,
+          password: defaultPasswordHash,
+          role: 'PLAYER',
+        }
+      });
+    } else if (!u1.category) {
+      await prisma.user.update({ where: { id: u1.id }, data: { category: p1Cat } });
+    }
+
+    // Buscar o crear Jugador 2 con clave temporal 12345678
+    let u2 = await prisma.user.findFirst({
+      where: { OR: [{ phone: p2Phone }, { phone: player2Phone.trim() }] }
+    });
+    if (!u2) {
+      u2 = await prisma.user.create({
+        data: {
+          name: p2Name,
+          phone: p2Phone,
+          category: p2Cat,
+          password: defaultPasswordHash,
+          role: 'PLAYER',
+        }
+      });
+    } else if (!u2.category) {
+      await prisma.user.update({ where: { id: u2.id }, data: { category: p2Cat } });
+    }
+
+    const computedTeamName = teamName?.trim() || `${p1Name} / ${p2Name}`;
+
+    // Buscar si hay una plaza libre (dummy) en el grupo para reemplazarla
+    const dummySlot = await prisma.tournamentGroupTeam.findFirst({
+      where: {
+        groupId,
+        team: { player1: { phone: 'DUMMY_PLAZA' } }
+      },
+      include: { team: true }
+    });
+
+    let newTeamId = '';
+
+    if (dummySlot) {
+      const oldDummyTeamId = dummySlot.teamId;
+      const createdTeam = await prisma.tournamentTeam.create({
+        data: {
+          categoryId,
+          name: computedTeamName,
+          player1Id: u1.id,
+          player2Id: u2.id,
+          phone1: p1Phone,
+          phone2: p2Phone,
+          isPaid: true,
+          preferredGroupId: groupId,
+        }
+      });
+      newTeamId = createdTeam.id;
+
+      await prisma.tournamentGroupTeam.update({
+        where: { id: dummySlot.id },
+        data: { teamId: newTeamId }
+      });
+
+      // Actualizar los partidos ya programados para este dummy
+      await prisma.tournamentMatch.updateMany({
+        where: { groupId, team1Id: oldDummyTeamId },
+        data: { team1Id: newTeamId }
+      });
+      await prisma.tournamentMatch.updateMany({
+        where: { groupId, team2Id: oldDummyTeamId },
+        data: { team2Id: newTeamId }
+      });
+
+      // Eliminar el dummy anterior
+      await prisma.tournamentTeam.delete({ where: { id: oldDummyTeamId } }).catch(() => {});
+    } else {
+      const created = await prisma.tournamentTeam.create({
+        data: {
+          categoryId,
+          name: computedTeamName,
+          player1Id: u1.id,
+          player2Id: u2.id,
+          phone1: p1Phone,
+          phone2: p2Phone,
+          isPaid: true,
+          preferredGroupId: groupId,
+        }
+      });
+      newTeamId = created.id;
+
+      // Asignar al grupo y recalcular
+      await addTeamToSpecificGroup(categoryId, groupId, newTeamId);
+    }
+
+    revalidateTournamentPaths();
+    revalidatePath(`/admin/torneos/${category.tournamentId}`);
+    return { success: true, teamId: newTeamId };
+  } catch (error) {
+    console.error('createDirectTeamInGroup error:', error);
+    return { success: false, error: 'Error al registrar la pareja en la zona' };
   }
 }
