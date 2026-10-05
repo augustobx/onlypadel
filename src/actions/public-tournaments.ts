@@ -54,7 +54,12 @@ export async function getTournamentDetails(id: string) {
           include: {
             teams: { include: { player1: true, player2: true } },
             matches: {
-              include: { team1: true, team2: true, winner: true, court: true },
+              include: {
+                team1: { include: { player1: true, player2: true } },
+                team2: { include: { player1: true, player2: true } },
+                winner: { include: { player1: true, player2: true } },
+                court: true,
+              },
               orderBy: [{ round: 'desc' }, { matchOrder: 'asc' }]
             },
             groups: {

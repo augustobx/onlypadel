@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowLeft, Users, Calendar, Trophy, Clock, LayoutGrid, Radio, MapPin, Zap } from "lucide-react";
 import TournamentBracket from "@/components/TournamentBracket";
 import AutoRefresh from "@/components/AutoRefresh";
+import TournamentChampionHero from "@/components/TournamentChampionHero";
+import { getTournamentChampions } from "@/lib/tournaments/champions";
 
 export default async function PublicTournamentDetail(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -46,6 +48,9 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
       .filter(m => m.status === 'SCHEDULED' && m.startTime)
       .map(m => ({ ...m, categoryName: cat.name, isZonesPublished: cat.isZonesPublished }))
   ).sort((a, b) => new Date(a.startTime!).getTime() - new Date(b.startTime!).getTime());
+
+  // Campeones del torneo si concluyó alguna final o categoría
+  const champions = getTournamentChampions(tournament as any);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white">
@@ -118,6 +123,13 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
           </div>
         </div>
       </div>
+
+      {/* SECCIÓN CAMPEÓN DEL TORNEO (HERO DE HONOR PARA PWA) */}
+      {champions.length > 0 && (
+        <div className="max-w-5xl mx-auto px-4 pt-2">
+          <TournamentChampionHero champions={champions} tournamentName={tournament.name} />
+        </div>
+      )}
 
       {/* SECCIÓN EN VIVO / TIEMPO REAL */}
       {(liveMatches.length > 0 || (tournament.status === 'ONGOING' && upcomingMatches.length > 0)) && (
@@ -224,7 +236,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
               {/* TABLAS DE ZONAS */}
               {category.groups.length > 0 && (
                 category.isZonesPublished ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div id="zonas-section" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 scroll-mt-6">
                     {category.groups.map((g) => {
                       // Partidos del grupo
                       const groupMatches = category.matches
@@ -264,7 +276,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
 
                           {/* Partidos del grupo */}
                           {groupMatches.length > 0 && (
-                            <div className="mt-4 pt-3 border-t border-slate-700/30 space-y-1.5">
+                            <div id="partidos-section" className="mt-4 pt-3 border-t border-slate-700/30 space-y-1.5 scroll-mt-6">
                               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Fixture</p>
                               {groupMatches.map((m) => (
                                 <div key={m.id} className={`flex items-center text-xs rounded-lg px-2 py-1.5 ${
@@ -302,7 +314,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
                     })}
                   </div>
                 ) : (
-                  <div className="bg-slate-800/40 rounded-2xl p-8 border border-slate-700/50 text-center">
+                  <div id="zonas-section" className="bg-slate-800/40 rounded-2xl p-8 border border-slate-700/50 text-center scroll-mt-6">
                     <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
                       <LayoutGrid className="w-6 h-6 text-amber-400" />
                     </div>
@@ -316,11 +328,11 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
 
               {/* CUADRO DE ELIMINACIÓN */}
               {category.matches.length > 0 ? (
-                <div className="overflow-x-auto pb-4 -mx-4 px-4">
+                <div id="cuadro-section" className="overflow-x-auto pb-4 -mx-4 px-4 scroll-mt-6">
                   <TournamentBracket matches={category.matches} format={category.format || tournament.format} />
                 </div>
               ) : (
-                <div className="bg-slate-800/30 rounded-2xl p-10 text-center text-slate-500 border border-slate-700/30">
+                <div id="cuadro-section" className="bg-slate-800/30 rounded-2xl p-10 text-center text-slate-500 border border-slate-700/30 scroll-mt-6">
                   Las llaves se publicarán una vez se cierren las inscripciones.
                 </div>
               )}

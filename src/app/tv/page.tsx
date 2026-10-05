@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { getTournamentDetails, getPublicTournaments } from '@/actions/public-tournaments';
-import { Trophy, Wifi, Clock } from 'lucide-react';
+import { Trophy, Wifi, Clock, Sparkles, Medal, Award } from 'lucide-react';
 import type { TournamentMatchView, TournamentView } from '@/lib/tournaments/types';
+import { getTournamentChampions } from '@/lib/tournaments/champions';
 
 export default function TvModePage() {
   const [tournament, setTournament] = useState<TournamentView | null>(null);
@@ -55,6 +56,8 @@ export default function TvModePage() {
     if (!tournament) return [];
     const slides: string[] = [];
 
+    const champions = getTournamentChampions(tournament);
+
     const allMatches: TournamentMatchView[] = tournament.categories?.flatMap((c) =>
       c.matches?.map((m) => ({ ...m, categoryName: c.name })) || []
     ) || [];
@@ -63,6 +66,8 @@ export default function TvModePage() {
     const completed = allMatches.filter((m) => m.status === 'COMPLETED' && m.scoreTeam1 !== 'BYE');
     const scheduled = allMatches.filter((m) => m.status === 'SCHEDULED' && m.team1Id && m.team2Id);
 
+    // Si hay campeones de alguna categoría finalizada, el slide de celebración tiene máxima prioridad
+    if (champions.length > 0) slides.push('champions');
     if (live.length > 0) slides.push('live');
     slides.push('bracket');
     if (scheduled.length > 0) slides.push('upcoming');
@@ -116,6 +121,7 @@ export default function TvModePage() {
     c.matches?.map((m) => ({ ...m, categoryName: c.name })) || []
   ) || [];
 
+  const champions = getTournamentChampions(tournament);
   const liveMatches = allMatches.filter((m) => m.status === 'IN_PROGRESS');
   const completedMatches = allMatches.filter((m) => m.status === 'COMPLETED' && m.scoreTeam1 !== 'BYE' && m.scoreTeam2 !== 'BYE');
   const scheduledMatches = allMatches.filter((m) => m.status === 'SCHEDULED' && m.team1Id && m.team2Id);
@@ -166,7 +172,16 @@ export default function TvModePage() {
       {slides.length > 1 && (
         <div className="flex justify-center gap-2 py-3 bg-slate-900/50">
           {slides.map((s, i) => (
-            <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i === slideIndex % slides.length ? 'w-12 bg-blue-500' : 'w-4 bg-slate-700'}`} />
+            <div
+              key={i}
+              className={`h-1.5 rounded-full transition-all duration-500 ${
+                i === slideIndex % slides.length
+                  ? s === 'champions'
+                    ? 'w-12 bg-amber-400 shadow-md shadow-amber-400/50'
+                    : 'w-12 bg-blue-500'
+                  : 'w-4 bg-slate-700'
+              }`}
+            />
           ))}
         </div>
       )}
@@ -175,6 +190,98 @@ export default function TvModePage() {
       {/* CONTENT */}
       {/* ============================================================ */}
       <main className="flex-1 overflow-hidden p-6 md:p-10">
+        {/* CHAMPIONS / CELEBRATION SLIDE */}
+        {currentSlide === 'champions' && (
+          <div className="h-full flex flex-col justify-between max-w-6xl mx-auto w-full py-2" key="champions">
+            {/* Header banner */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center gap-2 px-5 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-500/20 border border-amber-400/40 text-amber-300 text-sm font-black tracking-widest uppercase shadow-lg shadow-amber-500/10">
+                <Sparkles className="w-5 h-5 text-yellow-400 animate-spin" style={{ animationDuration: '4s' }} />
+                <span>TORNEO FINALIZADO — CUADRO DE HONOR</span>
+                <Sparkles className="w-5 h-5 text-yellow-400 animate-spin" style={{ animationDuration: '4s' }} />
+              </div>
+              <h2 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 tracking-tight drop-shadow-md">
+                ¡CAMPEONES DEL TORNEO!
+              </h2>
+            </div>
+
+            {/* Champions Grid / Cards */}
+            <div className={`grid gap-8 items-center flex-1 content-center ${champions.length > 1 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-3xl mx-auto w-full'}`}>
+              {champions.slice(0, 2).map((champ) => (
+                <div
+                  key={champ.categoryId}
+                  className="relative overflow-hidden rounded-3xl border-2 border-amber-500/50 bg-gradient-to-br from-amber-950/70 via-slate-900 to-slate-950 p-8 shadow-2xl shadow-amber-500/20 backdrop-blur-xl"
+                >
+                  <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-yellow-500/20 blur-2xl" />
+                  
+                  <div className="relative z-10 flex flex-col items-center text-center space-y-5">
+                    {/* Trophy & Category */}
+                    <div className="flex items-center gap-3">
+                      <div className="bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 p-3 rounded-2xl shadow-lg shadow-yellow-500/30">
+                        <Trophy className="w-10 h-10 text-slate-950" />
+                      </div>
+                      <span className="text-lg font-black text-amber-300 uppercase tracking-widest bg-amber-500/20 px-4 py-1.5 rounded-full border border-amber-400/30">
+                        Categoría {champ.categoryName}
+                      </span>
+                    </div>
+
+                    {/* Pair Name */}
+                    <div className="space-y-2">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-black text-yellow-400 bg-yellow-400/10 px-3 py-1 rounded-full uppercase tracking-wider border border-yellow-400/30">
+                        <Medal className="w-3.5 h-3.5" /> 1° Puesto — Campeones
+                      </span>
+                      <h3 className="text-3xl md:text-5xl font-black text-white tracking-tight">
+                        {champ.champion.name || 'Pareja Campeona'}
+                      </h3>
+                      {(champ.champion.player1?.name || champ.champion.player2?.name) && (
+                        <div className="flex flex-wrap items-center justify-center gap-2 text-base font-semibold text-amber-200/90 pt-1">
+                          {champ.champion.player1?.name && (
+                            <span className="bg-slate-800/80 px-3 py-1 rounded-xl border border-amber-500/20">
+                              🎾 {champ.champion.player1.name} {champ.champion.player1.lastName || ''}
+                            </span>
+                          )}
+                          {champ.champion.player1?.name && champ.champion.player2?.name && (
+                            <span className="text-amber-400 font-bold">&bull;</span>
+                          )}
+                          {champ.champion.player2?.name && (
+                            <span className="bg-slate-800/80 px-3 py-1 rounded-xl border border-amber-500/20">
+                              🎾 {champ.champion.player2.name} {champ.champion.player2.lastName || ''}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Final Score */}
+                    {champ.scoreChampion && (
+                      <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl px-6 py-3 flex items-center gap-4 shadow-inner">
+                        <span className="text-xs uppercase font-bold text-slate-400">Resultado Final</span>
+                        <span className="font-mono text-2xl font-black text-amber-400 tracking-wider">
+                          {champ.scoreChampion} {champ.scoreRunnerUp && champ.scoreRunnerUp !== '-' ? `- ${champ.scoreRunnerUp}` : ''}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Runner Up */}
+                    {champ.runnerUp && (
+                      <div className="w-full pt-4 border-t border-slate-800/90 flex items-center justify-between text-sm">
+                        <span className="text-slate-400 font-semibold flex items-center gap-1.5">
+                          <span className="bg-slate-800 text-slate-300 font-bold px-2.5 py-0.5 rounded-full text-xs border border-slate-700">🥈 Subcampeones</span>
+                        </span>
+                        <span className="font-bold text-slate-200 text-base">{champ.runnerUp.name}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom celebratory message */}
+            <div className="text-center text-xs md:text-sm text-slate-400 font-medium">
+              ¡Felicitaciones a todos los participantes por su entrega y juego limpio en el torneo!
+            </div>
+          </div>
+        )}
         {/* LIVE MATCHES */}
         {currentSlide === 'live' && (
           <div className="h-full flex flex-col" key="live">
