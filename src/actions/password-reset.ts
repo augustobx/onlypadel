@@ -50,6 +50,7 @@ export async function requestPasswordReset(identifier: string) {
 
     await prisma.setting.create({
       data: {
+        tenantId: user.tenantId,
         key,
         value,
       }
