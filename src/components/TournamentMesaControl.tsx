@@ -5,12 +5,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { updateMatchScore, setMatchInProgress, resetMatchResult, updateMatchAssignment } from '@/actions/tournament-engine';
 import { getCourts } from '@/actions/courts';
 import { useRouter } from 'next/navigation';
-import { Play, CheckCircle2, Clock, ChevronDown, RotateCcw, MapPin, Sparkles } from 'lucide-react';
+import { Play, CheckCircle2, Clock, ChevronDown, RotateCcw, MapPin, Sparkles, Trophy } from 'lucide-react';
 import type { CourtView, TournamentMatchView, TournamentView } from '@/lib/tournaments/types';
-import { mirrorScore, validateScore } from '@/lib/tournaments/rules';
+import { mirrorScore, validateScore, findTiedSet, resolveTiedSetScore } from '@/lib/tournaments/rules';
 
 export default function TournamentMesaControl({ tournament }: { tournament: TournamentView }) {
   const [loading, setLoading] = useState<string | null>(null);
@@ -18,6 +19,22 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
   const [courts, setCourts] = useState<CourtView[]>([]);
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+
+  // Estados para Modal de Desempate por Tiebreak
+  const [tiebreakModal, setTiebreakModal] = useState<{
+    matchId: string;
+    setIndex: number;
+    tiedScore: number;
+    rawScore: string;
+    team1Name: string;
+    team2Name: string;
+    team1Id: string;
+    team2Id: string;
+  } | null>(null);
+  const [tbPointsTeam1, setTbPointsTeam1] = useState<number>(7);
+  const [tbPointsTeam2, setTbPointsTeam2] = useState<number>(5);
+  const [tbGamesFormat, setTbGamesFormat] = useState<'7-6' | '8-7'>('7-6');
+
   const router = useRouter();
 
   useEffect(() => {
@@ -88,7 +105,40 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
     }
   };
 
-  const handleUpdate = async (matchId: string, team1Id?: string | null, team2Id?: string | null) => {
+  const handleConfirmTiebreak = async () => {
+    if (!tiebreakModal) return;
+    if (tbPointsTeam1 === tbPointsTeam2) {
+      alert('El tiebreak debe tener un ganador (los puntos no pueden ser iguales).');
+      return;
+    }
+
+    const { matchId, setIndex, rawScore, team1Id, team2Id } = tiebreakModal;
+    const resolved = resolveTiedSetScore(rawScore, setIndex, tbPointsTeam1, tbPointsTeam2, tbGamesFormat);
+    const resolvedWinnerId = resolved.winnerNum === 1 ? team1Id : team2Id;
+
+    // Actualizar campos en pantalla
+    const s1Input = document.getElementById(`s1-${matchId}`) as HTMLInputElement | null;
+    const s2Input = document.getElementById(`s2-${matchId}`) as HTMLInputElement | null;
+    const winnerSelect = document.getElementById(`w-${matchId}`) as HTMLSelectElement | null;
+    if (s1Input) s1Input.value = resolved.scoreTeam1;
+    if (s2Input) s2Input.value = resolved.scoreTeam2;
+    if (winnerSelect) winnerSelect.value = resolvedWinnerId;
+
+    setTiebreakModal(null);
+    setLoading(matchId);
+    const result = await updateMatchScore(matchId, resolved.scoreTeam1, resolved.scoreTeam2, resolvedWinnerId);
+    setFeedback(result.success ? { type: 'success', message: '¡Partido finalizado con desempate por Tiebreak!' } : { type: 'error', message: result.error || 'No se pudo guardar el resultado.' });
+    setLoading(null);
+    router.refresh();
+  };
+
+  const handleUpdate = async (
+    matchId: string, 
+    team1Id?: string | null, 
+    team2Id?: string | null, 
+    team1Name?: string, 
+    team2Name?: string
+  ) => {
     let s1 = (document.getElementById(`s1-${matchId}`) as HTMLInputElement)?.value.trim() || '';
     let s2 = (document.getElementById(`s2-${matchId}`) as HTMLInputElement)?.value.trim() || '';
     let wId = (document.getElementById(`w-${matchId}`) as HTMLSelectElement)?.value || '';
@@ -104,6 +154,30 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
       if (s1Input) s1Input.value = s1;
     }
 
+    if (!s1 || !s2) {
+      setFeedback({ type: 'error', message: 'Ingresá el resultado del partido (ej: 6-4 o 6-4 / 7-5).' });
+      return;
+    }
+
+    // SI HAY UN SET EMPATADO (ej: 7-7, 6-6, 7 a 7): ABRIR DIALOG DE TIEBREAK
+    const tiedSet = findTiedSet(s1);
+    if (tiedSet) {
+      setTiebreakModal({
+        matchId,
+        setIndex: tiedSet.setIndex,
+        tiedScore: tiedSet.ownGames,
+        rawScore: s1,
+        team1Name: team1Name || 'Pareja 1',
+        team2Name: team2Name || 'Pareja 2',
+        team1Id: team1Id || '',
+        team2Id: team2Id || '',
+      });
+      setTbPointsTeam1(7);
+      setTbPointsTeam2(5);
+      setTbGamesFormat(tiedSet.ownGames >= 7 ? '7-6' : '7-6');
+      return;
+    }
+
     // Auto-detectar ganador si no se seleccionó en el dropdown
     if (!wId && s1 && s2) {
       const evalRes = validateScore(s1, s2);
@@ -112,11 +186,6 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
         const winnerSelect = document.getElementById(`w-${matchId}`) as HTMLSelectElement | null;
         if (winnerSelect && wId) winnerSelect.value = wId;
       }
-    }
-
-    if (!s1 || !s2) {
-      setFeedback({ type: 'error', message: 'Ingresá el resultado del partido (ej: 6-4 o 6-4 / 7-5).' });
-      return;
     }
 
     if (!wId) {
@@ -289,7 +358,7 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
                               )}
                               <Button
                                 size="sm"
-                                onClick={() => handleUpdate(m.id, m.team1Id, m.team2Id)}
+                                onClick={() => handleUpdate(m.id, m.team1Id, m.team2Id, m.team1?.name, m.team2?.name)}
                                 disabled={loading === m.id}
                                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                               >
@@ -341,6 +410,160 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
             ))}
           </div>
         </div>
+      )}
+
+      {/* MODAL DE DESEMPATE POR TIEBREAK */}
+      {tiebreakModal && (
+        <Dialog open={Boolean(tiebreakModal)} onOpenChange={() => setTiebreakModal(null)}>
+          <DialogContent className="max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 rounded-2xl">
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-500" />
+                Desempate por Tiebreak
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+                El marcador tiene un set empatado ({tiebreakModal.tiedScore} a {tiebreakModal.tiedScore}). Ingresá los puntos del tiebreak para desempatar y definir automáticamente al ganador:
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-3">
+              {/* FILA PAREJA 1 */}
+              <div className={`p-3 rounded-xl border transition-all ${tbPointsTeam1 > tbPointsTeam2 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-black uppercase text-slate-400 block">Pareja 1</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate block">
+                      {tiebreakModal.team1Name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={tbPointsTeam1}
+                      onChange={e => setTbPointsTeam1(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-16 h-10 text-center font-mono font-bold text-lg"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setTbPointsTeam1(7)}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono font-bold hover:bg-slate-300"
+                        title="Setear 7"
+                      >
+                        7
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTbPointsTeam1(10)}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono font-bold hover:bg-slate-300"
+                        title="Setear 10"
+                      >
+                        10
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FILA PAREJA 2 */}
+              <div className={`p-3 rounded-xl border transition-all ${tbPointsTeam2 > tbPointsTeam1 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-black uppercase text-slate-400 block">Pareja 2</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate block">
+                      {tiebreakModal.team2Name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={tbPointsTeam2}
+                      onChange={e => setTbPointsTeam2(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-16 h-10 text-center font-mono font-bold text-lg"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setTbPointsTeam2(5)}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono font-bold hover:bg-slate-300"
+                        title="Setear 5"
+                      >
+                        5
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTbPointsTeam2(8)}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono font-bold hover:bg-slate-300"
+                        title="Setear 8"
+                      >
+                        8
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FORMATO DE GAMES RESULTANTES */}
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                <span className="text-slate-500 font-medium">Formato del set:</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTbGamesFormat('7-6')}
+                    className={`px-2.5 py-1 rounded-lg font-mono font-bold transition-all ${tbGamesFormat === '7-6' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}
+                  >
+                    7-6 (Estándar)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTbGamesFormat('8-7')}
+                    className={`px-2.5 py-1 rounded-lg font-mono font-bold transition-all ${tbGamesFormat === '8-7' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}
+                  >
+                    8-7 (Set a 7)
+                  </button>
+                </div>
+              </div>
+
+              {/* PREVIEW DEL GANADOR Y MARCADOR */}
+              {tbPointsTeam1 !== tbPointsTeam2 ? (
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3 rounded-xl text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
+                    <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>Ganador: {tbPointsTeam1 > tbPointsTeam2 ? tiebreakModal.team1Name : tiebreakModal.team2Name}</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">
+                    Marcador asignado: {tbPointsTeam1 > tbPointsTeam2 
+                      ? `${tbGamesFormat} (${tbPointsTeam1}-${tbPointsTeam2})` 
+                      : `${tbGamesFormat === '7-6' ? '6-7' : '7-8'} (${tbPointsTeam1}-${tbPointsTeam2})`}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2.5 rounded-xl border border-amber-200 dark:border-amber-800 text-center font-semibold">
+                  ⚠️ El tiebreak no puede terminar empatado. Debe haber un ganador.
+                </p>
+              )}
+            </div>
+
+            <DialogFooter className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setTiebreakModal(null)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmTiebreak}
+                disabled={tbPointsTeam1 === tbPointsTeam2 || loading === tiebreakModal.matchId}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                {loading === tiebreakModal.matchId ? 'Guardando...' : 'Confirmar y Finalizar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

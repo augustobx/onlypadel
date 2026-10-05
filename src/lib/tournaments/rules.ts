@@ -5,9 +5,11 @@ export function parseScore(score: string): ParsedScore {
   const setDetails: [number, number][] = [];
   let sets = 0;
   let games = 0;
-  const regex = /(\d+)\s*[-–]\s*(\d+)/g;
+  // Limpiar notas de tiebreak entre paréntesis (ej: "(7-5)", "(5)") para que no se cuenten como sets/games adicionales
+  const cleanScore = score.replace(/\([^)]*\)/g, '');
+  const regex = /(\d+)\s*(?:[-–\/]|a|A)\s*(\d+)/g;
   let match: RegExpExecArray | null;
-  while ((match = regex.exec(score)) !== null) {
+  while ((match = regex.exec(cleanScore)) !== null) {
     const ownGames = Number(match[1]);
     const rivalGames = Number(match[2]);
     setDetails.push([ownGames, rivalGames]);
@@ -19,9 +21,103 @@ export function parseScore(score: string): ParsedScore {
 
 export function mirrorScore(score: string): string {
   if (!score || score === '-' || score === 'BYE') return '';
+  const parts = score.split(/\s*[\/,;]\s*/).filter(Boolean);
+  const mirroredParts: string[] = [];
+
+  for (const part of parts) {
+    const match = part.match(/(\d+)\s*(?:[-–\/]|a|A)\s*(\d+)(?:\s*\(\s*(?:(\d+)\s*[-–]\s*(\d+)|(\d+))\s*\))?/);
+    if (!match) continue;
+    const a = match[1];
+    const b = match[2];
+    const tb1 = match[3];
+    const tb2 = match[4];
+    const tbSingle = match[5];
+
+    if (tb1 !== undefined && tb2 !== undefined) {
+      mirroredParts.push(`${b}-${a} (${tb2}-${tb1})`);
+    } else if (tbSingle !== undefined) {
+      mirroredParts.push(`${b}-${a} (${tbSingle})`);
+    } else {
+      mirroredParts.push(`${b}-${a}`);
+    }
+  }
+
+  if (mirroredParts.length === 0) {
+    const parsed = parseScore(score);
+    if (parsed.setDetails.length === 0) return '';
+    return parsed.setDetails.map(([a, b]) => `${b}-${a}`).join(' / ');
+  }
+
+  return mirroredParts.join(' / ');
+}
+
+export type TiedSetInfo = {
+  setIndex: number;
+  ownGames: number;
+  rivalGames: number;
+  totalSets: number;
+};
+
+export function findTiedSet(score: string): TiedSetInfo | null {
   const parsed = parseScore(score);
-  if (parsed.setDetails.length === 0) return '';
-  return parsed.setDetails.map(([a, b]) => `${b}-${a}`).join(' / ');
+  for (let i = 0; i < parsed.setDetails.length; i++) {
+    const [a, b] = parsed.setDetails[i];
+    if (a === b && a > 0) {
+      return {
+        setIndex: i,
+        ownGames: a,
+        rivalGames: b,
+        totalSets: parsed.setDetails.length,
+      };
+    }
+  }
+  return null;
+}
+
+export function resolveTiedSetScore(
+  score: string,
+  setIndex: number,
+  tbPoints1: number,
+  tbPoints2: number,
+  gamesFormat: '7-6' | '8-7' = '7-6'
+): { scoreTeam1: string; scoreTeam2: string; winnerNum: 1 | 2 } {
+  const parts = score.split(/\s*[\/,;]\s*/).filter(Boolean);
+  const winnerNum = tbPoints1 > tbPoints2 ? 1 : 2;
+
+  const winGames = gamesFormat === '8-7' ? 8 : 7;
+  const loseGames = gamesFormat === '8-7' ? 7 : 6;
+
+  const resolvedParts1: string[] = [];
+  const resolvedParts2: string[] = [];
+
+  parts.forEach((part, idx) => {
+    if (idx === setIndex) {
+      if (winnerNum === 1) {
+        resolvedParts1.push(`${winGames}-${loseGames} (${tbPoints1}-${tbPoints2})`);
+        resolvedParts2.push(`${loseGames}-${winGames} (${tbPoints2}-${tbPoints1})`);
+      } else {
+        resolvedParts1.push(`${loseGames}-${winGames} (${tbPoints1}-${tbPoints2})`);
+        resolvedParts2.push(`${winGames}-${loseGames} (${tbPoints2}-${tbPoints1})`);
+      }
+    } else {
+      const match = part.match(/(\d+)\s*(?:[-–\/]|a|A)\s*(\d+)/);
+      if (match) {
+        const a = Number(match[1]);
+        const b = Number(match[2]);
+        resolvedParts1.push(`${a}-${b}`);
+        resolvedParts2.push(`${b}-${a}`);
+      } else {
+        resolvedParts1.push(part);
+        resolvedParts2.push(part);
+      }
+    }
+  });
+
+  return {
+    scoreTeam1: resolvedParts1.join(' / '),
+    scoreTeam2: resolvedParts2.join(' / '),
+    winnerNum,
+  };
 }
 
 export function validateScore(scoreTeam1: string, scoreTeam2: string) {
