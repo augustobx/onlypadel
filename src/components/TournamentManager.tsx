@@ -191,6 +191,7 @@ export default function TournamentManager({ tournament }: { tournament: Tourname
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                           </h3>
+                        )}
                         {(() => {
                           const realCount = (cat.teams || []).filter(t => t.player1?.phone !== 'DUMMY_PLAZA').length;
                           const totalSlots = (cat.teams || []).length;
