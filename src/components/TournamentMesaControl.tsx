@@ -136,8 +136,8 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
     matchId: string, 
     team1Id?: string | null, 
     team2Id?: string | null, 
-    team1Name?: string, 
-    team2Name?: string
+    team1Name?: string | null, 
+    team2Name?: string | null
   ) => {
     let s1 = (document.getElementById(`s1-${matchId}`) as HTMLInputElement)?.value.trim() || '';
     let s2 = (document.getElementById(`s2-${matchId}`) as HTMLInputElement)?.value.trim() || '';
