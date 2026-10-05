@@ -184,6 +184,31 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
         if (!placeholder) throw new Error('INVALID_SLOT');
       }
 
+      // Si seleccionó una zona preferida y no tenía placeholder directo
+      if (!placeholder && data.preferredGroupId) {
+        const freeSlot = await tx.tournamentGroupTeam.findFirst({
+          where: {
+            groupId: data.preferredGroupId,
+            team: { player1: { phone: 'DUMMY_PLAZA' } }
+          },
+          include: { team: true }
+        });
+        if (freeSlot) {
+          placeholder = freeSlot.team;
+        }
+      }
+
+      // Si no seleccionó slot ni zona, buscar si la categoría tiene plazas libres (dummy) generadas para auto-asignar
+      if (!placeholder) {
+        placeholder = await tx.tournamentTeam.findFirst({
+          where: {
+            categoryId,
+            player1: { phone: 'DUMMY_PLAZA' }
+          },
+          orderBy: { name: 'asc' }
+        });
+      }
+
       if (tournament.maxTeams && !placeholder) {
         const occupied = await tx.tournamentTeam.count({
           where: { category: { tournamentId }, NOT: { player1: { phone: 'DUMMY_PLAZA' } } },
@@ -286,20 +311,6 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
 
       if (!validation.valid) {
         throw new Error(`CATEGORY_INVALID:${validation.error || 'Nivel de categoría no permitido'}`);
-      }
-
-      // Si seleccionó una zona preferida y no tenía placeholder directo
-      if (!placeholder && data.preferredGroupId) {
-        const freeSlot = await tx.tournamentGroupTeam.findFirst({
-          where: {
-            groupId: data.preferredGroupId,
-            team: { player1: { phone: 'DUMMY_PLAZA' } }
-          },
-          include: { team: true }
-        });
-        if (freeSlot) {
-          placeholder = freeSlot.team;
-        }
       }
 
       const p1FullName = `${p1.name || data.player1Name} ${p1.lastName || data.player1LastName || ''}`.trim();

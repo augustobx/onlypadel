@@ -269,9 +269,52 @@ export async function deleteTeam(teamId: string) {
     await requireAdmin();
     const team = await prisma.tournamentTeam.findUnique({
       where: { id: teamId },
-      include: { category: true }
+      include: {
+        category: true,
+        player1: true,
+        groupPlacements: { include: { group: true } },
+      }
     });
     if (!team) return { success: false, error: 'Equipo no encontrado' };
+
+    // Si el equipo está en una zona con partidos generados, podemos liberar la plaza (volver a Plaza Libre)
+    // para preservar el cronograma, canchas y fixture del torneo
+    const matchCount = await prisma.tournamentMatch.count({
+      where: { OR: [{ team1Id: teamId }, { team2Id: teamId }] }
+    });
+
+    if (team.groupPlacements && team.groupPlacements.length > 0 && matchCount > 0 && team.player1?.phone !== 'DUMMY_PLAZA') {
+      let dummyUser = await prisma.user.findFirst({ where: { phone: 'DUMMY_PLAZA' } });
+      if (!dummyUser) {
+        dummyUser = await prisma.user.create({
+          data: {
+            name: 'Plaza Libre',
+            phone: 'DUMMY_PLAZA',
+            role: 'PLAYER',
+          }
+        });
+      }
+
+      const group = team.groupPlacements[0].group;
+      const groupLetter = group ? group.name.replace('Zona ', '').trim() : 'A';
+
+      await prisma.tournamentTeam.update({
+        where: { id: teamId },
+        data: {
+          name: `Plaza libre ${groupLetter}`,
+          player1Id: dummyUser.id,
+          player2Id: null,
+          phone1: null,
+          phone2: null,
+          isPaid: false,
+        }
+      });
+
+      revalidateTournamentPaths();
+      revalidatePath(`/admin/torneos/${team.category.tournamentId}`);
+      revalidatePath('/torneos');
+      return { success: true };
+    }
 
     await prisma.$transaction(async (tx) => {
       // 1. Grupos donde estaba este equipo

@@ -79,8 +79,10 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
             </div>
 
             {tournament.status === 'REGISTRATION' && tournament.categories.length > 0 && (() => {
-              const totalTeams = tournament.categories.reduce((acc, cat) => acc + (cat.teams?.length || 0), 0);
-              const isFull = tournament.maxTeams ? totalTeams >= tournament.maxTeams : false;
+              const realTeamsCount = tournament.categories.reduce((acc, cat) => 
+                acc + (cat.teams?.filter(t => t.player1?.phone !== 'DUMMY_PLAZA').length || 0), 0
+              );
+              const isFull = tournament.maxTeams ? realTeamsCount >= tournament.maxTeams : false;
               
               return (
                 <div className="flex flex-col items-end gap-2">
@@ -97,7 +99,7 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
                   </Link>
                   {tournament.maxTeams && (
                     <span className={`text-sm font-medium ${isFull ? 'text-red-400' : 'text-emerald-400'}`}>
-                      {totalTeams} / {tournament.maxTeams} cupos ocupados
+                      {realTeamsCount} / {tournament.maxTeams} cupos ocupados
                     </span>
                   )}
                 </div>
@@ -208,7 +210,15 @@ export default async function PublicTournamentDetail(props: { params: Promise<{ 
               <div className="flex items-center gap-3 border-b border-slate-700/50 pb-3">
                 <Trophy className="w-6 h-6 text-yellow-500" />
                 <h2 className="text-2xl font-bold">{category.name}</h2>
-                <span className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full">{category.teams?.length || 0} parejas</span>
+                {(() => {
+                  const realCount = (category.teams || []).filter(t => t.player1?.phone !== 'DUMMY_PLAZA').length;
+                  const totalSlots = (category.teams || []).length;
+                  return (
+                    <span className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
+                      {realCount} {totalSlots > realCount ? `de ${totalSlots} parejas confirmadas` : 'parejas'}
+                    </span>
+                  );
+                })()}
               </div>
 
               {/* TABLAS DE ZONAS */}

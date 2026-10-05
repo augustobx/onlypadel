@@ -47,7 +47,7 @@ export default async function TournamentRegistrationPage(props: { params: Promis
   const categories = tournament.categories.map((c) => ({
     id: c.id,
     name: c.name,
-    teamCount: c.teams?.length || 0,
+    teamCount: c.teams?.filter(t => t.player1?.phone !== 'DUMMY_PLAZA').length || 0,
     groups: c.groups,
     matches: c.matches,
   }));

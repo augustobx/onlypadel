@@ -306,9 +306,17 @@ export default function TournamentZonesView({
               )
             )}
           </div>
-          <p className="text-slate-500 text-xs mt-1">
-            {hasZones ? `${category.groups.length} zonas configuradas • ${category.teams?.length || 0} inscriptos totales` : 'Sin zonas generadas'}
-          </p>
+          {(() => {
+            const realCount = (category.teams || []).filter(t => t.player1?.phone !== 'DUMMY_PLAZA').length;
+            const dummyCount = (category.teams || []).filter(t => t.player1?.phone === 'DUMMY_PLAZA').length;
+            return (
+              <p className="text-slate-500 text-xs mt-1">
+                {hasZones 
+                  ? `${category.groups.length} zonas configuradas • ${realCount} parejas confirmadas ${dummyCount > 0 ? `(${dummyCount} plazas libres)` : ''}` 
+                  : 'Sin zonas generadas'}
+              </p>
+            );
+          })()}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

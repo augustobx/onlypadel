@@ -191,10 +191,20 @@ export default function TournamentManager({ tournament }: { tournament: Tourname
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                           </h3>
-                        )}
-                        <p className="text-sm text-slate-500 mt-1">
-                          {cat.teams?.length || 0} parejas inscriptas
-                        </p>
+                        {(() => {
+                          const realCount = (cat.teams || []).filter(t => t.player1?.phone !== 'DUMMY_PLAZA').length;
+                          const totalSlots = (cat.teams || []).length;
+                          return (
+                            <p className="text-sm text-slate-500 mt-1">
+                              {realCount} {totalSlots > realCount ? `de ${totalSlots} parejas confirmadas` : 'parejas inscriptas'}
+                              {totalSlots > realCount && (
+                                <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                  {totalSlots - realCount} plazas libres
+                                </span>
+                              )}
+                            </p>
+                          );
+                        })()}
                       </div>
                       <Button variant="ghost" size="sm" onClick={() => handleDeleteCategory(cat.id)} disabled={loading === cat.id} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
                         <Trash2 className="w-4 h-4" />
@@ -312,7 +322,20 @@ export default function TournamentManager({ tournament }: { tournament: Tourname
               <div key={cat.id} className="p-5 border rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm hover:border-emerald-500/30 transition-colors">
                 <div>
                   <h3 className="font-black text-xl text-slate-800 dark:text-white">{cat.name}</h3>
-                  <p className="text-slate-500 mt-1 font-medium">{cat.teams?.length || 0} parejas anotadas</p>
+                  {(() => {
+                    const realCount = (cat.teams || []).filter(t => t.player1?.phone !== 'DUMMY_PLAZA').length;
+                    const totalSlots = (cat.teams || []).length;
+                    return (
+                      <p className="text-slate-500 mt-1 font-medium text-sm">
+                        {realCount} {totalSlots > realCount ? `de ${totalSlots} parejas confirmadas` : 'parejas anotadas'}
+                        {totalSlots > realCount && (
+                          <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            {totalSlots - realCount} plazas libres
+                          </span>
+                        )}
+                      </p>
+                    );
+                  })()}
                 </div>
                 <TournamentTeamsModal category={cat} tournamentId={tournament.id} />
               </div>
