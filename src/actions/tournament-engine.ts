@@ -6,7 +6,7 @@ import { requireAdmin } from '@/lib/admin-auth';
 import type { TournamentFormat } from '@prisma/client';
 import { randomInt } from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { compareStandings, createFirstRoundSlots, parseScore, validateScore } from '@/lib/tournaments/rules';
+import { compareStandings, createFirstRoundSlots, parseScore, validateScore, mirrorScore } from '@/lib/tournaments/rules';
 import { validatePairCategory } from '@/lib/tournaments/category-rules';
 import { normalizePhoneForWhatsApp } from '@/lib/whatsapp/notifications';
 
@@ -460,11 +460,23 @@ export async function updateMatchScore(matchId: string, scoreTeam1: string, scor
       const match = await tx.tournamentMatch.findUnique({ where: { id: matchId } });
       if (!match || !match.team1Id || !match.team2Id) throw new Error('MATCH_NOT_READY');
       if (match.status === 'COMPLETED') throw new Error('MATCH_ALREADY_COMPLETED');
-      validateMatchScore(scoreTeam1, scoreTeam2, winnerId, match.team1Id, match.team2Id);
+
+      let s1 = (scoreTeam1 || '').trim();
+      let s2 = (scoreTeam2 || '').trim();
+      if (s1 && !s2) s2 = mirrorScore(s1);
+      if (s2 && !s1) s1 = mirrorScore(s2);
+
+      let wId = (winnerId || '').trim();
+      const evalScore = validateScore(s1, s2);
+      if (!wId && evalScore.valid && evalScore.winner > 0) {
+        wId = evalScore.winner === 1 ? match.team1Id : match.team2Id;
+      }
+
+      validateMatchScore(s1, s2, wId, match.team1Id, match.team2Id);
 
       await tx.tournamentMatch.update({
         where: { id: matchId },
-        data: { scoreTeam1: scoreTeam1.trim(), scoreTeam2: scoreTeam2.trim(), winnerId, status: 'COMPLETED' },
+        data: { scoreTeam1: s1, scoreTeam2: s2, winnerId: wId, status: 'COMPLETED' },
       });
 
       if (match.groupId) await recomputeGroupStandings(tx, match.groupId);

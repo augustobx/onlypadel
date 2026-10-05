@@ -5,9 +5,9 @@ export function parseScore(score: string): ParsedScore {
   const setDetails: [number, number][] = [];
   let sets = 0;
   let games = 0;
-  for (const part of score.split(/\s*\/\s*|\s+/).filter(Boolean)) {
-    const match = part.match(/^(\d+)\s*[-–]\s*(\d+)$/);
-    if (!match) continue;
+  const regex = /(\d+)\s*[-–]\s*(\d+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(score)) !== null) {
     const ownGames = Number(match[1]);
     const rivalGames = Number(match[2]);
     setDetails.push([ownGames, rivalGames]);
@@ -15,6 +15,13 @@ export function parseScore(score: string): ParsedScore {
     if (ownGames > rivalGames) sets++;
   }
   return { sets, games, setDetails };
+}
+
+export function mirrorScore(score: string): string {
+  if (!score || score === '-' || score === 'BYE') return '';
+  const parsed = parseScore(score);
+  if (parsed.setDetails.length === 0) return '';
+  return parsed.setDetails.map(([a, b]) => `${b}-${a}`).join(' / ');
 }
 
 export function validateScore(scoreTeam1: string, scoreTeam2: string) {

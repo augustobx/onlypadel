@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { updateMatchScore, setMatchInProgress, resetMatchResult, updateMatchAssignment } from '@/actions/tournament-engine';
 import { getCourts } from '@/actions/courts';
 import { useRouter } from 'next/navigation';
-import { Play, CheckCircle2, Clock, ChevronDown, RotateCcw, MapPin } from 'lucide-react';
+import { Play, CheckCircle2, Clock, ChevronDown, RotateCcw, MapPin, Sparkles } from 'lucide-react';
 import type { CourtView, TournamentMatchView, TournamentView } from '@/lib/tournaments/types';
+import { mirrorScore, validateScore } from '@/lib/tournaments/rules';
 
 export default function TournamentMesaControl({ tournament }: { tournament: TournamentView }) {
   const [loading, setLoading] = useState<string | null>(null);
@@ -58,13 +59,68 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
     router.refresh();
   };
 
-  const handleUpdate = async (matchId: string) => {
-    const s1 = (document.getElementById(`s1-${matchId}`) as HTMLInputElement)?.value || '';
-    const s2 = (document.getElementById(`s2-${matchId}`) as HTMLInputElement)?.value || '';
-    const wId = (document.getElementById(`w-${matchId}`) as HTMLSelectElement)?.value || '';
+  // Espejar automáticamente el marcador y seleccionar el ganador en tiempo real
+  const handleScoreInput = (matchId: string, teamNum: 1 | 2, team1Id: string | null, team2Id: string | null) => {
+    const s1Input = document.getElementById(`s1-${matchId}`) as HTMLInputElement | null;
+    const s2Input = document.getElementById(`s2-${matchId}`) as HTMLInputElement | null;
+    const winnerSelect = document.getElementById(`w-${matchId}`) as HTMLSelectElement | null;
+    if (!s1Input || !s2Input) return;
+
+    const currentVal = teamNum === 1 ? s1Input.value : s2Input.value;
+    const mirrored = mirrorScore(currentVal);
+
+    if (teamNum === 1) {
+      s2Input.value = mirrored;
+    } else {
+      s1Input.value = mirrored;
+    }
+
+    const s1Val = s1Input.value;
+    const s2Val = s2Input.value;
+    if (s1Val && s2Val && winnerSelect) {
+      const evalRes = validateScore(s1Val, s2Val);
+      if (evalRes.valid && evalRes.winner > 0) {
+        const detectedWinnerId = evalRes.winner === 1 ? team1Id : team2Id;
+        if (detectedWinnerId) {
+          winnerSelect.value = detectedWinnerId;
+        }
+      }
+    }
+  };
+
+  const handleUpdate = async (matchId: string, team1Id?: string | null, team2Id?: string | null) => {
+    let s1 = (document.getElementById(`s1-${matchId}`) as HTMLInputElement)?.value.trim() || '';
+    let s2 = (document.getElementById(`s2-${matchId}`) as HTMLInputElement)?.value.trim() || '';
+    let wId = (document.getElementById(`w-${matchId}`) as HTMLSelectElement)?.value || '';
+
+    // Auto-espejar si solo se cargó un marcador
+    if (s1 && !s2) {
+      s2 = mirrorScore(s1);
+      const s2Input = document.getElementById(`s2-${matchId}`) as HTMLInputElement | null;
+      if (s2Input) s2Input.value = s2;
+    } else if (s2 && !s1) {
+      s1 = mirrorScore(s2);
+      const s1Input = document.getElementById(`s1-${matchId}`) as HTMLInputElement | null;
+      if (s1Input) s1Input.value = s1;
+    }
+
+    // Auto-detectar ganador si no se seleccionó en el dropdown
+    if (!wId && s1 && s2) {
+      const evalRes = validateScore(s1, s2);
+      if (evalRes.valid && evalRes.winner > 0) {
+        wId = evalRes.winner === 1 ? (team1Id || '') : (team2Id || '');
+        const winnerSelect = document.getElementById(`w-${matchId}`) as HTMLSelectElement | null;
+        if (winnerSelect && wId) winnerSelect.value = wId;
+      }
+    }
+
+    if (!s1 || !s2) {
+      setFeedback({ type: 'error', message: 'Ingresá el resultado del partido (ej: 6-4 o 6-4 / 7-5).' });
+      return;
+    }
 
     if (!wId) {
-      alert("Seleccioná un ganador");
+      setFeedback({ type: 'error', message: 'Seleccioná el ganador del partido.' });
       return;
     }
 
@@ -162,12 +218,30 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
                               <div className="flex items-center gap-2">
                                 {/* FIX #4: optional chaining para evitar crash con team1/team2 null */}
                                 <span className={`flex-1 truncate text-sm ${m.team1?.name?.startsWith('Plaza') ? 'text-slate-400 italic' : 'font-medium'}`}>{m.team1?.name || 'TBD'}</span>
-                                <Input id={`s1-${m.id}`} type="text" placeholder="6-4 / 7-5" defaultValue={m.scoreTeam1 || ''} className="w-28 text-center h-8 text-sm" />
+                                <Input 
+                                  id={`s1-${m.id}`} 
+                                  type="text" 
+                                  placeholder="6-4 / 7-5" 
+                                  defaultValue={m.scoreTeam1 || ''} 
+                                  onChange={() => handleScoreInput(m.id, 1, m.team1Id, m.team2Id)}
+                                  className="w-28 text-center h-8 text-sm font-mono" 
+                                />
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={`flex-1 truncate text-sm ${m.team2?.name?.startsWith('Plaza') ? 'text-slate-400 italic' : 'font-medium'}`}>{m.team2?.name || 'TBD'}</span>
-                                <Input id={`s2-${m.id}`} type="text" placeholder="4-6 / 5-7" defaultValue={m.scoreTeam2 || ''} className="w-28 text-center h-8 text-sm" />
+                                <Input 
+                                  id={`s2-${m.id}`} 
+                                  type="text" 
+                                  placeholder="4-6 / 5-7" 
+                                  defaultValue={m.scoreTeam2 || ''} 
+                                  onChange={() => handleScoreInput(m.id, 2, m.team1Id, m.team2Id)}
+                                  className="w-28 text-center h-8 text-sm font-mono" 
+                                />
                               </div>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 px-2 py-1 rounded">
+                                <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                                <span>Escribí solo 1 resultado (<strong className="text-slate-700 dark:text-slate-200">6-4</strong> ó <strong className="text-slate-700 dark:text-slate-200">6-4 / 7-5</strong>); el rival y ganador se autocompletan.</span>
+                              </p>
                             </div>
 
                             <select id={`w-${m.id}`} className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" defaultValue="">
@@ -215,7 +289,7 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
                               )}
                               <Button
                                 size="sm"
-                                onClick={() => handleUpdate(m.id)}
+                                onClick={() => handleUpdate(m.id, m.team1Id, m.team2Id)}
                                 disabled={loading === m.id}
                                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                               >
@@ -253,7 +327,7 @@ export default function TournamentMesaControl({ tournament }: { tournament: Tour
                   <span className="mx-2 text-slate-400">vs</span>
                   <span className={`${m.winnerId === m.team2Id ? 'font-bold text-emerald-600' : 'text-slate-500'}`}>{m.team2?.name}</span>
                 </div>
-                <span className="font-mono font-bold text-xs mr-2">{m.scoreTeam1} / {m.scoreTeam2}</span>
+                <span className="font-mono font-bold text-xs mr-2 bg-slate-100 dark:bg-slate-700/60 px-2 py-1 rounded text-slate-700 dark:text-slate-200">{m.scoreTeam1}</span>
                 {/* #12 — Botón resetear resultado */}
                 <button
                   onClick={() => handleReset(m.id)}
