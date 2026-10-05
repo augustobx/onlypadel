@@ -473,6 +473,6 @@ export async function createTournamentWithWizard(payload: TournamentWizardPayloa
     return { success: true, data: result };
   } catch (error) {
     console.error('Error createTournamentWithWizard:', error);
-    return { success: false, error: 'Error al generar el torneo con el asistente inteligente' };
+    return { success: false, error: (error as Error)?.message || 'Error al generar el torneo con el asistente inteligente' };
   }
 }

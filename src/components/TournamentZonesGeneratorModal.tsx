@@ -92,17 +92,17 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
         <Settings className="w-4 h-4 mr-1" /> Generar Zonas
       </Button>
 
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+      <DialogContent className="w-[95vw] sm:max-w-xl max-h-[90vh] overflow-y-auto bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-4 sm:p-6 rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-black text-slate-900 dark:text-white">
+          <DialogTitle className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
             Configurar Zonas y Horarios - {category.name}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 pt-4">
-          <div className="grid grid-cols-2 gap-4 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-            <div className="space-y-2">
-              <Label className="text-slate-600 dark:text-slate-300 font-bold">Cantidad de Zonas</Label>
+        <form onSubmit={handleSubmit} className="space-y-6 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="space-y-1.5">
+              <Label className="text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-wider">Cantidad de Zonas</Label>
               <Input 
                 type="number" min={1} max={16} required
                 value={numZones} 
@@ -111,16 +111,16 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
                   setNumZones(val);
                   setZonesConfig(buildZoneConfig(val));
                 }} 
-                className="h-10 text-center font-bold bg-slate-50 dark:bg-slate-900"
+                className="h-11 text-center font-bold bg-slate-50 dark:bg-slate-900 text-base"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-slate-600 dark:text-slate-300 font-bold">Plazas por Zona</Label>
+            <div className="space-y-1.5">
+              <Label className="text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-wider">Plazas por Zona</Label>
               <Input 
                 type="number" min={2} max={12} required
                 value={teamsPerZone} 
                 onChange={e => setTeamsPerZone(Number(e.target.value))} 
-                className="h-10 text-center font-bold bg-slate-50 dark:bg-slate-900"
+                className="h-11 text-center font-bold bg-slate-50 dark:bg-slate-900 text-base"
               />
             </div>
           </div>
@@ -128,9 +128,9 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
           <div className="space-y-4">
             <h3 className="font-bold border-b pb-2 dark:text-white dark:border-slate-800 text-sm">Configuración de Horarios por Zona</h3>
             {zonesConfig.map((zc, idx) => (
-              <div key={idx} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+              <div key={idx} className="p-4 bg-white dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
                 <h4 className="font-black text-emerald-600 dark:text-emerald-400">{zc.name}</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha de Inicio</Label>
                     <Input 
@@ -172,9 +172,11 @@ export default function TournamentZonesGeneratorModal({ category, tournamentStar
             ))}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 pt-4 border-t dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto h-11">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Generar Zonas y Fixture
             </Button>

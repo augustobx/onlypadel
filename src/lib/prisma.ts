@@ -108,8 +108,19 @@ async function validateRelationOwnership(model: string, data: unknown, tenantId:
         if (foreignTenantCount > 0) {
           throw new Error(`CROSS_TENANT_RELATION_REJECTED:${model}.${field}`);
         }
-        // Si no pertenece a otro tenant y es fixedBookingId recién creado en la misma operación
-        if (count === 0 && foreignTenantCount === 0 && model === 'Booking' && field === 'fixedBookingId') {
+        // Si no pertenece a otro tenant y es una entidad recién creada en la misma transacción
+        // (por ejemplo: torneos, categorías, grupos, equipos, partidos, reservas fijas, etc.)
+        if (
+          count === 0 &&
+          foreignTenantCount === 0 &&
+          (
+            (model === 'Booking' && field === 'fixedBookingId') ||
+            model.startsWith('Tournament') ||
+            model.startsWith('OpenMatch') ||
+            model.startsWith('Chat') ||
+            model.startsWith('Post')
+          )
+        ) {
           continue;
         }
         throw new Error(`CROSS_TENANT_RELATION_REJECTED:${model}.${field}`);

@@ -227,15 +227,15 @@ export default function TournamentManager({ tournament }: { tournament: Tourname
 
               <div className="mt-4 p-5 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">O añadir categoría manualmente</p>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Input
                     placeholder="Ej: 5ta Libre, 7ma Masculina, Mixto..."
                     value={newCatName}
                     onChange={e => setNewCatName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleCreateCategory()}
-                    className="bg-white dark:bg-slate-900 shadow-sm"
+                    className="bg-white dark:bg-slate-900 shadow-sm h-11"
                   />
-                  <Button onClick={handleCreateCategory} disabled={loading === 'create_cat' || !newCatName.trim()} className="whitespace-nowrap shadow-sm">
+                  <Button onClick={handleCreateCategory} disabled={loading === 'create_cat' || !newCatName.trim()} className="whitespace-nowrap shadow-sm h-11">
                     {loading === 'create_cat' ? 'Añadiendo...' : 'Agregar Categoría'}
                   </Button>
                 </div>
