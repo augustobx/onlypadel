@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import PushConfig from "@/components/PushConfig";
-import { updateSystemSettings } from "@/actions/settings";
+import { updateSystemSettings, sendTestEmailAction } from "@/actions/settings";
 import { 
   Building2, Palette, Zap, CreditCard, Smartphone, MessageSquare, 
   Sparkles, CheckCircle2, Shield, Eye, Image as ImageIcon, Check,
-  Flame, Moon, Sun, Snowflake, Laptop, Megaphone
+  Flame, Moon, Sun, Snowflake, Laptop, Megaphone, Mail
 } from 'lucide-react';
 import type { SystemSetting } from '@prisma/client';
 import ClubAnnouncementBoard from '@/components/ClubAnnouncementBoard';
@@ -35,6 +35,11 @@ export type ExtendedSettings = SystemSetting & {
   communityMatchesEnabled?: boolean;
   communityChatEnabled?: boolean;
   requireLoginToBook?: boolean;
+  smtpHost?: string;
+  smtpPort?: string;
+  smtpUser?: string;
+  smtpFrom?: string;
+  resendApiKey?: string;
 };
 
 const THEMES = [
@@ -146,6 +151,29 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
       initialSettings.communityChatEnabled ?? false
     );
 
+    // Email test state
+    const [testEmailTarget, setTestEmailTarget] = useState('');
+    const [testEmailSending, setTestEmailSending] = useState(false);
+    const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
+
+    const handleSendTestEmail = async () => {
+      if (!testEmailTarget) return;
+      setTestEmailSending(true);
+      setTestEmailResult(null);
+      try {
+        const res = await sendTestEmailAction(testEmailTarget);
+        if (res.success) {
+          setTestEmailResult({ success: true, message: '¡Correo de prueba enviado con éxito! Revisá tu casilla de correo.' });
+        } else {
+          setTestEmailResult({ success: false, message: res.error || 'Error al enviar el correo.' });
+        }
+      } catch (err: any) {
+        setTestEmailResult({ success: false, message: 'Error de conexión con el servidor de correo.' });
+      } finally {
+        setTestEmailSending(false);
+      }
+    };
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsSaving(true);
@@ -174,6 +202,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
         { id: 'appearance', label: 'Temas & Apariencia', icon: <Palette className="w-4 h-4" /> },
         { id: 'splash', label: 'Logo & Splash Screen', icon: <Smartphone className="w-4 h-4" /> },
         { id: 'announcement', label: 'Tablón de Anuncios', icon: <Megaphone className="w-4 h-4" /> },
+        { id: 'email', label: 'Correo & SMTP', icon: <Mail className="w-4 h-4" /> },
         { id: 'modules', label: 'Módulos & Permisos', icon: <Zap className="w-4 h-4" /> },
         { id: 'payments', label: 'Pagos & Señas', icon: <CreditCard className="w-4 h-4" /> },
         { id: 'whatsapp', label: 'WhatsApp & Mensajes', icon: <MessageSquare className="w-4 h-4" /> },
@@ -864,7 +893,7 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-400">
                                   Vista Previa en Vivo del Tablón (como se ve en la app post-splash)
                                 </Label>
-                                <div className="p-4 rounded-3xl bg-slate-950 border border-slate-800">
+                                <div className="p-4 sm:p-6 rounded-3xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                                   <ClubAnnouncementBoard
                                     active={true}
                                     badge={announcementBadge}
@@ -884,7 +913,120 @@ export default function SettingsForm({ settings }: { settings: ExtendedSettings 
                     </Card>
                 </div>
 
-                {/* 5. MODULOS & PERMISOS */}
+                {/* 5. CORREO ELECTRONICO & SMTP */}
+                <div className={activeTab === 'email' ? 'block space-y-6' : 'hidden'}>
+                    <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg font-black flex items-center gap-2 text-slate-900 dark:text-white">
+                              <Mail className="w-5 h-5 text-[var(--color-primary)]" /> Configuración de Correo Electrónico (SMTP)
+                            </CardTitle>
+                            <CardDescription>
+                              Configurá las credenciales del servidor saliente para el envío de correos de recuperación de contraseña y avisos a los socios.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="md:col-span-2 space-y-2">
+                                    <Label htmlFor="smtpHost" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                      Servidor Saliente SMTP (Host)
+                                    </Label>
+                                    <Input 
+                                      id="smtpHost" 
+                                      name="smtpHost" 
+                                      defaultValue={initialSettings.smtpHost || 'c2801249.ferozo.com'} 
+                                      placeholder="c2801249.ferozo.com" 
+                                      className="rounded-xl font-medium" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="smtpPort" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                      Puerto (465 SSL o 587 TLS)
+                                    </Label>
+                                    <Input 
+                                      id="smtpPort" 
+                                      name="smtpPort" 
+                                      type="number" 
+                                      defaultValue={initialSettings.smtpPort || '465'} 
+                                      placeholder="465" 
+                                      className="rounded-xl font-medium" 
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="smtpUser" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                      Usuario / Dirección de Correo
+                                    </Label>
+                                    <Input 
+                                      id="smtpUser" 
+                                      name="smtpUser" 
+                                      defaultValue={initialSettings.smtpUser || 'psp@nanolabs.online'} 
+                                      placeholder="psp@nanolabs.online" 
+                                      className="rounded-xl font-medium" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="smtpPass" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                      Contraseña del Correo
+                                    </Label>
+                                    <Input 
+                                      id="smtpPass" 
+                                      name="smtpPass" 
+                                      type="password" 
+                                      placeholder="Ingresá la clave de la casilla" 
+                                      className="rounded-xl font-medium" 
+                                    />
+                                    <p className="text-[11px] text-slate-400">Dejalo vacío para mantener la contraseña guardada actualmente.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="smtpFrom" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                  Nombre y Remitente Visible
+                                </Label>
+                                <Input 
+                                  id="smtpFrom" 
+                                  name="smtpFrom" 
+                                  defaultValue={initialSettings.smtpFrom || 'OnlyPadel <psp@nanolabs.online>'} 
+                                  placeholder="OnlyPadel <psp@nanolabs.online>" 
+                                  className="rounded-xl font-medium" 
+                                />
+                            </div>
+
+                            {/* Prueba de Envío en Vivo */}
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                                  Probar Conexión de Correo
+                                </Label>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <Input 
+                                      type="email"
+                                      value={testEmailTarget}
+                                      onChange={(e) => setTestEmailTarget(e.target.value)}
+                                      placeholder="Ingresá tu correo para recibir una prueba (ej: tu@email.com)"
+                                      className="rounded-xl flex-1 text-xs sm:text-sm font-medium"
+                                    />
+                                    <Button
+                                      type="button"
+                                      disabled={testEmailSending || !testEmailTarget}
+                                      onClick={handleSendTestEmail}
+                                      className="rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs shrink-0 px-4"
+                                    >
+                                      {testEmailSending ? 'Enviando...' : 'Enviar Prueba'}
+                                    </Button>
+                                </div>
+                                {testEmailResult && (
+                                  <p className={`text-xs font-semibold ${testEmailResult.success ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    {testEmailResult.message}
+                                  </p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* 6. MODULOS & PERMISOS */}
                 <div className={activeTab === 'modules' ? 'block space-y-6' : 'hidden'}>
                     <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-sm">
                         <CardHeader>

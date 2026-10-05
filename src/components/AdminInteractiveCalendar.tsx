@@ -9,10 +9,11 @@ import { es } from 'date-fns/locale';
 import { 
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, MapPin, 
   Plus, User, Phone, Trash2, X, Lock, Repeat, CheckCircle2, AlertCircle, 
-  Layers, Eye, Filter, Sparkles, RefreshCw, CalendarDays, LayoutGrid
+  Layers, Eye, Filter, Sparkles, RefreshCw, CalendarDays, LayoutGrid,
+  CheckSquare, Square
 } from 'lucide-react';
 import { 
-  getAdminCalendarData, getAdminCalendarWeekData, createAdminBooking, cancelAdminBooking, rescheduleAdminBooking 
+  getAdminCalendarData, getAdminCalendarWeekData, createAdminBooking, cancelAdminBooking, rescheduleAdminBooking, releaseFixedBookingOccurrence 
 } from '@/actions/admin-calendar';
 import { getMonthlyStats } from '@/actions/monthly-calendar';
 import { Button } from '@/components/ui/button';
@@ -322,8 +323,110 @@ export default function AdminInteractiveCalendar({
     setRescheduleSubmitting(false);
   };
 
+  // Estado para Liberación de Turnos de Abono Fijo
+  const [releaseFixedModalOpen, setReleaseFixedModalOpen] = useState(false);
+  const [releaseFixedData, setReleaseFixedData] = useState<{
+    fixedBookingId: string;
+    courtId: string;
+    courtName: string;
+    clientName: string;
+    clientPhone: string;
+    dateStr: string;
+    time: string;
+    endTime?: string;
+    dayOfWeek: number;
+    seriesDates: string[];
+  } | null>(null);
+  const [releaseScope, setReleaseScope] = useState<'single' | 'series'>('single');
+  const [selectedSeriesDates, setSelectedSeriesDates] = useState<string[]>([]);
+  const [notifyAppOnRelease, setNotifyAppOnRelease] = useState(true);
+  const [releaseSubmitting, setReleaseSubmitting] = useState(false);
+
+  const openReleaseFixedModal = (slot: any, court: any, dateStr: string) => {
+    const dow = slot.booking?.dayOfWeek !== undefined 
+      ? slot.booking.dayOfWeek 
+      : (new Date(`${dateStr}T12:00:00-03:00`).getDay());
+    
+    // Generar las próximas 8 semanas de esta serie
+    const seriesDates: string[] = [];
+    const baseDate = new Date(`${dateStr}T12:00:00-03:00`);
+    for (let i = 0; i < 8; i++) {
+      const nextDate = new Date(baseDate);
+      nextDate.setDate(nextDate.getDate() + (i * 7));
+      const nextDateStr = format(nextDate, 'yyyy-MM-dd');
+      seriesDates.push(nextDateStr);
+    }
+
+    setReleaseFixedData({
+      fixedBookingId: slot.booking?.fixedBookingId || slot.booking?.id,
+      courtId: court.id,
+      courtName: court.name,
+      clientName: slot.booking?.user?.name || 'Abonado',
+      clientPhone: slot.booking?.user?.phone || '',
+      dateStr,
+      time: slot.time,
+      endTime: slot.endTime,
+      dayOfWeek: dow,
+      seriesDates,
+    });
+    setReleaseScope('single');
+    setSelectedSeriesDates([dateStr]);
+    setNotifyAppOnRelease(true);
+    setReleaseFixedModalOpen(true);
+  };
+
+  const toggleSeriesDate = (dStr: string) => {
+    setSelectedSeriesDates(prev => 
+      prev.includes(dStr) ? prev.filter(d => d !== dStr) : [...prev, dStr]
+    );
+  };
+
+  const handleConfirmReleaseFixed = async () => {
+    if (!releaseFixedData) return;
+
+    const datesToRelease = releaseScope === 'single' 
+      ? [releaseFixedData.dateStr] 
+      : selectedSeriesDates;
+
+    if (datesToRelease.length === 0) {
+      alert('Por favor seleccioná al menos una fecha para liberar.');
+      return;
+    }
+
+    setReleaseSubmitting(true);
+    try {
+      const res = await releaseFixedBookingOccurrence({
+        fixedBookingId: releaseFixedData.fixedBookingId,
+        courtId: releaseFixedData.courtId,
+        dates: datesToRelease,
+        startTimeStr: releaseFixedData.time,
+        endTimeStr: releaseFixedData.endTime,
+        notifyApp: notifyAppOnRelease,
+        reason: 'Abono fijo liberado',
+      });
+
+      if (res.success) {
+        setReleaseFixedModalOpen(false);
+        await loadData();
+      } else {
+        alert(res.error || 'Error al liberar el turno.');
+      }
+    } catch (err: any) {
+      alert('Ocurrió un error inesperado al liberar el turno.');
+    } finally {
+      setReleaseSubmitting(false);
+    }
+  };
+
   // Status color helpers
-  const getSlotBadge = (status: SlotItem['status'], booking?: any) => {
+  const getSlotBadge = (status: SlotItem['status'], booking?: any, isReleased?: boolean) => {
+    if (isReleased) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/40">
+          <Sparkles className="w-3 h-3 text-amber-600" /> Liberado
+        </span>
+      );
+    }
     switch (status) {
       case 'CONFIRMED':
         return (
@@ -540,36 +643,51 @@ export default function AdminInteractiveCalendar({
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0">
-                            {getSlotBadge(slot.status, slot.booking)}
+                            {getSlotBadge(slot.status, slot.booking, slot.isReleased)}
                             {isOccupied ? (
                               slot.booking?.id && (
                                 <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => openRescheduleModal(
-                                      slot.booking.id,
-                                      court.id,
-                                      court.name,
-                                      formattedCurrentDate,
-                                      slot.time,
-                                      slot.booking.user?.name || '',
-                                      slot.booking.user?.phone || ''
-                                    )}
-                                    className="h-7 w-7 text-slate-400 hover:text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-950/50 rounded-lg"
-                                    title="Reprogramar turno"
-                                  >
-                                    <Clock className="w-3.5 h-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleCancelBooking(slot.booking.id)}
-                                    className="h-7 w-7 text-slate-400 hover:text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/50 rounded-lg"
-                                    title="Cancelar turno"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
+                                  {slot.status === 'FIXED' ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openReleaseFixedModal(slot, court, formattedCurrentDate)}
+                                      className="h-7 px-2.5 text-xs font-bold rounded-lg border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-950/60 flex items-center gap-1 shadow-xs active:scale-95"
+                                      title="Liberar este turno fijo para que aparezca en la app"
+                                    >
+                                      <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                      <span>Liberar</span>
+                                    </Button>
+                                  ) : (
+                                    <>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => openRescheduleModal(
+                                          slot.booking.id,
+                                          court.id,
+                                          court.name,
+                                          formattedCurrentDate,
+                                          slot.time,
+                                          slot.booking.user?.name || '',
+                                          slot.booking.user?.phone || ''
+                                        )}
+                                        className="h-7 w-7 text-slate-400 hover:text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-950/50 rounded-lg"
+                                        title="Reprogramar turno"
+                                      >
+                                        <Clock className="w-3.5 h-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleCancelBooking(slot.booking.id)}
+                                        className="h-7 w-7 text-slate-400 hover:text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/50 rounded-lg"
+                                        title="Cancelar turno"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               )
                             ) : (
@@ -653,6 +771,8 @@ export default function AdminInteractiveCalendar({
                                 onClick={() => {
                                   if (!isOccupied) {
                                     openNewBookingModal(slot.courtId, slot.courtName, dayItem.dateStr, slot.time, slot.endTime);
+                                  } else if (slot.status === 'FIXED') {
+                                    openReleaseFixedModal(slot, { id: slot.courtId, name: slot.courtName }, dayItem.dateStr);
                                   }
                                 }}
                                 className={`p-2 rounded-xl text-left transition-all text-xs border ${
@@ -660,7 +780,7 @@ export default function AdminInteractiveCalendar({
                                     ? slot.status === 'BLOCKED'
                                       ? 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-900/60'
                                       : slot.status === 'FIXED'
-                                      ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/70 dark:text-purple-200 dark:border-purple-900/60'
+                                      ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/70 dark:text-purple-200 dark:border-purple-900/60 hover:ring-2 hover:ring-purple-400 cursor-pointer'
                                       : 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-900/60'
                                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400 cursor-pointer shadow-xs'
                                 }`}
@@ -670,9 +790,16 @@ export default function AdminInteractiveCalendar({
                                   <span className="opacity-75">{slot.courtName}</span>
                                 </div>
                                 {isOccupied ? (
-                                  <p className="font-bold text-[11px] truncate mt-0.5">
-                                    {slot.booking?.user?.name || (slot.status === 'BLOCKED' ? 'Bloqueo' : 'Turno')}
-                                  </p>
+                                  <div className="flex items-center justify-between mt-0.5">
+                                    <p className="font-bold text-[11px] truncate">
+                                      {slot.booking?.user?.name || (slot.status === 'BLOCKED' ? 'Bloqueo' : 'Turno')}
+                                    </p>
+                                    {slot.status === 'FIXED' && (
+                                      <span className="text-[9px] font-black uppercase text-purple-700 dark:text-purple-300 bg-purple-200 dark:bg-purple-900/60 px-1.5 py-0.5 rounded ml-1 shrink-0">
+                                        Liberar
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1">
                                     <Plus className="w-2.5 h-2.5" /> Libre
@@ -1222,6 +1349,193 @@ export default function AdminInteractiveCalendar({
                 className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md shadow-blue-600/20"
               >
                 {rescheduleSubmitting ? 'Reprogramando...' : 'Confirmar Cambio'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE LIBERACIÓN DE ABONO FIJO */}
+      {releaseFixedModalOpen && releaseFixedData && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                  <Sparkles className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">Liberar Turno de Abono Fijo</h3>
+                  <p className="text-xs text-slate-500">Publicá este horario en la app para que otros socios lo puedan reservar.</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setReleaseFixedModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Ficha Resumen del Abono */}
+            <div className="p-3.5 rounded-2xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-purple-800 dark:text-purple-300 font-bold flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" /> {releaseFixedData.clientName}
+                </span>
+                {releaseFixedData.clientPhone && (
+                  <span className="text-purple-600 dark:text-purple-400 font-medium flex items-center gap-1">
+                    <Phone className="w-3 h-3" /> {releaseFixedData.clientPhone}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 pt-1 border-t border-purple-200/40 dark:border-purple-900/40">
+                <span className="font-semibold">{releaseFixedData.courtName}</span>
+                <span className="font-black text-purple-700 dark:text-purple-300">
+                  {releaseFixedData.time} {releaseFixedData.endTime ? `- ${releaseFixedData.endTime}` : ''} hs
+                </span>
+              </div>
+            </div>
+
+            {/* Opciones de Alcance: Solo esta fecha o más de la serie */}
+            <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                ¿Qué turnos deseas liberar?
+              </Label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setReleaseScope('single')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all ${
+                    releaseScope === 'single'
+                      ? 'border-purple-500 bg-purple-500/10 text-purple-950 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-sm'
+                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold text-xs">
+                    <span>Solo este día</span>
+                    {releaseScope === 'single' && <CheckCircle2 className="w-4 h-4 text-purple-600" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 capitalize">
+                    {format(new Date(`${releaseFixedData.dateStr}T12:00:00-03:00`), "EEEE d 'de' MMMM", { locale: es })}
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReleaseScope('series');
+                    if (selectedSeriesDates.length <= 1) {
+                      setSelectedSeriesDates(releaseFixedData.seriesDates.slice(0, 4));
+                    }
+                  }}
+                  className={`p-3.5 rounded-2xl border text-left transition-all ${
+                    releaseScope === 'series'
+                      ? 'border-purple-500 bg-purple-500/10 text-purple-950 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-sm'
+                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold text-xs">
+                    <span>Múltiples de la serie</span>
+                    {releaseScope === 'series' && <CheckCircle2 className="w-4 h-4 text-purple-600" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Elegir varias semanas de este abono
+                  </p>
+                </button>
+              </div>
+
+              {/* Selector de fechas de la serie */}
+              {releaseScope === 'series' && (
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-slate-700/60">
+                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                      Seleccioná las fechas ({selectedSeriesDates.length} seleccionadas):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedSeriesDates.length === releaseFixedData.seriesDates.length) {
+                          setSelectedSeriesDates([releaseFixedData.dateStr]);
+                        } else {
+                          setSelectedSeriesDates([...releaseFixedData.seriesDates]);
+                        }
+                      }}
+                      className="text-[11px] font-bold text-purple-600 hover:underline"
+                    >
+                      {selectedSeriesDates.length === releaseFixedData.seriesDates.length ? 'Desmarcar' : 'Todas'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
+                    {releaseFixedData.seriesDates.map((dStr) => {
+                      const isChecked = selectedSeriesDates.includes(dStr);
+                      const dateObj = new Date(`${dStr}T12:00:00-03:00`);
+                      const label = format(dateObj, "EEE d 'de' MMM", { locale: es });
+                      return (
+                        <button
+                          key={dStr}
+                          type="button"
+                          onClick={() => toggleSeriesDate(dStr)}
+                          className={`flex items-center gap-2 p-2 rounded-xl text-xs font-semibold transition-all border text-left ${
+                            isChecked
+                              ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-800'
+                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                          }`}
+                        >
+                          {isChecked ? <CheckSquare className="w-3.5 h-3.5 text-purple-600 shrink-0" /> : <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                          <span className="capitalize">{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Checkbox de Publicación en la App y Notificación Push */}
+            <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+              <input
+                type="checkbox"
+                id="notifyAppOnRelease"
+                checked={notifyAppOnRelease}
+                onChange={(e) => setNotifyAppOnRelease(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300"
+              />
+              <label htmlFor="notifyAppOnRelease" className="text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                <span className="font-bold text-slate-900 dark:text-white block">Publicar en el tablón de la App y avisar a los socios</span>
+                Muestra el turno como &quot;⚡ ¡Se liberó un turno!&quot; en la PWA y envía una notificación Web Push a los jugadores para que lo reserven online.
+              </label>
+            </div>
+
+            {/* Acciones del Modal */}
+            <div className="flex gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setReleaseFixedModalOpen(false)}
+                className="flex-1 rounded-2xl h-11"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={releaseSubmitting || (releaseScope === 'series' && selectedSeriesDates.length === 0)}
+                onClick={handleConfirmReleaseFixed}
+                className="flex-1 rounded-2xl h-11 bg-purple-600 hover:bg-purple-700 text-white font-black shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2"
+              >
+                {releaseSubmitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Liberando...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Liberar {releaseScope === 'single' ? '1 Turno' : `${selectedSeriesDates.length} Turnos`}</span>
+                  </>
+                )}
               </Button>
             </div>
           </div>

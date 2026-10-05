@@ -48,7 +48,7 @@ export async function getAvailableSlots(courtId: string, dateStr: string) {
             where: {
                 courtId,
                 startTime: { gte: startOfDay, lte: endOfDay },
-                status: { in: ['PENDING', 'CONFIRMED', 'FIXED', 'BLOCKED'] },
+                status: { in: ['PENDING', 'CONFIRMED', 'FIXED', 'BLOCKED', 'CANCELLED'] },
             },
         });
 
@@ -117,8 +117,9 @@ export async function getAvailableSlots(courtId: string, dateStr: string) {
                 continue;
             }
 
-            // ¿Tiene una reserva que se solapa? (OVERLAP real)
+            // ¿Tiene una reserva activa que se solapa? (OVERLAP real)
             const occupyingBooking = existingBookings.find(b => {
+                if (b.status === 'CANCELLED') return false;
                 const bStart = new Date(b.startTime).getTime();
                 const bEnd = new Date(b.endTime).getTime();
                 return slotStartTime.getTime() < bEnd && slotEndTime.getTime() > bStart;
@@ -130,20 +131,30 @@ export async function getAvailableSlots(courtId: string, dateStr: string) {
                 continue;
             }
 
-            // ¿Tiene un abono fijo que se solapa?
-            const isFixedOccupied = fixedBookings.some(fb => {
-                const [fbStartH, fbStartM] = fb.startTime.split(':').map(Number);
-                const [fbEndH, fbEndM] = fb.endTime.split(':').map(Number);
-                const fbStartMin = fbStartH * 60 + fbStartM;
-                let fbEndMin = fbEndH * 60 + fbEndM;
-                if (fbEndMin <= fbStartMin) fbEndMin += 24 * 60;
-                return currentMinutes < fbEndMin && slotEndMinutes > fbStartMin;
+            // ¿Este turno corresponde a un abono fijo liberado para esta fecha?
+            const isFixedReleasedToday = existingBookings.some(b => {
+                if (b.status !== 'CANCELLED' || !b.fixedBookingId) return false;
+                const bStart = new Date(b.startTime).getTime();
+                const bEnd = new Date(b.endTime).getTime();
+                return slotStartTime.getTime() < bEnd && slotEndTime.getTime() > bStart;
             });
 
-            if (isFixedOccupied) {
-                slotsData.push({ time: timeStr, status: 'FIXED' });
-                currentMinutes += duration;
-                continue;
+            // ¿Tiene un abono fijo que se solapa (y no está liberado)?
+            if (!isFixedReleasedToday) {
+                const isFixedOccupied = fixedBookings.some(fb => {
+                    const [fbStartH, fbStartM] = fb.startTime.split(':').map(Number);
+                    const [fbEndH, fbEndM] = fb.endTime.split(':').map(Number);
+                    const fbStartMin = fbStartH * 60 + fbStartM;
+                    let fbEndMin = fbEndH * 60 + fbEndM;
+                    if (fbEndMin <= fbStartMin) fbEndMin += 24 * 60;
+                    return currentMinutes < fbEndMin && slotEndMinutes > fbStartMin;
+                });
+
+                if (isFixedOccupied) {
+                    slotsData.push({ time: timeStr, status: 'FIXED' });
+                    currentMinutes += duration;
+                    continue;
+                }
             }
 
             // ¿Tiene un bloqueo de cancha?
