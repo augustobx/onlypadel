@@ -160,6 +160,9 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
 
     if (phone1 === phone2 && phone1) return { success: false, error: 'Los dos jugadores deben ser personas diferentes con teléfonos distintos' };
 
+    // Pre-hash password OUTSIDE the transaction to avoid timeout (bcrypt is CPU-expensive)
+    const defaultPasswordHash = await bcrypt.hash('12345678', 10);
+
     const teamId = await prisma.$transaction(async (tx) => {
       // Validar duplicados si hay teléfono definido
       if (phone1 || phone2) {
@@ -241,7 +244,7 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
             dni: p1Dni,
             phone: phone1,
             role: 'PLAYER',
-            password: await bcrypt.hash('12345678', 10),
+            password: defaultPasswordHash,
             category: '8va',
           }
         });
@@ -283,7 +286,7 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
             phone: phone2 || null,
             role: 'PLAYER',
             category: data.player2Category || category.baseCategory || '8va',
-            password: await bcrypt.hash('12345678', 10),
+            password: defaultPasswordHash,
           }
         });
       } else {
@@ -328,19 +331,26 @@ export async function registerTeam(tournamentId: string, categoryId: string, inp
         return (await tx.tournamentTeam.update({ where: { id: placeholder.id }, data: teamData })).id;
       }
       return (await tx.tournamentTeam.create({ data: { categoryId, ...teamData } })).id;
-    }, { isolationLevel: 'Serializable' });
+    }, { timeout: 15000 });
 
     revalidatePath(`/torneos/${tournamentId}`);
     revalidatePath(`/admin/torneos/${tournamentId}`);
 
     return { success: true, teamId };
-  } catch (error) {
-    console.error(error);
-    if (error instanceof Error) {
-      if (error.message.startsWith('CATEGORY_INVALID:')) return { success: false, error: error.message.replace('CATEGORY_INVALID:', '') };
-      if (error.message === 'PLAYER_ALREADY_REGISTERED') return { success: false, error: 'Uno de los jugadores ya está inscripto en esta categoría' };
-      if (error.message === 'INVALID_SLOT') return { success: false, error: 'La plaza seleccionada ya no está disponible' };
-      if (error.message === 'TOURNAMENT_FULL') return { success: false, error: 'Se alcanzó el cupo máximo de parejas' };
+  } catch (error: any) {
+    console.error('registerTeam error:', error?.message || error);
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.startsWith('CATEGORY_INVALID:')) return { success: false, error: msg.replace('CATEGORY_INVALID:', '') };
+    if (msg === 'PLAYER_ALREADY_REGISTERED') return { success: false, error: 'Uno de los jugadores ya está inscripto en esta categoría' };
+    if (msg === 'INVALID_SLOT') return { success: false, error: 'La plaza seleccionada ya no está disponible' };
+    if (msg === 'TOURNAMENT_FULL') return { success: false, error: 'Se alcanzó el cupo máximo de parejas' };
+    // Surface the Prisma P2028 (transaction expired) or any known error code
+    if (msg.includes('P2028') || msg.includes('expired transaction')) {
+      return { success: false, error: 'El proceso tardó demasiado. Intentá de nuevo.' };
+    }
+    // Surface cross-tenant errors for debugging
+    if (msg.includes('CROSS_TENANT') || msg.includes('RECORD_NOT_FOUND')) {
+      return { success: false, error: 'Error de acceso. Verificá que los jugadores existan en el sistema.' };
     }
     return { success: false, error: 'Error al inscribir la pareja' };
   }

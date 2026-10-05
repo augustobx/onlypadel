@@ -8,14 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CheckCircle2, Search, CalendarClock, UserPlus, Check, X, ShieldCheck, UserCheck } from 'lucide-react';
 import Link from 'next/link';
+import { validatePairCategory } from '@/lib/tournaments/category-rules';
 import type { TournamentGroupView, TournamentMatchView } from '@/lib/tournaments/types';
 
-type PlayerSearchResult = { id: string; name: string | null; lastName: string | null; dni?: string | null; phone?: string | null };
-type PlayerSession = PlayerSearchResult & { phone: string | null; email?: string | null; dni?: string | null };
+type PlayerSearchResult = { id: string; name: string | null; lastName: string | null; dni?: string | null; phone?: string | null; category?: string | null };
+type PlayerSession = PlayerSearchResult & { phone: string | null; email?: string | null; dni?: string | null; category?: string | null };
 
 type Props = {
   tournamentId: string;
-  categories: { id: string; name: string; teamCount: number; groups?: TournamentGroupView[]; matches?: TournamentMatchView[] }[];
+  categories: {
+    id: string;
+    name: string;
+    categoryType?: string | null;
+    baseCategory?: string | null;
+    targetSum?: number | null;
+    teamCount: number;
+    groups?: TournamentGroupView[];
+    matches?: TournamentMatchView[];
+  }[];
   requireDeposit: boolean;
   session: PlayerSession;
 };
@@ -94,6 +104,20 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
     setP2SearchQuery('');
   };
 
+  const selectedCatObj = categories.find(c => c.id === formData.categoryId);
+  const hasZones = selectedCatObj?.groups && selectedCatObj.groups.length > 0;
+
+  // Validación de categoría de la pareja en tiempo real
+  const p1Category = session?.category || '8va';
+  const p2Category = selectedP2User ? ((selectedP2User as any).category || '8va') : (formData.player2Category || '8va');
+  const categoryValidation = selectedCatObj ? validatePairCategory(
+    selectedCatObj.categoryType || 'CATEGORIA_UNICA',
+    selectedCatObj.baseCategory || selectedCatObj.name,
+    selectedCatObj.targetSum,
+    p1Category,
+    p2Category
+  ) : null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.categoryId) {
@@ -101,8 +125,10 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
       return;
     }
 
-    const selectedCatObj = categories.find(c => c.id === formData.categoryId);
-    const hasZones = selectedCatObj?.groups && selectedCatObj.groups.length > 0;
+    if (categoryValidation && !categoryValidation.valid) {
+      setError(categoryValidation.error || 'Nivel de categoría no permitido');
+      return;
+    }
 
     if (hasZones && !selectedTeamId) {
       setError('Seleccioná una plaza en alguna de las zonas');
@@ -147,31 +173,11 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
     setLoading(false);
   };
 
-  if (success) {
-    return (
-      <div className="text-center py-8 animate-in zoom-in-95 duration-300">
-        <CheckCircle2 className="w-20 h-20 text-emerald-500 mx-auto mb-6" />
-        <h2 className="text-3xl font-black mb-3">¡Inscripción Exitosa!</h2>
-        <p className="text-slate-400 mb-8 max-w-md mx-auto leading-relaxed">
-          Tu pareja fue registrada correctamente en el torneo. Los jugadores no registrados ya fueron dados de alta en el sistema.
-        </p>
-        <Link href={`/torneos/${tournamentId}`}>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-5 px-8 font-bold">
-            Ver Cuadro del Torneo
-          </Button>
-        </Link>
-      </div>
-    );
-  }
-
-  const selectedCatObj = categories.find(c => c.id === formData.categoryId);
-  const hasZones = selectedCatObj?.groups && selectedCatObj.groups.length > 0;
-
   // Encontrar la plaza seleccionada para el resumen
   let selectedPlazaSummary = null;
   if (hasZones && selectedTeamId) {
     for (const g of selectedCatObj.groups!) {
-      const plaza = g.teams.find((t) => t.team.id === selectedTeamId);
+      const plaza = g.teams.find((t: any) => t.team.id === selectedTeamId);
       if (plaza) {
         const matches = selectedCatObj.matches!.filter((m) => m.team1Id === selectedTeamId || m.team2Id === selectedTeamId);
         selectedPlazaSummary = {
@@ -185,22 +191,74 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* SELECTOR DE CATEGORÍA */}
-      <div className="space-y-2">
-        <Label className="text-slate-300 font-bold">Categoría</Label>
-        <select
-          value={formData.categoryId}
-          onChange={e => { setFormData({ ...formData, categoryId: e.target.value }); setSelectedTeamId(''); }}
-          className="w-full h-12 rounded-xl border border-slate-600 bg-slate-700/50 px-4 text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium"
-          required
-        >
-          <option value="">Seleccionar categoría...</option>
-          {categories.map(c => (
-            <option key={c.id} value={c.id}>{c.name} ({c.teamCount} inscriptos)</option>
-          ))}
-        </select>
-      </div>
+    <div className="w-full">
+      {success ? (
+        <div key="reg-success" className="text-center py-8 animate-in zoom-in-95 duration-300">
+          <CheckCircle2 className="w-20 h-20 text-emerald-500 mx-auto mb-6" />
+          <h2 className="text-3xl font-black mb-3">¡Inscripción Exitosa!</h2>
+          <p className="text-slate-400 mb-8 max-w-md mx-auto leading-relaxed">
+            Tu pareja fue registrada correctamente en el torneo. Los jugadores no registrados ya fueron dados de alta en el sistema.
+          </p>
+          <Link href={`/torneos/${tournamentId}`}>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-5 px-8 font-bold">
+              Ver Cuadro del Torneo
+            </Button>
+          </Link>
+        </div>
+      ) : (
+        <form key="reg-form" onSubmit={handleSubmit} className="space-y-6">
+          {/* SELECTOR DE CATEGORÍA */}
+          <div className="space-y-2">
+            <Label className="text-slate-300 font-bold">Categoría</Label>
+            <select
+              value={formData.categoryId}
+              onChange={e => { setFormData({ ...formData, categoryId: e.target.value }); setSelectedTeamId(''); }}
+              className="w-full h-12 rounded-xl border border-slate-600 bg-slate-700/50 px-4 text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium"
+              required
+            >
+              <option value="">Seleccionar categoría...</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name} ({c.teamCount} inscriptos)</option>
+              ))}
+            </select>
+          </div>
+
+          {/* ESTADO DE VALIDACIÓN DE LA PAREJA EN LA CATEGORÍA */}
+          {selectedCatObj && (
+            <div className={`p-4 rounded-xl border text-sm flex items-start gap-3 transition-colors ${
+              categoryValidation && !categoryValidation.valid 
+                ? 'bg-red-500/10 border-red-500/30 text-red-300' 
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+            }`}>
+              {categoryValidation && !categoryValidation.valid ? (
+                <span className="shrink-0 text-base">⚠️</span>
+              ) : (
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              )}
+              <div className="space-y-1">
+                <div className="font-bold flex flex-wrap items-center gap-2">
+                  <span>{selectedCatObj.name}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    Tu categoría: {p1Category}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    Compañero: {p2Category}
+                  </span>
+                </div>
+                <div className="text-xs leading-relaxed">
+                  {categoryValidation && !categoryValidation.valid ? (
+                    <span className="text-red-300 font-semibold">{categoryValidation.error}</span>
+                  ) : (
+                    <span className="text-emerald-300">
+                      {selectedCatObj.categoryType === 'SUMA' 
+                        ? `✓ Pareja habilitada (Suma ${p1Category} + ${p2Category} válida para ${selectedCatObj.name}).` 
+                        : `✓ Pareja habilitada para competir en esta categoría.`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
       {/* SELECTOR DE ZONAS Y PLAZAS */}
       {hasZones && selectedCatObj && (
@@ -428,12 +486,16 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
                             key={user.id}
                             type="button"
                             className="w-full text-left px-3.5 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0"
-                            onClick={() => handleSelectRegisteredUser(user)}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              handleSelectRegisteredUser(user);
+                            }}
                           >
                             <div className="font-bold text-white text-sm">{user.name} {user.lastName}</div>
                             <div className="text-slate-400 text-xs flex gap-2">
                               {user.dni && <span>DNI: {user.dni}</span>}
                               {user.phone && <span>Tel: {user.phone}</span>}
+                              {(user as any).category && <span className="text-emerald-400 font-bold">Cat: {(user as any).category}</span>}
                             </div>
                           </button>
                         ))
@@ -521,17 +583,26 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
 
       {error && (
         <div className="p-4 bg-red-500/10 text-red-400 rounded-xl border border-red-500/20 font-medium text-sm">
-          ⚠️ {error}
+          <span>⚠️ {error}</span>
         </div>
       )}
 
       <Button 
         type="submit" 
-        disabled={loading} 
-        className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black py-6 rounded-xl text-lg shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]"
+        disabled={loading || Boolean(categoryValidation && !categoryValidation.valid)} 
+        className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-6 rounded-xl text-lg shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]"
       >
-        {loading ? 'Procesando inscripción...' : requireDeposit ? 'Inscribir Pareja y Pagar Seña' : 'Confirmar Inscripción'}
+        {loading 
+          ? 'Procesando inscripción...' 
+          : categoryValidation && !categoryValidation.valid 
+            ? 'Nivel de categoría no permitido' 
+            : requireDeposit 
+              ? 'Inscribir Pareja y Pagar Seña' 
+              : 'Confirmar Inscripción'}
       </Button>
     </form>
+    )}
+  </div>
   );
 }
+
