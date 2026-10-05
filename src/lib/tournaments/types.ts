@@ -4,6 +4,7 @@ export type TournamentTeamView = {
   isPaid: boolean;
   phone1?: string | null;
   phone2?: string | null;
+  preferredGroupId?: string | null;
   player1?: { id?: string; name: string | null; lastName?: string | null; dni?: string | null; phone?: string | null } | null;
   player2?: { id?: string; name: string | null; lastName?: string | null; dni?: string | null; phone?: string | null } | null;
 };
