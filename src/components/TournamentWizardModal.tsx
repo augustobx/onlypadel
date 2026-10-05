@@ -139,15 +139,17 @@ export default function TournamentWizardModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <>
+      <div onClick={() => setOpen(true)} className="inline-block cursor-pointer">
         {triggerButton || (
-          <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black shadow-md gap-2">
+          <Button type="button" className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black shadow-md gap-2">
             <Sparkles className="w-4 h-4 text-yellow-300" />
             Asistente Inteligente de Torneos
           </Button>
         )}
-      </DialogTrigger>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
 
       <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto bg-slate-900 border-slate-800 text-white p-6 rounded-3xl">
         <DialogHeader className="border-b border-slate-800 pb-4">
@@ -585,5 +587,6 @@ export default function TournamentWizardModal({
         </form>
       </DialogContent>
     </Dialog>
-  );
+  </>
+);
 }
