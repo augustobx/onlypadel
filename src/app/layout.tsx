@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import '@/app/globals.css';
 import ConnectivityStatus from '@/components/ConnectivityStatus';
+import PasskeyEnrollmentPrompt from '@/components/PasskeyEnrollmentPrompt';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +52,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-[var(--background,#f8fafc)] text-[var(--foreground,#0f172a)]">
         <ConnectivityStatus />
+        <PasskeyEnrollmentPrompt />
         {children}
       </body>
     </html>
