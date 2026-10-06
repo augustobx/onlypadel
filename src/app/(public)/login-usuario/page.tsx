@@ -1,15 +1,74 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { client } from '@passwordless-id/webauthn';
 import { loginUser } from '@/actions/user-auth';
-import { IdCard, Lock, Loader2 } from 'lucide-react';
+import {
+    beginPasskeyAuthentication,
+    finishPasskeyAuthentication,
+} from '@/actions/passkey-auth';
+import { Fingerprint, IdCard, Lock, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginUsuarioPage() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [passkeyLoading, setPasskeyLoading] = useState(false);
+    const [passkeysSupported, setPasskeysSupported] = useState(false);
     const router = useRouter();
+
+    useEffect(() => {
+        setPasskeysSupported(
+            typeof window !== 'undefined' &&
+            'PublicKeyCredential' in window &&
+            !!navigator.credentials
+        );
+    }, []);
+
+    async function handlePasskeyLogin() {
+        setPasskeyLoading(true);
+        setError('');
+
+        try {
+            const start = await beginPasskeyAuthentication();
+            if (!start.success) {
+                setError(start.error);
+                return;
+            }
+
+            const authentication = await client.authenticate({
+                challenge: start.challenge,
+                domain: start.rpId,
+                hints: ['client-device'],
+                userVerification: 'required',
+                timeout: 60_000,
+            });
+
+            const result = await finishPasskeyAuthentication(
+                start.challengeId,
+                authentication
+            );
+
+            if (!result.success) {
+                setError(result.error);
+                return;
+            }
+
+            router.push('/');
+            router.refresh();
+        } catch (err) {
+            const name = err instanceof DOMException ? err.name : '';
+            if (name === 'NotAllowedError' || name === 'AbortError') {
+                setError('Ingreso biométrico cancelado.');
+            } else {
+                console.error('Passkey login error:', err);
+                setError('No se pudo usar el ingreso biométrico. Podés entrar con tu contraseña.');
+            }
+        } finally {
+            setPasskeyLoading(false);
+        }
+    }
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -21,6 +80,7 @@ export default function LoginUsuarioPage() {
 
         if (result.success) {
             router.push('/');
+            router.refresh();
         } else {
             setError(result.error || 'Credenciales inválidas.');
             setLoading(false);
@@ -30,21 +90,57 @@ export default function LoginUsuarioPage() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
             <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
-                <div className="text-center mb-8">
+                <div className="text-center mb-7">
                     <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <Lock className="w-8 h-8 text-blue-500" />
                     </div>
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">Iniciar Sesión</h1>
-                    <p className="text-sm font-medium text-slate-500 mt-2">Ingresa a tu cuenta de jugador</p>
+                    <p className="text-sm font-medium text-slate-500 mt-2">Ingresá a tu cuenta de jugador</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm font-bold text-center">
-                            ⚠️ {error}
-                        </div>
-                    )}
+                {error && (
+                    <div className="mb-5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm font-bold text-center">
+                        ⚠️ {error}
+                    </div>
+                )}
 
+                {passkeysSupported && (
+                    <>
+                        <button
+                            type="button"
+                            onClick={handlePasskeyLogin}
+                            disabled={passkeyLoading || loading}
+                            className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-4 rounded-2xl transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2.5"
+                        >
+                            {passkeyLoading ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    Verificando...
+                                </>
+                            ) : (
+                                <>
+                                    <Fingerprint className="w-5 h-5" />
+                                    Ingresar con Face ID / biometría
+                                </>
+                            )}
+                        </button>
+
+                        <div className="mt-3 flex items-start justify-center gap-1.5 text-center text-[11px] text-slate-400 dark:text-slate-500">
+                            <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>Usá la passkey que activaste previamente en tu dispositivo.</span>
+                        </div>
+
+                        <div className="flex items-center gap-3 my-6">
+                            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                o con contraseña
+                            </span>
+                            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                        </div>
+                    </>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                             <IdCard className="w-4 h-4 text-slate-400" /> DNI, Teléfono o Email
@@ -53,6 +149,7 @@ export default function LoginUsuarioPage() {
                             type="text"
                             name="identifier"
                             required
+                            autoComplete="username"
                             placeholder="Tu DNI, teléfono o email"
                             className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         />
@@ -71,6 +168,7 @@ export default function LoginUsuarioPage() {
                             type="password"
                             name="password"
                             required
+                            autoComplete="current-password"
                             placeholder="••••••••"
                             className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-2xl font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         />
@@ -78,8 +176,8 @@ export default function LoginUsuarioPage() {
 
                     <button
                         type="submit"
-                        disabled={loading}
-                        className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl transition-all hover:bg-blue-700 active:scale-95 flex items-center justify-center"
+                        disabled={loading || passkeyLoading}
+                        className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl transition-all hover:bg-blue-700 active:scale-95 disabled:opacity-60 flex items-center justify-center"
                     >
                         {loading ? (
                             <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Ingresando...</>
@@ -90,9 +188,9 @@ export default function LoginUsuarioPage() {
 
                     <div className="text-center mt-6">
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                            ¿No tienes cuenta?{' '}
+                            ¿No tenés cuenta?{' '}
                             <Link href="/registro" className="text-blue-600 dark:text-blue-400 font-bold hover:underline">
-                                Regístrate aquí
+                                Registrate aquí
                             </Link>
                         </p>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
