@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { readUserSessionId } from "@/lib/user-session";
 import { requireTenantFeature } from "@/lib/features";
 import { revalidatePath } from "next/cache";
+import { createUserNotification } from "@/lib/user-notifications";
 
 // ─── Helpers ──────────────────────────────────────────────
 async function requireCommunityUser() {
@@ -121,14 +122,12 @@ export async function toggleLike(postId: string) {
             select: { name: true, lastName: true },
           });
           const actorName = actor ? `${actor.name} ${actor.lastName || ''}`.trim() : 'Un jugador';
-          await prisma.communityNotification.create({
-            data: {
-              userId: post.authorId,
-              type: 'POST_LIKE',
-              title: '¡Le gustó tu publicación! ❤️',
-              body: `A ${actorName} le gustó tu publicación en el muro.`,
-              linkUrl: '/comunidad',
-            },
+          await createUserNotification({
+            userId: post.authorId,
+            type: 'POST_LIKE',
+            title: '¡Le gustó tu publicación! ❤️',
+            body: `A ${actorName} le gustó tu publicación en el muro.`,
+            linkUrl: '/comunidad',
           });
         }
       } catch (e) {
@@ -178,14 +177,12 @@ export async function addComment(postId: string, formData: FormData) {
           select: { name: true, lastName: true },
         });
         const actorName = actor ? `${actor.name} ${actor.lastName || ''}`.trim() : 'Un jugador';
-        await prisma.communityNotification.create({
-          data: {
-            userId: post.authorId,
-            type: 'POST_COMMENT',
-            title: 'Nuevo comentario en tu publicación 💬',
-            body: `${actorName} comentó: "${content.slice(0, 60)}${content.length > 60 ? '...' : ''}"`,
-            linkUrl: '/comunidad',
-          },
+        await createUserNotification({
+          userId: post.authorId,
+          type: 'POST_COMMENT',
+          title: 'Nuevo comentario en tu publicación 💬',
+          body: `${actorName} comentó: "${content.slice(0, 60)}${content.length > 60 ? '...' : ''}"`,
+          linkUrl: '/comunidad',
         });
       }
     } catch (e) {
