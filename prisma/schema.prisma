@@ -118,6 +118,8 @@ model Tenant {
   saasPayments              SaasPayment[]
   adminSessions             AdminSession[]
   userSessions              UserSession[]
+  userPasskeys              UserPasskey[]
+  passkeyChallenges         PasskeyChallenge[]
   users                     User[]
   courts                    Court[]
   businessHours             BusinessHour[]
@@ -351,6 +353,46 @@ model UserSession {
   @@map("usersession")
 }
 
+model UserPasskey {
+  id                String   @id @default(uuid())
+  tenantId          String   @default("")
+  userId            String
+  credentialId      String   @db.VarChar(512)
+  publicKey         String   @db.Text
+  algorithm         String   @db.VarChar(16)
+  transports        Json?
+  counter           BigInt   @default(0)
+  authenticatorName String?  @db.VarChar(120)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastUsedAt        DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "UserPasskey_tenantId_fkey")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, map: "UserPasskey_userId_fkey")
+
+  @@unique([tenantId, credentialId], map: "UserPasskey_tenantId_credentialId_key")
+  @@index([tenantId, userId, createdAt], map: "UserPasskey_tenant_user_created_idx")
+  @@map("userpasskey")
+}
+
+model PasskeyChallenge {
+  id        String   @id @default(uuid())
+  tenantId  String   @default("")
+  userId    String?
+  kind      String   @db.VarChar(24)
+  challenge String   @db.VarChar(255)
+  origin    String   @db.VarChar(255)
+  rpId      String   @db.VarChar(255)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "PasskeyChallenge_tenantId_fkey")
+
+  @@index([tenantId, kind, expiresAt], map: "PasskeyChallenge_tenant_kind_expires_idx")
+  @@index([tenantId, userId, createdAt], map: "PasskeyChallenge_tenant_user_created_idx")
+  @@map("passkeychallenge")
+}
+
 // ==========================================
 // CORE: USUARIOS, CANCHAS Y HORARIOS
 // ==========================================
@@ -384,6 +426,7 @@ model User {
   playerCategoryAssignments PlayerCategoryAssignment[]
   adminSessions             AdminSession[]
   userSessions              UserSession[]
+  passkeys                  UserPasskey[]
   isActive                  Boolean                    @default(true)
 
   // Community relations
