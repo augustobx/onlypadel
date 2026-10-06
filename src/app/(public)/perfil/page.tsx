@@ -6,14 +6,12 @@ import { prisma } from "@/lib/prisma";
 import PublicNavbar from "@/components/PublicNavbar";
 import { 
   Trophy, CalendarDays, LogOut, Medal, CalendarClock, Phone, IdCard, 
-  ChevronRight, Swords, Clock, BadgeCheck, Sparkles, FileText, ArrowDownLeft, ArrowUpRight 
+  ChevronRight, Swords, Clock, BadgeCheck, Sparkles, FileText, ArrowDownLeft, ArrowUpRight, Settings
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { getReadableForeground, normalizeHexColor, getThemeColors } from "@/lib/color";
 import ProfileCommunitySection from "@/components/community/ProfileCommunitySection";
-import PasskeyManager from "@/components/PasskeyManager";
-import { getUserPasskeys } from "@/actions/passkey-auth";
 
 export default async function PerfilPage() {
     const session = await getUserSession();
@@ -21,7 +19,7 @@ export default async function PerfilPage() {
         redirect("/login-usuario");
     }
 
-    const [settings, passkeys] = await Promise.all([getSettings(), getUserPasskeys()]);
+    const settings = await getSettings();
     const themeColors = getThemeColors(settings?.theme, settings?.primaryColor, settings?.secondaryColor);
     const primaryColor = themeColors.primary;
     const secondaryColor = themeColors.secondary;
@@ -150,15 +148,24 @@ export default async function PerfilPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <form action={logoutUser}>
-                                    <button 
-                                        type="submit" 
-                                        aria-label="Cerrar sesión"
-                                        className="text-red-400 hover:text-red-300 flex items-center gap-1 text-xs font-bold bg-red-950/60 hover:bg-red-900/60 border border-red-800/50 px-3 py-1.5 rounded-xl transition-all active:scale-95 shadow-sm"
+                                <div className="flex items-center gap-2">
+                                    <Link
+                                        href="/perfil/configuracion"
+                                        aria-label="Configuración"
+                                        className="text-slate-300 hover:text-white flex items-center gap-1 text-xs font-bold bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/70 px-3 py-1.5 rounded-xl transition-all active:scale-95 shadow-sm"
                                     >
-                                        <LogOut className="w-3.5 h-3.5" /> Salir
-                                    </button>
-                                </form>
+                                        <Settings className="w-3.5 h-3.5" /> Ajustes
+                                    </Link>
+                                    <form action={logoutUser}>
+                                        <button 
+                                            type="submit" 
+                                            aria-label="Cerrar sesión"
+                                            className="text-red-400 hover:text-red-300 flex items-center gap-1 text-xs font-bold bg-red-950/60 hover:bg-red-900/60 border border-red-800/50 px-3 py-1.5 rounded-xl transition-all active:scale-95 shadow-sm"
+                                        >
+                                            <LogOut className="w-3.5 h-3.5" /> Salir
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
 
                             {/* BADGES DEL PERFIL */}
@@ -178,7 +185,6 @@ export default async function PerfilPage() {
                         </div>
                     </div>
 
-                    <PasskeyManager initialPasskeys={passkeys} />
 
                     {/* SECCIÓN COMUNITARIA & CONVOCATORIAS */}
                     {isCommunityEnabled && (
