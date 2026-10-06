@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { addMinutes, format, parse, startOfDay, endOfDay, addWeeks } from 'date-fns';
 import { requireAdmin } from '@/lib/admin-auth';
 import { PENDING_BOOKING_TTL_MS } from '@/lib/bookings/constants';
-import { publishReleasedShift } from '@/actions/released-shifts';
+import { publishReleasedShift, removeReleasedShift } from '@/actions/released-shifts';
 import bcrypt from 'bcryptjs';
 import { normalizePhoneNumber } from '@/lib/phone';
 import { VALID_CATEGORIES } from '@/lib/tournaments/category-rules';
@@ -479,8 +479,13 @@ export async function createAdminBooking(data: {
             throw bookingError;
         }
 
+        // Si este horario estaba anunciado como turno liberado, removerlo de la lista pública
+        await removeReleasedShift(data.courtId, data.dateStr, data.startTimeStr).catch(() => {});
+
         revalidatePath('/admin/calendar');
         revalidatePath('/admin/abonos');
+        revalidatePath('/');
+        revalidatePath('/reservas');
         return { success: true };
     } catch (error: any) {
         console.error("Error in createAdminBooking:", error);

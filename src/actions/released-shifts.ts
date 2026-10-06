@@ -102,7 +102,8 @@ export async function publishReleasedShift(shift: {
 }
 
 /**
- * Obtiene los turnos liberados actualmente activos que todavía no han pasado.
+ * Obtiene los turnos liberados actualmente activos que todavía no han pasado
+ * y que realmente continúen disponibles (no bloqueados ni reservados).
  */
 export async function getActiveReleasedShifts(): Promise<ReleasedShift[]> {
   try {
@@ -112,23 +113,83 @@ export async function getActiveReleasedShifts(): Promise<ReleasedShift[]> {
 
     if (!record?.value) return [];
 
-    const rawList: ReleasedShift[] = JSON.parse(record.value);
+    let rawList: ReleasedShift[] = [];
+    try {
+      rawList = JSON.parse(record.value);
+    } catch {
+      return [];
+    }
+
+    if (!Array.isArray(rawList) || rawList.length === 0) return [];
+
     const now = new Date();
 
-    // Solo devolver turnos futuros
-    return rawList.filter(s => {
+    // 1. Filtrar turnos pasados
+    const futureList = rawList.filter(s => {
       const shiftDate = new Date(`${s.dateStr}T${s.time}:00-03:00`);
       return shiftDate > now;
     });
+
+    // 2. Verificar disponibilidad real en base de datos
+    const validList: ReleasedShift[] = [];
+    for (const shift of futureList) {
+      const shiftStart = new Date(`${shift.dateStr}T${shift.time}:00-03:00`);
+      let shiftEnd = new Date(shiftStart.getTime() + 90 * 60000);
+      if (shift.endTime) {
+        shiftEnd = new Date(`${shift.dateStr}T${shift.endTime}:00-03:00`);
+      }
+
+      // Verificar si hay una reserva activa, pendiente o bloqueo
+      const conflictingBooking = await prisma.booking.findFirst({
+        where: {
+          courtId: shift.courtId,
+          status: { in: ['CONFIRMED', 'BLOCKED', 'PENDING'] },
+          startTime: { lt: shiftEnd },
+          endTime: { gt: shiftStart },
+        },
+        select: { id: true }
+      });
+
+      if (conflictingBooking) {
+        // El turno ya fue ocupado o bloqueado por el club
+        continue;
+      }
+
+      // Verificar si hay un bloqueo general de cancha
+      const conflictingCourtBlock = await prisma.courtBlock.findFirst({
+        where: {
+          courtId: shift.courtId,
+          startTime: { lt: shiftEnd },
+          endTime: { gt: shiftStart },
+        },
+        select: { id: true }
+      });
+
+      if (conflictingCourtBlock) {
+        continue;
+      }
+
+      validList.push(shift);
+    }
+
+    // Si la lista limpia difiere de la almacenada (se depuraron turnos pasados o bloqueados), sincronizar
+    if (validList.length !== rawList.length) {
+      await prisma.setting.update({
+        where: { id: record.id },
+        data: { value: JSON.stringify(validList) },
+      }).catch(() => {});
+    }
+
+    return validList;
   } catch (error) {
     return [];
   }
 }
 
 /**
- * Elimina un aviso de turno liberado (por ejemplo, cuando ya fue reservado).
+ * Elimina un aviso de turno liberado (por ejemplo, cuando ya fue reservado o bloqueado).
  */
-export async function removeReleasedShift(courtId: string, dateStr: string, time: string) {
+export async function removeReleasedShift(courtId: string, dateStr: string, time?: string) {
   try {
     const record = await prisma.setting.findFirst({
       where: { key: SETTING_KEY },
@@ -137,14 +198,21 @@ export async function removeReleasedShift(courtId: string, dateStr: string, time
     if (!record?.value) return { success: true };
 
     const rawList: ReleasedShift[] = JSON.parse(record.value);
-    const updated = rawList.filter(s => !(s.courtId === courtId && s.dateStr === dateStr && s.time === time));
-
-    await prisma.setting.update({
-      where: { id: record.id },
-      data: { value: JSON.stringify(updated) },
+    const updated = rawList.filter(s => {
+      if (s.courtId !== courtId || s.dateStr !== dateStr) return true;
+      if (time && s.time !== time && s.timeStr !== time) return true;
+      return false;
     });
 
-    revalidatePath('/');
+    if (updated.length !== rawList.length) {
+      await prisma.setting.update({
+        where: { id: record.id },
+        data: { value: JSON.stringify(updated) },
+      });
+      revalidatePath('/');
+      revalidatePath('/reservas');
+    }
+
     return { success: true };
   } catch (error) {
     return { success: false };

@@ -296,7 +296,18 @@ export default function BookingFlow({ courts, sysSettings, session, today }: { c
           setSlots(res.success && res.data ? res.data as SlotData[] : []);
           if (!res.success) setError(res.error || 'No pudimos consultar los horarios.');
           if (step !== 3) {
-            setSelectedSlot((current) => res.success && res.data?.some((slot) => slot.time === current && slot.status === 'AVAILABLE') ? current : '');
+            setSelectedSlot((current) => {
+              if (!current) return '';
+              const isAvailable = res.success && res.data?.some((slot) => slot.time === current && slot.status === 'AVAILABLE');
+              if (!isAvailable) {
+                if (step === 2) {
+                  setStep(1);
+                  setError('El turno seleccionado ya no se encuentra disponible. Por favor elegí otro horario.');
+                }
+                return '';
+              }
+              return current;
+            });
           }
         })
         .catch(() => {
