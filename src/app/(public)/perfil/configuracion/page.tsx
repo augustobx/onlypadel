@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Fingerprint, Settings } from "lucide-react";
 import PublicNavbar from "@/components/PublicNavbar";
 import PasskeyManager from "@/components/PasskeyManager";
+import UserPushConfig from "@/components/UserPushConfig";
 import { getReadableForeground, getThemeColors } from "@/lib/color";
 
 export default async function PerfilConfiguracionPage() {
@@ -75,6 +76,8 @@ export default async function PerfilConfiguracionPage() {
                     </div>
 
                     <PasskeyManager initialPasskeys={passkeys} />
+
+                    <UserPushConfig />
                 </div>
             </div>
         </div>
