@@ -2,6 +2,29 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
 
+export async function GET(req: Request) {
+  try {
+    const session = await requireAdmin();
+    const endpoint = new URL(req.url).searchParams.get('endpoint');
+
+    if (!endpoint) {
+      return NextResponse.json({ subscribed: false });
+    }
+
+    const count = await prisma.pushSubscription.count({
+      where: {
+        userId: session.userId,
+        endpoint,
+      },
+    });
+
+    return NextResponse.json({ subscribed: count > 0 });
+  } catch (error) {
+    const status = error instanceof Error && error.message === 'UNAUTHORIZED' ? 401 : 500;
+    return NextResponse.json({ error: status === 401 ? 'Unauthorized' : 'Internal server error' }, { status });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const data = await req.json();
