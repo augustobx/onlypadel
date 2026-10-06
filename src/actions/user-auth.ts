@@ -10,6 +10,34 @@ import { normalizePhoneNumber } from "@/lib/phone";
 
 import { VALID_CATEGORIES } from "@/lib/tournaments/category-rules";
 
+export async function checkRegistrationDni(dni: string) {
+    await requireTenantFeature('users');
+
+    const rawDni = (dni || "").trim();
+    const cleanDni = rawDni.replace(/\D/g, "") || rawDni;
+
+    if (!cleanDni) {
+        return { success: true, exists: false };
+    }
+
+    try {
+        const existing = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { dni: rawDni },
+                    ...(cleanDni !== rawDni ? [{ dni: cleanDni }] : [])
+                ]
+            },
+            select: { id: true }
+        });
+
+        return { success: true, exists: Boolean(existing) };
+    } catch (error) {
+        console.error("DNI availability check error:", error);
+        return { success: false, exists: false, error: "No se pudo verificar el DNI. Intentá nuevamente." };
+    }
+}
+
 export async function registerUser(formData: FormData) {
     await requireTenantFeature('users');
     const name = (formData.get("name") as string || "").trim();
@@ -42,6 +70,15 @@ export async function registerUser(formData: FormData) {
             }
         });
 
+        // Un DNI existente nunca debe generar ni reclamar otra cuenta desde registro.
+        if (existingByDni) {
+            return {
+                success: false,
+                code: "DNI_EXISTS" as const,
+                error: "El DNI ya tiene una cuenta registrada. Iniciá sesión o recuperá tu contraseña."
+            };
+        }
+
         // 2. Verificar si existe por Email
         let existingByEmail = null;
         if (email) {
@@ -64,16 +101,15 @@ export async function registerUser(formData: FormData) {
         }
 
         // Si existe un usuario ya registrado con contraseña activa, avisar
-        const existingWithPassword = [existingByDni, existingByEmail, existingByPhone].find(u => u && u.password);
+        const existingWithPassword = [existingByEmail, existingByPhone].find(u => u && u.password);
         if (existingWithPassword) {
-            if (existingByDni?.password) return { success: false, error: "El DNI ya tiene una cuenta registrada. Iniciá sesión o recuperá tu clave." };
             if (existingByEmail?.password) return { success: false, error: "El Email ya tiene una cuenta registrada. Iniciá sesión o recuperá tu clave." };
             if (existingByPhone?.password) return { success: false, error: "El Teléfono ya tiene una cuenta registrada. Iniciá sesión o recuperá tu clave." };
         }
 
         // Si existe un usuario previo SIN contraseña (creado por turno de mostrador o reserva de invitado):
         // ¡Lo actualizamos / unificamos para que conserve todo su historial de turnos y no cree duplicados!
-        const existingGuestUser = existingByPhone || existingByDni || existingByEmail;
+        const existingGuestUser = existingByPhone || existingByEmail;
         const hashedPassword = await bcrypt.hash(password, 10);
 
         if (existingGuestUser && !existingGuestUser.password) {
