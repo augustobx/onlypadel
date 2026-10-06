@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { server } from "@passwordless-id/webauthn";
 import type {
     AuthenticationJSON,
+    ExtendedAuthenticatorTransport,
     NamedAlgo,
     RegistrationJSON,
 } from "@passwordless-id/webauthn";
@@ -15,9 +16,22 @@ import { createUserSession, readUserSessionId } from "@/lib/user-session";
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
-function parseTransports(value: unknown): string[] {
+const ALLOWED_TRANSPORTS = new Set([
+    "ble",
+    "hybrid",
+    "internal",
+    "nfc",
+    "smart-card",
+    "usb",
+] as const);
+
+function parseTransports(value: unknown): ExtendedAuthenticatorTransport[] {
     if (!Array.isArray(value)) return [];
-    return value.filter((item): item is string => typeof item === "string");
+    return value.filter(
+        (item): item is ExtendedAuthenticatorTransport =>
+            typeof item === "string" &&
+            ALLOWED_TRANSPORTS.has(item as ExtendedAuthenticatorTransport)
+    );
 }
 
 async function getWebAuthnContext() {
