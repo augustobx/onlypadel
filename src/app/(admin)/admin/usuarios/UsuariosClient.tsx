@@ -852,7 +852,7 @@ export default function UsuariosClient({ initialUsers }: { initialUsers: UserDat
                                                                 disabled={isMerging}
                                                                 onClick={() => {
                                                                     if (otherUsers.length > 0) {
-                                                                        handleMergeAccounts(u.id, otherUsers.map(o => o.id));
+                                                                        handleMergeAccounts(u.id, otherUsers.map((o: any) => o.id));
                                                                     }
                                                                 }}
                                                                 className="w-full mt-2 py-1.5 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-700 hover:text-white dark:text-emerald-300 text-xs font-black transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
