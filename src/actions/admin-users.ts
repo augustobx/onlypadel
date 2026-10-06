@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from "@/lib/prisma";
+import { platformPrisma } from "@/lib/prisma-core";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { normalizePhoneNumber } from "@/lib/phone";
@@ -319,62 +320,231 @@ export async function findDuplicateUsersAdmin() {
 }
 
 /**
- * Unifica dos cuentas de usuario: transfiere todas las reservas, suscripciones y datos
- * de la cuenta 'sourceUserId' hacia la cuenta 'targetUserId', y elimina/desactiva 'sourceUserId'.
+ * Unifica dos cuentas de usuario: transfiere todas las reservas, abonos fijos, torneos,
+ * rankings, categorías, partidos abiertos, publicaciones, chat y sesiones de 'sourceUserId'
+ * hacia 'targetUserId', y elimina limpiamente la cuenta duplicada.
  */
 export async function mergeUserAccountsAdmin(targetUserId: string, sourceUserId: string) {
     try {
-        await requireAdmin();
+        const adminSession = await requireAdmin();
+        const tenantId = adminSession.tenantId;
+
         if (targetUserId === sourceUserId) {
             return { success: false, error: 'No podés unificar un usuario consigo mismo.' };
         }
 
         const [targetUser, sourceUser] = await Promise.all([
-            prisma.user.findUnique({ where: { id: targetUserId } }),
-            prisma.user.findUnique({ where: { id: sourceUserId } })
+            platformPrisma.user.findFirst({ where: { id: targetUserId, tenantId } }),
+            platformPrisma.user.findFirst({ where: { id: sourceUserId, tenantId } })
         ]);
 
         if (!targetUser || !sourceUser) {
-            return { success: false, error: 'Uno o ambos usuarios no existen.' };
+            return { success: false, error: 'Uno o ambos usuarios no existen o no pertenecen a este club.' };
         }
 
-        await prisma.$transaction(async (tx) => {
+        await platformPrisma.$transaction(async (tx) => {
             // 1. Reasignar reservas normales
             await tx.booking.updateMany({
-                where: { userId: sourceUserId },
+                where: { userId: sourceUserId, tenantId },
                 data: { userId: targetUserId }
             });
 
             // 2. Reasignar abonos fijos
             await tx.fixedBooking.updateMany({
-                where: { userId: sourceUserId },
+                where: { userId: sourceUserId, tenantId },
                 data: { userId: targetUserId }
             });
 
-            // 3. Reasignar suscripciones push
-            await tx.pushSubscription.updateMany({
-                where: { userId: sourceUserId },
-                data: { userId: targetUserId }
+            // 3. Reasignar equipos de torneos (player1 y player2)
+            await tx.tournamentTeam.updateMany({
+                where: { player1Id: sourceUserId, tenantId },
+                data: { player1Id: targetUserId }
+            });
+            await tx.tournamentTeam.updateMany({
+                where: { player2Id: sourceUserId, tenantId },
+                data: { player2Id: targetUserId }
             });
 
-            // 4. Reasignar mensajes y participantes de chat si existen
-            await tx.chatParticipant.updateMany({
-                where: { userId: sourceUserId },
-                data: { userId: targetUserId }
-            }).catch(() => {});
+            // 4. Unificar rankings por categoría sin violar @@unique([tenantId, categoryId, userId])
+            const sourceRankings = await tx.rankingEntry.findMany({
+                where: { userId: sourceUserId, tenantId }
+            });
+            for (const sr of sourceRankings) {
+                const targetRanking = await tx.rankingEntry.findUnique({
+                    where: {
+                        tenantId_categoryId_userId: {
+                            tenantId,
+                            categoryId: sr.categoryId,
+                            userId: targetUserId
+                        }
+                    }
+                });
+                if (targetRanking) {
+                    await tx.rankingEntry.update({
+                        where: { id: targetRanking.id },
+                        data: {
+                            points: Math.max(targetRanking.points, sr.points),
+                            matchesPlayed: targetRanking.matchesPlayed + sr.matchesPlayed,
+                            matchesWon: targetRanking.matchesWon + sr.matchesWon,
+                            matchesLost: targetRanking.matchesLost + sr.matchesLost,
+                        }
+                    });
+                    await tx.rankingEntry.delete({ where: { id: sr.id } });
+                } else {
+                    await tx.rankingEntry.update({
+                        where: { id: sr.id },
+                        data: { userId: targetUserId }
+                    });
+                }
+            }
 
-            await tx.chatMessage.updateMany({
-                where: { senderId: sourceUserId },
-                data: { senderId: targetUserId }
-            }).catch(() => {});
+            // 5. Unificar padrón de categorías de jugador (PlayerCategoryAssignment)
+            const sourceAssignment = await tx.playerCategoryAssignment.findUnique({
+                where: {
+                    tenantId_userId: {
+                        tenantId,
+                        userId: sourceUserId
+                    }
+                }
+            });
+            if (sourceAssignment) {
+                const targetAssignment = await tx.playerCategoryAssignment.findUnique({
+                    where: {
+                        tenantId_userId: {
+                            tenantId,
+                            userId: targetUserId
+                        }
+                    }
+                });
+                if (targetAssignment) {
+                    await tx.playerCategoryAssignment.delete({ where: { id: sourceAssignment.id } });
+                } else {
+                    await tx.playerCategoryAssignment.update({
+                        where: { id: sourceAssignment.id },
+                        data: { userId: targetUserId }
+                    });
+                }
+            }
 
-            // 5. Reasignar OpenMatch creados
+            // 6. Reasignar partidos abiertos creados
             await tx.openMatch.updateMany({
-                where: { creatorId: sourceUserId },
+                where: { creatorId: sourceUserId, tenantId },
                 data: { creatorId: targetUserId }
-            }).catch(() => {});
+            });
 
-            // 6. Completar datos faltantes en targetUser si sourceUser los tiene
+            // 7. Unificar jugadores unidos a partidos abiertos (OpenMatchPlayer)
+            const sourceJoinedMatches = await tx.openMatchPlayer.findMany({
+                where: { userId: sourceUserId, tenantId }
+            });
+            for (const sm of sourceJoinedMatches) {
+                const targetInMatch = await tx.openMatchPlayer.findUnique({
+                    where: {
+                        tenantId_matchId_userId: {
+                            tenantId,
+                            matchId: sm.matchId,
+                            userId: targetUserId
+                        }
+                    }
+                });
+                if (targetInMatch) {
+                    await tx.openMatchPlayer.delete({ where: { id: sm.id } });
+                } else {
+                    await tx.openMatchPlayer.update({
+                        where: { id: sm.id },
+                        data: { userId: targetUserId }
+                    });
+                }
+            }
+
+            // 8. Reasignar publicaciones y comentarios de comunidad
+            await tx.post.updateMany({
+                where: { authorId: sourceUserId, tenantId },
+                data: { authorId: targetUserId }
+            });
+            await tx.postComment.updateMany({
+                where: { authorId: sourceUserId, tenantId },
+                data: { authorId: targetUserId }
+            });
+
+            // 9. Unificar likes de post sin duplicar
+            const sourceLikes = await tx.postLike.findMany({
+                where: { userId: sourceUserId, tenantId }
+            });
+            for (const sl of sourceLikes) {
+                const targetLike = await tx.postLike.findUnique({
+                    where: {
+                        tenantId_postId_userId: {
+                            tenantId,
+                            postId: sl.postId,
+                            userId: targetUserId
+                        }
+                    }
+                });
+                if (targetLike) {
+                    await tx.postLike.delete({ where: { id: sl.id } });
+                } else {
+                    await tx.postLike.update({
+                        where: { id: sl.id },
+                        data: { userId: targetUserId }
+                    });
+                }
+            }
+
+            // 10. Unificar participantes de chat
+            const sourceParticipants = await tx.chatParticipant.findMany({
+                where: { userId: sourceUserId, tenantId }
+            });
+            for (const sp of sourceParticipants) {
+                const targetInChat = await tx.chatParticipant.findUnique({
+                    where: {
+                        tenantId_conversationId_userId: {
+                            tenantId,
+                            conversationId: sp.conversationId,
+                            userId: targetUserId
+                        }
+                    }
+                });
+                if (targetInChat) {
+                    await tx.chatParticipant.delete({ where: { id: sp.id } });
+                } else {
+                    await tx.chatParticipant.update({
+                        where: { id: sp.id },
+                        data: { userId: targetUserId }
+                    });
+                }
+            }
+
+            // 11. Reasignar mensajes de chat enviados
+            await tx.chatMessage.updateMany({
+                where: { senderId: sourceUserId, tenantId },
+                data: { senderId: targetUserId }
+            });
+
+            // 12. Limpiar notificaciones, suscripciones push y sesiones del usuario origen
+            await tx.communityNotification.deleteMany({
+                where: { userId: sourceUserId, tenantId }
+            });
+            await tx.pushSubscription.deleteMany({
+                where: { userId: sourceUserId, tenantId }
+            });
+            await tx.userSession.deleteMany({
+                where: { userId: sourceUserId, tenantId }
+            });
+            await tx.adminSession.deleteMany({
+                where: { userId: sourceUserId, tenantId }
+            });
+
+            // 13. Liberar claves únicas en sourceUser para evitar colisiones al actualizar targetUser
+            await tx.user.update({
+                where: { id: sourceUserId },
+                data: {
+                    email: null,
+                    dni: null,
+                    phone: null
+                }
+            });
+
+            // 14. Completar datos faltantes en targetUser si sourceUser los tenía
             const updatePayload: any = {};
             if (!targetUser.phone && sourceUser.phone) updatePayload.phone = normalizePhoneNumber(sourceUser.phone);
             if (!targetUser.email && sourceUser.email && !sourceUser.email.endsWith('@local.onlypadel')) updatePayload.email = sourceUser.email;
@@ -382,6 +552,9 @@ export async function mergeUserAccountsAdmin(targetUserId: string, sourceUserId:
             if (!targetUser.lastName && sourceUser.lastName) updatePayload.lastName = sourceUser.lastName;
             if (!targetUser.password && sourceUser.password) updatePayload.password = sourceUser.password;
             if (!targetUser.category && sourceUser.category) updatePayload.category = sourceUser.category;
+            if (!targetUser.avatarUrl && sourceUser.avatarUrl) updatePayload.avatarUrl = sourceUser.avatarUrl;
+            if (!targetUser.bio && sourceUser.bio) updatePayload.bio = sourceUser.bio;
+            if (!targetUser.preferredPosition && sourceUser.preferredPosition) updatePayload.preferredPosition = sourceUser.preferredPosition;
 
             if (Object.keys(updatePayload).length > 0) {
                 await tx.user.update({
@@ -390,21 +563,13 @@ export async function mergeUserAccountsAdmin(targetUserId: string, sourceUserId:
                 });
             }
 
-            // 7. Eliminar de forma segura la cuenta duplicada
+            // 15. Eliminar definitivamente la cuenta duplicada (ahora sin ninguna llave foránea pendiente)
             await tx.user.delete({
                 where: { id: sourceUserId }
-            }).catch(async () => {
-                // Si hay llaves foráneas estrictas restantes, desactivarla
-                await tx.user.update({
-                    where: { id: sourceUserId },
-                    data: {
-                        isActive: false,
-                        phone: `MERGED_${Date.now()}_${sourceUser.phone || ''}`,
-                        email: `merged_${Date.now()}@local.onlypadel`,
-                        dni: null
-                    }
-                });
             });
+        }, {
+            maxWait: 15000,
+            timeout: 45000
         });
 
         revalidatePath("/admin/usuarios");

@@ -208,21 +208,35 @@ export default function UsuariosClient({ initialUsers }: { initialUsers: UserDat
         setIsLoadingDuplicates(false);
     };
 
-    const handleMergeAccounts = async (targetUserId: string, sourceUserId: string) => {
-        if (!confirm('¿Estás seguro de unificar estas dos cuentas? Todas las reservas, abonos y datos se moverán a la cuenta seleccionada.')) return;
+    const handleMergeAccounts = async (targetUserId: string, sourceUserIds: string | string[]) => {
+        const ids = Array.isArray(sourceUserIds) ? sourceUserIds : [sourceUserIds];
+        if (ids.length === 0) return;
+        const msg = ids.length > 1
+            ? `¿Estás seguro de unificar estas ${ids.length + 1} cuentas en una sola? Todas las reservas, abonos y datos se moverán a la cuenta seleccionada.`
+            : '¿Estás seguro de unificar estas dos cuentas? Todas las reservas, abonos y datos se moverán a la cuenta seleccionada.';
+        if (!confirm(msg)) return;
+
         setIsMerging(true);
-        const res = await mergeUserAccountsAdmin(targetUserId, sourceUserId);
-        if (res.success) {
+        try {
+            for (const sourceId of ids) {
+                const res = await mergeUserAccountsAdmin(targetUserId, sourceId);
+                if (!res.success) {
+                    alert(res.error || 'Error al unificar cuentas.');
+                    setIsMerging(false);
+                    return;
+                }
+            }
             alert('¡Cuentas unificadas con éxito!');
             router.refresh();
             const updated = await findDuplicateUsersAdmin();
             if (updated.success && updated.data) {
                 setDuplicateGroups(updated.data);
             }
-        } else {
-            alert(res.error || 'Error al unificar cuentas.');
+        } catch (err: any) {
+            alert(err.message || 'Error al unificar cuentas.');
+        } finally {
+            setIsMerging(false);
         }
-        setIsMerging(false);
     };
 
     const handleBatchNormalizePhones = async () => {
@@ -837,14 +851,21 @@ export default function UsuariosClient({ initialUsers }: { initialUsers: UserDat
                                                             <button
                                                                 disabled={isMerging}
                                                                 onClick={() => {
-                                                                    // Unificar todas las otras cuentas de este grupo en esta cuenta
                                                                     if (otherUsers.length > 0) {
-                                                                        handleMergeAccounts(u.id, otherUsers[0].id);
+                                                                        handleMergeAccounts(u.id, otherUsers.map(o => o.id));
                                                                     }
                                                                 }}
-                                                                className="w-full mt-2 py-1.5 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-700 hover:text-white dark:text-emerald-300 text-xs font-black transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                                                                className="w-full mt-2 py-1.5 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-700 hover:text-white dark:text-emerald-300 text-xs font-black transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
                                                             >
-                                                                <Check className="w-3.5 h-3.5" /> Conservar esta cuenta
+                                                                {isMerging ? (
+                                                                    <>
+                                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Unificando...
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Check className="w-3.5 h-3.5" /> Conservar esta cuenta
+                                                                    </>
+                                                                )}
                                                             </button>
                                                         </div>
                                                     );

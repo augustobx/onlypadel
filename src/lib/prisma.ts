@@ -185,10 +185,8 @@ export const prisma = platformPrisma.$extends({
             throw new Error(`RECORD_NOT_FOUND_OR_ACCESS_DENIED:${model}`);
           }
           const whereKey = 'id' in existing && existing.id !== undefined ? { id: existing.id } : { tenantId: existing.tenantId };
-          return delegate.update({
-            ...mutableArgs,
-            where: whereKey,
-          });
+          mutableArgs.where = whereKey;
+          return query(mutableArgs);
         } else if (operation === 'delete') {
           const existing = await delegate.findFirst({
             where: withTenantWhere(mutableArgs.where, tenant.id),
@@ -198,10 +196,8 @@ export const prisma = platformPrisma.$extends({
             throw new Error(`RECORD_NOT_FOUND_OR_ACCESS_DENIED:${model}`);
           }
           const whereKey = 'id' in existing && existing.id !== undefined ? { id: existing.id } : { tenantId: existing.tenantId };
-          return delegate.delete({
-            ...mutableArgs,
-            where: whereKey,
-          });
+          mutableArgs.where = whereKey;
+          return query(mutableArgs);
         } else if (operation === 'updateMany' || operation === 'deleteMany') {
           mutableArgs.where = withTenantWhere(mutableArgs.where, tenant.id);
           if ('data' in mutableArgs) {
