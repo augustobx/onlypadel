@@ -112,6 +112,30 @@ async function consumeChallenge(
     return challenge;
 }
 
+export async function getPasskeyPromptState() {
+    try {
+        await requireTenantFeature("users");
+
+        const userId = await readUserSessionId();
+        if (!userId) {
+            return { authenticated: false as const, hasPasskey: false as const };
+        }
+
+        const tenant = await resolveTenantContext();
+        const count = await platformPrisma.userPasskey.count({
+            where: { tenantId: tenant.id, userId },
+        });
+
+        return {
+            authenticated: true as const,
+            hasPasskey: count > 0,
+        };
+    } catch (error) {
+        console.error("Passkey prompt state error:", error);
+        return { authenticated: false as const, hasPasskey: false as const };
+    }
+}
+
 export async function getUserPasskeys() {
     await requireTenantFeature("users");
 
