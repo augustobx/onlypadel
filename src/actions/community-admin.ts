@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
 import { revalidatePath } from 'next/cache';
 import type { PostType } from '@prisma/client';
+import { createUserNotification } from '@/lib/user-notifications';
 
 export async function getAdminPosts(params?: {
   page?: number;
@@ -180,14 +181,12 @@ export async function createClubAnnouncement(data: {
         take: 100,
       });
       for (const p of players) {
-        await prisma.communityNotification.create({
-          data: {
-            userId: p.id,
-            type: 'CLUB_ANNOUNCEMENT',
-            title: '📢 Nuevo Comunicado Oficial del Club',
-            body: data.content.trim().slice(0, 90) + (data.content.trim().length > 90 ? '...' : ''),
-            linkUrl: '/comunidad',
-          },
+        await createUserNotification({
+          userId: p.id,
+          type: 'CLUB_ANNOUNCEMENT',
+          title: '📢 Nuevo Comunicado Oficial del Club',
+          body: data.content.trim().slice(0, 90) + (data.content.trim().length > 90 ? '...' : ''),
+          linkUrl: '/comunidad',
         });
       }
     } catch (e) {

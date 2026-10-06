@@ -5,6 +5,7 @@ import { readUserSessionId } from '@/lib/user-session';
 import { revalidatePath } from 'next/cache';
 import { requireTenantFeature } from '@/lib/features';
 import type { PreferredPosition, OpenMatchStatus } from '@prisma/client';
+import { createUserNotification } from '@/lib/user-notifications';
 
 export interface OpenMatchCardData {
   id: string;
@@ -456,14 +457,12 @@ export async function joinOpenMatch(matchId: string) {
         timeZone: 'America/Argentina/Buenos_Aires',
       }).format(new Date(match.date));
 
-      await prisma.communityNotification.create({
-        data: {
-          userId: match.creatorId,
-          type: 'MATCH_JOIN',
-          title: '¡Alguien se sumó a tu turno! 🎾',
-          body: `${name} se sumó a tu convocatoria para el ${dateFormatted} a las ${match.startTime} hs en ${match.courtName}.`,
-          linkUrl: `/comunidad/turnos`,
-        },
+      await createUserNotification({
+        userId: match.creatorId,
+        type: 'MATCH_JOIN',
+        title: '¡Alguien se sumó a tu turno! 🎾',
+        body: `${name} se sumó a tu convocatoria para el ${dateFormatted} a las ${match.startTime} hs en ${match.courtName}.`,
+        linkUrl: `/comunidad/turnos`,
       });
     } catch (e) {
       console.error('Error creating join notification:', e);
@@ -521,14 +520,12 @@ export async function leaveOpenMatch(matchId: string) {
         timeZone: 'America/Argentina/Buenos_Aires',
       }).format(new Date(match.date));
 
-      await prisma.communityNotification.create({
-        data: {
-          userId: match.creatorId,
-          type: 'MATCH_LEAVE',
-          title: 'Cupo liberado en tu turno 🎾',
-          body: `${name} se dio de baja de tu convocatoria para el ${dateFormatted} a las ${match.startTime} hs.`,
-          linkUrl: '/comunidad/turnos',
-        },
+      await createUserNotification({
+        userId: match.creatorId,
+        type: 'MATCH_LEAVE',
+        title: 'Cupo liberado en tu turno 🎾',
+        body: `${name} se dio de baja de tu convocatoria para el ${dateFormatted} a las ${match.startTime} hs.`,
+        linkUrl: '/comunidad/turnos',
       });
     } catch (e) {
       console.error('Error creating leave notification:', e);
@@ -604,14 +601,12 @@ export async function removePlayerFromOpenMatch(matchId: string, targetUserId: s
         timeZone: 'America/Argentina/Buenos_Aires',
       }).format(new Date(match.date));
 
-      await prisma.communityNotification.create({
-        data: {
-          userId: targetUserId,
-          type: 'MATCH_LEAVE',
-          title: 'Aviso de convocatoria 🎾',
-          body: `El organizador ha liberado tu cupo para el partido del ${dateFormatted} a las ${match.startTime} hs en ${match.courtName}.`,
-          linkUrl: '/comunidad/turnos',
-        },
+      await createUserNotification({
+        userId: targetUserId,
+        type: 'MATCH_LEAVE',
+        title: 'Aviso de convocatoria 🎾',
+        body: `El organizador ha liberado tu cupo para el partido del ${dateFormatted} a las ${match.startTime} hs en ${match.courtName}.`,
+        linkUrl: '/comunidad/turnos',
       });
     } catch (notifErr) {
       console.warn('Error creating removal notification:', notifErr);

@@ -13,7 +13,14 @@ export async function sendAdminPushNotification(title: string, body: string, url
       return;
     }
 
-    const subscriptions = await prisma.pushSubscription.findMany();
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: {
+        user: {
+          role: 'ADMIN',
+          isActive: true,
+        },
+      },
+    });
     if (!subscriptions || subscriptions.length === 0) {
       return;
     }
@@ -44,5 +51,61 @@ export async function sendAdminPushNotification(title: string, body: string, url
     await Promise.allSettled(promises);
   } catch (error) {
     console.error('Failed to send admin push notifications', error);
+  }
+}
+
+
+export async function sendUserPushNotification(
+  userId: string,
+  title: string,
+  body: string,
+  url: string = '/'
+) {
+  await requireTenantFeature('push').catch(() => {});
+
+  try {
+    const keys = await getOrGenerateVapidKeys();
+    if (!keys.publicKey || !keys.privateKey) {
+      console.warn('VAPID keys could not be obtained, skipping user push notification');
+      return;
+    }
+
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: {
+        userId,
+        user: {
+          isActive: true,
+        },
+      },
+    });
+
+    if (!subscriptions.length) return;
+
+    const payload = JSON.stringify({ title, body, url });
+
+    await Promise.allSettled(
+      subscriptions.map(async (sub: any) => {
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh,
+                auth: sub.auth,
+              },
+            },
+            payload
+          );
+        } catch (error: any) {
+          if (error?.statusCode === 404 || error?.statusCode === 410) {
+            await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+          } else {
+            console.error('Error sending user push notification:', error);
+          }
+        }
+      })
+    );
+  } catch (error) {
+    console.error('Failed to send user push notification', error);
   }
 }

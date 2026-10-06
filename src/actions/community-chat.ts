@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { readUserSessionId } from "@/lib/user-session";
 import { requireTenantFeature } from "@/lib/features";
 import { revalidatePath } from "next/cache";
+import { createUserNotification } from "@/lib/user-notifications";
 
 // ─── Helpers ──────────────────────────────────────────────
 async function requireChatUser() {
@@ -318,14 +319,12 @@ export async function sendMessage(
       const snippet = content.length > 70 ? content.slice(0, 67) + "..." : content;
 
       for (const other of otherParticipants) {
-        await prisma.communityNotification.create({
-          data: {
-            userId: other.userId,
-            type: "CHAT_MESSAGE",
-            title: `Nuevo mensaje de ${senderName}`,
-            body: snippet,
-            linkUrl: `/comunidad/chat/${conversationId}`,
-          },
+        await createUserNotification({
+          userId: other.userId,
+          type: "CHAT_MESSAGE",
+          title: `Nuevo mensaje de ${senderName}`,
+          body: snippet,
+          linkUrl: `/comunidad/chat/${conversationId}`,
         });
       }
     } catch (notifErr) {

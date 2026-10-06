@@ -28,12 +28,29 @@ export default function PushConfig() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then(reg => {
+      navigator.serviceWorker.register('/sw.js').then(async reg => {
         setSwRegistration(reg);
-        reg.pushManager.getSubscription().then(sub => {
-          setIsSubscribed(!!sub);
+        const sub = await reg.pushManager.getSubscription();
+
+        if (!sub) {
+          setIsSubscribed(false);
           setLoading(false);
-        });
+          return;
+        }
+
+        const response = await fetch(
+          `/api/push/subscribe?endpoint=${encodeURIComponent(sub.endpoint)}`,
+          { cache: 'no-store' }
+        ).catch(() => null);
+
+        if (response?.ok) {
+          const data = await response.json();
+          setIsSubscribed(Boolean(data?.subscribed));
+        } else {
+          setIsSubscribed(false);
+        }
+
+        setLoading(false);
       }).catch(err => {
         console.error('Service Worker registration failed:', err);
         setLoading(false);

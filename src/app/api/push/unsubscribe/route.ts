@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function POST(req: Request) {
   try {
+    const session = await requireAdmin();
     const data = await req.json();
     const { endpoint } = data;
 
@@ -10,16 +12,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Falta endpoint' }, { status: 400 });
     }
 
-    // Borramos cualquier suscripción que coincida con ese endpoint
     await prisma.pushSubscription.deleteMany({
       where: {
-        endpoint: endpoint
-      }
+        endpoint,
+        userId: session.userId,
+      },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting push subscription:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const status = error instanceof Error && error.message === 'UNAUTHORIZED' ? 401 : 500;
+    return NextResponse.json({ error: status === 401 ? 'Unauthorized' : 'Internal server error' }, { status });
   }
 }
