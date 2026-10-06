@@ -12,6 +12,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { getReadableForeground, normalizeHexColor, getThemeColors } from "@/lib/color";
 import ProfileCommunitySection from "@/components/community/ProfileCommunitySection";
+import PasskeyManager from "@/components/PasskeyManager";
+import { getUserPasskeys } from "@/actions/passkey-auth";
 
 export default async function PerfilPage() {
     const session = await getUserSession();
@@ -19,7 +21,7 @@ export default async function PerfilPage() {
         redirect("/login-usuario");
     }
 
-    const settings = await getSettings();
+    const [settings, passkeys] = await Promise.all([getSettings(), getUserPasskeys()]);
     const themeColors = getThemeColors(settings?.theme, settings?.primaryColor, settings?.secondaryColor);
     const primaryColor = themeColors.primary;
     const secondaryColor = themeColors.secondary;
@@ -175,6 +177,8 @@ export default async function PerfilPage() {
                             </div>
                         </div>
                     </div>
+
+                    <PasskeyManager initialPasskeys={passkeys} />
 
                     {/* SECCIÓN COMUNITARIA & CONVOCATORIAS */}
                     {isCommunityEnabled && (
