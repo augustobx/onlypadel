@@ -80,7 +80,7 @@ export default async function HomePage() {
         if (!hasSession && !hasSkipped) {
             return (
                 <div data-theme={theme} className={themeClass}>
-                    <UserWelcomeSplash />
+                    <UserWelcomeSplash registrationRequired={settings?.requireLoginToBook ?? false} />
                 </div>
             );
         }
