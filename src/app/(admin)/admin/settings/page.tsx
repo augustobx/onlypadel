@@ -21,7 +21,8 @@ export default async function SettingsPage() {
             'club_logo', 'splash_mode', 'splash_full_image',
             'announcement_active', 'announcement_badge', 'announcement_title',
             'announcement_text', 'announcement_link', 'announcement_link_text',
-            'announcement_variant', 'announcement_duration', 'announcement_auto_close'
+            'announcement_variant', 'announcement_duration', 'announcement_auto_close',
+            'require_login_to_book'
         ] } }
     });
     const customMap = Object.fromEntries(customSettings.map(s => [s.key, s.value]));
@@ -40,6 +41,7 @@ export default async function SettingsPage() {
         announcementVariant: customMap['announcement_variant'] || 'theme',
         announcementDuration: customMap['announcement_duration'] !== undefined ? Number(customMap['announcement_duration']) || 5 : 5,
         announcementAutoClose: customMap['announcement_auto_close'] !== undefined ? customMap['announcement_auto_close'] === 'true' : true,
+        requireLoginToBook: customMap['require_login_to_book'] === 'true',
         mpAccessToken: '',
         whatsappPhoneId: '',
         whatsappToken: '',
