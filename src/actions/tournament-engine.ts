@@ -762,7 +762,7 @@ export async function generateZonesAndSchedule(categoryId: string, config: {
         let matchIndex = 0;
         for (const m of matches) {
           const matchStart = new Date(zoneStart);
-          matchStart.setMinutes(matchStart.getMinutes() + matchIndex * zoneConf.intervalMinutes + (m.round - 1) * 30);
+          matchStart.setMinutes(matchStart.getMinutes() + matchIndex * zoneConf.intervalMinutes);
           await assertCourtAvailable(tx, zoneConf.courtId, matchStart);
           await tx.tournamentMatch.create({
             data: {

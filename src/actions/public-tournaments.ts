@@ -60,13 +60,14 @@ export async function getTournamentDetails(id: string) {
                 winner: { include: { player1: true, player2: true } },
                 court: true,
               },
-              orderBy: [{ round: 'desc' }, { matchOrder: 'asc' }]
+              orderBy: [{ startTime: 'asc' }, { matchOrder: 'asc' }]
             },
             groups: {
               include: {
                 teams: { include: { team: { include: { player1: true, player2: true } } }, orderBy: [{ points: 'desc' }, { matchesWon: 'desc' }, { setsWon: 'desc' }, { setsLost: 'asc' }, { gamesWon: 'desc' }, { gamesLost: 'asc' }] },
                 matches: { include: { team1: true, team2: true } }
-              }
+              },
+              orderBy: { name: 'asc' }
             }
           }
         }

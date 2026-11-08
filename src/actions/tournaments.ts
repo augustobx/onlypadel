@@ -331,16 +331,20 @@ export async function createTournamentWithWizard(payload: TournamentWizardPayloa
         }
       });
 
-      // 3. Crear Zonas, Plazas y estructurar Partidos
+      // 3. Crear Zonas, Plazas y estructurar Partidos por Bloque de Zona
       type ZoneMatchMeta = {
-        groupId: string;
         round: number;
         t1Id: string;
         t2Id: string;
       };
 
-      const matchesByRound: Map<number, ZoneMatchMeta[]> = new Map();
-      let maxRound = 0;
+      type ZoneData = {
+        groupId: string;
+        groupName: string;
+        matches: ZoneMatchMeta[];
+      };
+
+      const zonesData: ZoneData[] = [];
 
       for (let z = 0; z < numZones; z++) {
         const groupLetter = String.fromCharCode(65 + z);
@@ -374,22 +378,19 @@ export async function createTournamentWithWizard(payload: TournamentWizardPayloa
           });
         }
 
-        // Algoritmo Round-Robin para generar los cruces
+        // Algoritmo Round-Robin para generar los cruces de esta zona
         const teamArray: ({ id: string } | null)[] = [...dummyTeams];
         if (teamArray.length % 2 !== 0) teamArray.push(null);
         const n = teamArray.length;
+        const zoneMatches: ZoneMatchMeta[] = [];
 
         for (let r = 0; r < n - 1; r++) {
           const roundNum = r + 1;
-          if (roundNum > maxRound) maxRound = roundNum;
-          if (!matchesByRound.has(roundNum)) matchesByRound.set(roundNum, []);
-
           for (let i = 0; i < n / 2; i++) {
             const t1 = teamArray[i];
             const t2 = teamArray[n - 1 - i];
             if (t1 && t2) {
-              matchesByRound.get(roundNum)!.push({
-                groupId: group.id,
+              zoneMatches.push({
                 round: roundNum,
                 t1Id: t1.id,
                 t2Id: t2.id,
@@ -398,9 +399,17 @@ export async function createTournamentWithWizard(payload: TournamentWizardPayloa
           }
           teamArray.splice(1, 0, teamArray.pop()!);
         }
+
+        zonesData.push({
+          groupId: group.id,
+          groupName,
+          matches: zoneMatches,
+        });
       }
 
-      // 4. Programación inteligente de horarios y canchas
+      // 4. Programación inteligente de horarios y canchas por bloque de zona
+      // Cada zona se disputa de forma compacta y continua en su cancha asignada,
+      // evitando esperas de varias horas entre partidos de una misma zona.
       const courtAvailability = new Map<string, Date>();
       for (const courtId of courtIds) {
         courtAvailability.set(courtId, new Date(startDateTime));
@@ -409,29 +418,29 @@ export async function createTournamentWithWizard(payload: TournamentWizardPayloa
       let matchOrder = 1;
       const createdMatchesInfo: { courtId: string; startTime: Date }[] = [];
 
-      for (let r = 1; r <= maxRound; r++) {
-        const roundMatches = matchesByRound.get(r) || [];
+      for (const zone of zonesData) {
+        // Seleccionar la cancha libre más temprana
+        let bestCourtId = courtIds[0];
+        let earliestTime = courtAvailability.get(bestCourtId)!;
 
-        for (const m of roundMatches) {
-          // Seleccionar la cancha libre más temprana
-          let bestCourtId = courtIds[0];
-          let earliestTime = courtAvailability.get(bestCourtId)!;
-
-          for (const cId of courtIds) {
-            const cTime = courtAvailability.get(cId)!;
-            if (cTime.getTime() < earliestTime.getTime()) {
-              earliestTime = cTime;
-              bestCourtId = cId;
-            }
+        for (const cId of courtIds) {
+          const cTime = courtAvailability.get(cId)!;
+          if (cTime.getTime() < earliestTime.getTime()) {
+            earliestTime = cTime;
+            bestCourtId = cId;
           }
+        }
 
-          const matchStart = new Date(earliestTime);
+        let currentZoneMatchTime = new Date(earliestTime);
+
+        for (const m of zone.matches) {
+          const matchStart = new Date(currentZoneMatchTime);
           const matchEnd = new Date(matchStart.getTime() + duration * 60_000);
 
           await tx.tournamentMatch.create({
             data: {
               categoryId: category.id,
-              groupId: m.groupId,
+              groupId: zone.groupId,
               round: m.round,
               matchOrder: matchOrder++,
               team1Id: m.t1Id,
@@ -444,8 +453,10 @@ export async function createTournamentWithWizard(payload: TournamentWizardPayloa
           });
 
           createdMatchesInfo.push({ courtId: bestCourtId, startTime: matchStart });
-          courtAvailability.set(bestCourtId, matchEnd);
+          currentZoneMatchTime = matchEnd;
         }
+
+        courtAvailability.set(bestCourtId, currentZoneMatchTime);
       }
 
       // 5. Cancelar turnos normales en conflicto

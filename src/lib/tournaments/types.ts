@@ -23,6 +23,7 @@ export type TournamentMatchView = {
   scoreTeam1: string | null;
   scoreTeam2: string | null;
   courtId: string | null;
+  court?: CourtView | { id: string; name: string } | null;
   startTime: string | Date | null;
   status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   team1?: TournamentTeamView | null;

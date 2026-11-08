@@ -179,7 +179,9 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
     for (const g of selectedCatObj.groups!) {
       const plaza = g.teams.find((t: any) => t.team.id === selectedTeamId);
       if (plaza) {
-        const matches = selectedCatObj.matches!.filter((m) => m.team1Id === selectedTeamId || m.team2Id === selectedTeamId);
+        const matches = selectedCatObj.matches!
+          .filter((m) => m.team1Id === selectedTeamId || m.team2Id === selectedTeamId)
+          .sort((a, b) => new Date(a.startTime || 0).getTime() - new Date(b.startTime || 0).getTime());
         selectedPlazaSummary = {
           zoneName: g.name,
           plazaName: plaza.team.name,
@@ -265,10 +267,27 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
         <div className="space-y-4">
           <Label className="text-slate-300 text-lg font-black">Elegí tu Zona y Plaza de Juego</Label>
           <div className="grid grid-cols-1 gap-5">
-            {selectedCatObj.groups!.map(group => {
+            {[...(selectedCatObj.groups || [])].sort((gA, gB) => {
+              const mA = (selectedCatObj.matches || []).filter(m => m.groupId === gA.id && m.startTime).sort((a, b) => new Date(a.startTime!).getTime() - new Date(b.startTime!).getTime());
+              const mB = (selectedCatObj.matches || []).filter(m => m.groupId === gB.id && m.startTime).sort((a, b) => new Date(a.startTime!).getTime() - new Date(b.startTime!).getTime());
+              const tA = mA[0]?.startTime ? new Date(mA[0].startTime!).getTime() : 0;
+              const tB = mB[0]?.startTime ? new Date(mB[0].startTime!).getTime() : 0;
+              if (tA !== tB) return tA - tB;
+              return gA.name.localeCompare(gB.name);
+            }).map(group => {
+              const groupMatches = (selectedCatObj.matches || [])
+                .filter(m => m.groupId === group.id && m.startTime)
+                .sort((a, b) => new Date(a.startTime!).getTime() - new Date(b.startTime!).getTime());
+              const firstGroupMatch = groupMatches[0];
+              const zoneCourtName = firstGroupMatch?.court?.name;
+
               const sortedTeams = [...group.teams].sort((a, b) => {
-                const mA = selectedCatObj.matches!.filter((m) => m.team1Id === a.team.id || m.team2Id === a.team.id);
-                const mB = selectedCatObj.matches!.filter((m) => m.team1Id === b.team.id || m.team2Id === b.team.id);
+                const mA = (selectedCatObj.matches || [])
+                  .filter((m) => m.team1Id === a.team.id || m.team2Id === a.team.id)
+                  .sort((x, y) => new Date(x.startTime || 0).getTime() - new Date(y.startTime || 0).getTime());
+                const mB = (selectedCatObj.matches || [])
+                  .filter((m) => m.team1Id === b.team.id || m.team2Id === b.team.id)
+                  .sort((x, y) => new Date(x.startTime || 0).getTime() - new Date(y.startTime || 0).getTime());
                 const tA = mA[0]?.startTime ? new Date(mA[0].startTime).getTime() : 0;
                 const tB = mB[0]?.startTime ? new Date(mB[0].startTime).getTime() : 0;
                 return tA - tB;
@@ -276,12 +295,21 @@ export default function TournamentRegistrationForm({ tournamentId, categories, r
 
               return (
                 <div key={group.id} className="bg-slate-800/80 border border-slate-700 rounded-2xl p-5 shadow-lg">
-                  <h4 className="text-xl font-black text-emerald-400 mb-4">{group.name}</h4>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <h4 className="text-xl font-black text-emerald-400">{group.name}</h4>
+                    {firstGroupMatch?.startTime && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-700/60 border border-slate-600/50 text-slate-300">
+                        {zoneCourtName ? `${zoneCourtName} · ` : ''}Comienza {new Date(firstGroupMatch.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
+                      </span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {sortedTeams.map((gt) => {
                       const t = gt.team;
                       const isLibre = t.player1?.phone === 'DUMMY_PLAZA';
-                      const matches = selectedCatObj.matches!.filter((m) => m.team1Id === t.id || m.team2Id === t.id);
+                      const matches = (selectedCatObj.matches || [])
+                        .filter((m) => m.team1Id === t.id || m.team2Id === t.id)
+                        .sort((a, b) => new Date(a.startTime || 0).getTime() - new Date(b.startTime || 0).getTime());
 
                       return (
                         <div 
